@@ -139,7 +139,9 @@ SD::StarVector DetectStars(cv::Mat img,const double star_thresh,const int vote_t
     SD().AperturePhotometry(img, starvector);
 
     std::sort(starvector.begin(), starvector.end(), StarDetection::Star());
-    //if (sv.size() > 200)
-    starvector.resize(200);
+
+    if (starvector.size() > 200)
+        starvector.resize(200);
+
     return starvector;
 }
