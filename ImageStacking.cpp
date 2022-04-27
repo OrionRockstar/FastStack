@@ -15,7 +15,7 @@ void IS::Average(std::vector<IS::ImagePtr> imgvec,cv::Mat final_image){
         fptr[el] = ushort(std::accumulate(pixelstack.begin(), pixelstack.end(), 0) / pixelstack.size());
     }
         
-    }
+}
     
 void IS::Median(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image) {
     ushort* fptr = (ushort*)final_image.data;

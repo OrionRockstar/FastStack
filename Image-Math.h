@@ -43,6 +43,7 @@ static int StandardDeviation(unsigned short* ptr, int size) {
 };
 
 static void MedianBlur(cv::Mat img) {
+    //3x3 kernel median blur 
     unsigned short* iptr = (unsigned short*)img.data;
     std::array<unsigned short, 9>kernel = { 0 };
     std::vector<unsigned short> imgbuf(img.rows * img.cols);
@@ -130,7 +131,8 @@ static void RotateTranslate(cv::Mat img, double* aff_mat) {
     std::copy(pixels.begin(), pixels.end(), &fptr[0]);
 }
 
-static void mtf(cv::Mat img) {
+static void MTF(cv::Mat img) {
+    //Midtone Transfer Function
     double* ptr = (double*)img.data;
     for (int el = 0; el < img.rows * img.cols; ++el)
         ptr[el] /= 65535;
@@ -141,7 +143,6 @@ static void mtf(cv::Mat img) {
 
     double shadow = mid - 2.8 * nMAD, midtone = 4 * 1.4826 * (mid - shadow); //.75*mid
 
-#pragma omp parallel for
     for (int el = 0; el < img.rows * img.cols; ++el) {
         ptr[el] = (ptr[el] - shadow) / (1 - shadow);
 
