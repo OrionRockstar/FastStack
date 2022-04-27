@@ -28,7 +28,6 @@ static std::array<double,2> Median_nMAD (double* ptr,int size){
     return { median,1.4826*imgbuf[size / 2] };
 }
 
-
 static int StandardDeviation(unsigned short* ptr, int size) {
     int64_t mean = 0;
     for (int el = 0; el < size; el++)
@@ -104,7 +103,7 @@ static void RotateTranslate(cv::Mat img, double* aff_mat) {
     }
 
     else {
-#pragma omp parallel for private(x_n,y_n,,yx,yy,temp)
+#pragma omp parallel for private(x_n,y_n,yx,yy,temp)
         for (int y = 0; y < img.rows; ++y) {
             yx = int(y * aff_mat[1]);
             yy = int(y * aff_mat[4]);
