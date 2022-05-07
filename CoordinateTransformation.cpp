@@ -132,11 +132,8 @@ Eigen::Matrix3d CT::RANSAC(SD::StarVector refstarvector, SD::StarVector tgtstarv
         }
     }
 
-    if ((double)final_ref_inlier.size() / refstarvector.size() < .5) {
-        
+    if (maxmatch < .25*tvgsptotal) 
         return Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN());
-
-    }
 
     finalhomography = FinalHomography(final_ref_inlier, final_tgt_inlier);
 

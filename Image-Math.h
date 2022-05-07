@@ -5,41 +5,43 @@
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-static int Median(unsigned short* ptr, int size) {
-    std::vector<unsigned short> imgbuf(size);
+template<typename PtrType>
+static PtrType Median(PtrType * ptr, int size){
+    std::vector<PtrType> imgbuf(size);
     std::copy(&ptr[0], &ptr[size], &imgbuf[0]);
 
-    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[imgbuf.size()]);
-    return imgbuf[size / 2];
+    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[imgbuf.size() - 1]);
+    return (PtrType)imgbuf[size / 2];
 }
 
-static std::array<double,2> Median_nMAD (double* ptr,int size){
+static std::array<double,2> Median_nMAD (float* ptr,int size){
     std::vector<double> imgbuf(size);
     std::copy(&ptr[0], &ptr[size], &imgbuf[0]);
 
-    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[size]);
+    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[size - 1]);
     double median=imgbuf[size / 2];
 
     for (int el = 0; el < size; ++el)
         imgbuf[el] = fabs(imgbuf[el] - median);
 
-    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[size]);
+    std::nth_element(&imgbuf[0], &imgbuf[size / 2], &imgbuf[size - 1]);
     
     return { median,1.4826*imgbuf[size / 2] };
 }
 
-static int StandardDeviation(unsigned short* ptr, int size) {
-    int64_t mean = 0;
+template<typename PtrType,typename SType>
+static double StandardDeviation(PtrType* ptr, int size) {
+    SType mean = 0;
     for (int el = 0; el < size; el++)
         mean += ptr[el];
     mean /= size;
-    int64_t var = 0;
-    int64_t d;
+    SType var = 0;
+    SType d;
     for (int el = 0; el < size; ++el) {
         d = ptr[el] - mean;
         var += d * d;
     }
-    return (int)sqrt(var / size);
+    return sqrt(var / size);
 };
 
 static void MedianBlur(cv::Mat img) {
@@ -133,7 +135,7 @@ static void RotateTranslate(cv::Mat img, double* aff_mat) {
 
 static void MTF(cv::Mat img) {
     //Midtone Transfer Function
-    double* ptr = (double*)img.data;
+    float* ptr = (float*)img.data;
     for (int el = 0; el < img.rows * img.cols; ++el)
         ptr[el] /= 65535;
     

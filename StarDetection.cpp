@@ -2,23 +2,24 @@
 
 using SD = StarDetection;
 
-void SD::TrinerizeImage(cv::Mat img, int threshold, bool blur) {
-    ushort* iptr = (ushort*)img.data;
+void SD::TrinerizeImage(cv::Mat input, cv::Mat &output, int threshold, bool blur) {
+    output = input.clone();
+    ushort* iptr = (ushort*)output.data;
 
     if (blur)
-        MedianBlur(img);
+        MedianBlur(output);
 
-    for (int i = 0; i < img.rows * img.cols; ++i) {
+    for (int i = 0; i < output.rows * output.cols; ++i) {
         if (iptr[i] >= threshold)  iptr[i] = 1;
         else  iptr[i] = 0;
     }
 
-    for (int y = 1; y < img.rows - 1; ++y) {
-        for (int x = 1; x < img.cols - 1; ++x) {
-            if (iptr[y * img.cols + x] == 1) {
+    for (int y = 1; y < output.rows - 1; ++y) {
+        for (int x = 1; x < output.cols - 1; ++x) {
+            if (iptr[y * output.cols + x] == 1) {
                 //if ((x - 1 >= 0 && mptr[y * col + (x - 1)] == 0) || (x + 1 < col && mptr[y * col + (x + 1)] == 0) || (y - 1 >= 0 && mptr[(y - 1) * col + x] == 0) || (y + 1 < row && mptr[(y + 1) * col + x] == 0))  continue;
-                if (iptr[y * img.cols + (x - 1)] == 0 || iptr[y * img.cols + (x + 1)] == 0 || iptr[(y - 1) * img.cols + x] == 0 || iptr[(y + 1) * img.cols + x] == 0)  continue;
-                else  iptr[y * img.cols + x] = 2;
+                if (iptr[y * output.cols + (x - 1)] == 0 || iptr[y * output.cols + (x + 1)] == 0 || iptr[(y - 1) * output.cols + x] == 0 || iptr[(y + 1) * output.cols + x] == 0)  continue;
+                else  iptr[y * output.cols + x] = 2;
             }
         }
     }
@@ -35,7 +36,7 @@ void SD::AperturePhotometry(cv::Mat img, SD::StarVector &starvector) {
     for (auto &star : starvector) {
         x = int(round(star.xc));
         y = int(round(star.yc));
-        r = int(ceil(star.radius));
+        r = int(ceil(star.radius))+1;
         intensity_x = 0;
         intensity_y = 0;
         intensity2 = 0;
@@ -43,18 +44,18 @@ void SD::AperturePhotometry(cv::Mat img, SD::StarVector &starvector) {
         num = 0;
         skyvec.clear();
 
-        for (int row = y - 7 * r; row <= y + 7 * r; row++) {
-            for (int col = x - 7 * r; col <= x + 7 * r; col++) {
-                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && ((4 * r) <= Distance(col, row, x, y) && Distance(col, row, x, y) <= (7 * r)))
+        for (int row = y - 6 * r; row <= y + 6 * r; row++) {
+            for (int col = x - 6 * r; col <= x + 6 * r; col++) {
+                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && ((4 * r) <= Distance(col, row, x, y) && Distance(col, row, x, y) <= (6 * r)))
                     skyvec.push_back(mult * (double)iptr[row * img.cols + col]);
             }
         }
         auto sky = skyvec.begin() + int(.5 * skyvec.size());
         std::nth_element(skyvec.begin(), sky, skyvec.end());
 
-        for (int row = y - r - 1; row <= y + r + 1; row++) {
-            for (int col = x - r - 1; col <= x + r + 1; col++) {
-                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && Distance(col, row, x, y) <= (r + 1)) {
+        for (int row = y - r; row <= y + r; row++) {
+            for (int col = x - r; col <= x + r; col++) {
+                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && Distance(col, row, x, y) <= r) {
                     intensity_x += (mult * iptr[row * img.cols + col]) * (mult * iptr[row * img.cols + col]) * col;
                     intensity_y += (mult * iptr[row * img.cols + col]) * (mult * iptr[row * img.cols + col]) * row;
                     intensity2 += (mult * iptr[row * img.cols + col]) * (mult * iptr[row * img.cols + col]);
@@ -70,20 +71,19 @@ void SD::AperturePhotometry(cv::Mat img, SD::StarVector &starvector) {
 
 }
 
-SD::StarVector DetectStars(cv::Mat img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
+SD::StarVector SD::DetectStars(cv::Mat img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
     ushort* iptr = (ushort*)img.data;
 
-    int med = Median(iptr, img.rows * img.cols);
-    int stddev = StandardDeviation(iptr, img.rows * img.cols);
-    int threshold = med + star_thresh * stddev;
+    unsigned short median = Median<unsigned short>(iptr, img.rows * img.cols);
+    unsigned short stddev = (unsigned short)StandardDeviation<unsigned short,int64_t>(iptr, img.rows * img.cols);
+    int threshold = median + star_thresh * stddev;
 
     std::vector <StarDetection::TrigAngles> trigang;
     for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
         trigang.push_back({ cos(theta),sin(theta) });
 
-    cv::Mat tri = img.clone();
-    SD().TrinerizeImage(tri, threshold, blur);
-    tri.convertTo(tri, CV_8UC1);
+    cv::Mat tri;
+    SD().TrinerizeImage(img, tri, threshold, blur);
     uchar* tptr = (uchar*)tri.data;
 
     bool newp = true;

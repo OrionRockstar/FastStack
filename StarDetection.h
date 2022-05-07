@@ -5,12 +5,16 @@ class StarDetection
 {
 public:
     struct Star {
-        double xc; //x-center coordinate
-        double yc; //y-center coordinate
-        double radius; //mean radius
-        double luminance; //approximated absolte magnitude of star
+        double xc=0; //x-center coordinate
+        double yc=0; //y-center coordinate
+        double radius=0; //mean radius
+        double luminance=0; //approximated absolte magnitude of star
+
+        Star()=default;
 
         bool operator()(Star& a, Star& b) { return (a.luminance < b.luminance); }
+
+
     };
 
     struct TrigAngles {
@@ -18,9 +22,10 @@ public:
         double sintheta;
     };
 
+
     typedef std::vector<Star>StarVector;
 
-    void TrinerizeImage(cv::Mat img, int threshold, bool blur);
+    void TrinerizeImage(cv::Mat input, cv::Mat &output, int threshold, bool blur);
 
     void AperturePhotometry(cv::Mat img, StarVector &starvector);
 

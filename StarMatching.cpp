@@ -43,9 +43,9 @@ SM::TriangleVector StarMatching::TrianglesComputation(StarDetection::StarVector 
 
 SM::TVGSPVector SM::MatchStars(SM::TriangleVector reftri, SM::TriangleVector tgttri,int psprow,int pspcol) {
 
-    std::vector<unsigned short> psp(psprow*pspcol);
+    std::vector<int> psp(psprow*pspcol);
 
-    auto vote = [&psp,pspcol](int target, int reference) {return psp[target * pspcol + reference]++; };
+    auto vote = [&psp,pspcol](int target, int reference) {return psp[reference*pspcol + target]++; };
     double tol = 0.0002;
 
     int lref = 0, iref;
@@ -74,15 +74,15 @@ SM::TVGSPVector SM::MatchStars(SM::TriangleVector reftri, SM::TriangleVector tgt
 
     SM::TVGSPVector tvgspvector;
 
-    int tcount = 0, tgtemp = 0, rtemp = 0, thresh=Median(&psp[0],psp.size())+StandardDeviation(&psp[0],psp.size()), maxv = thresh + 1;
+    int tcount = 0, tgtemp = 0, rtemp = 0, thresh=Median<int>(&psp[0],psp.size())+(int)StandardDeviation<int,int64_t>(&psp[0],psp.size()), maxv = thresh + 1;
     bool spe = false;
 
-    while (tcount<pspcol && maxv>thresh) {
+    while (tcount<200 && maxv>thresh) {
         maxv = thresh;
         for (int tgt = 0; tgt < pspcol; ++tgt) {
-            for (int ref = 0; ref < pspcol; ++ref) {
-                if (psp[tgt * pspcol + ref] > maxv) {
-                    maxv = psp[tgt * pspcol + ref];
+            for (int ref = 0; ref < psprow; ++ref) {
+                if (psp[ref * pspcol + tgt] > maxv) {
+                    maxv = psp[ref * pspcol + tgt];
                     tgtemp = tgt;
                     rtemp = ref;
                 }
@@ -97,11 +97,11 @@ SM::TVGSPVector SM::MatchStars(SM::TriangleVector reftri, SM::TriangleVector tgt
         }
         if (spe) {
             spe = false;
-            psp[tgtemp * pspcol + rtemp] = 0;
+            psp[rtemp * pspcol + tgtemp] = 0;
         }
         else {
             tvgspvector.push_back({ tgtemp,rtemp });
-            psp[tgtemp * pspcol + rtemp] = 0;
+            psp[rtemp * pspcol + tgtemp] = 0;
             tcount++;
 
         }

@@ -1,7 +1,6 @@
 #include "ImageStacking.h"
 
 using IS = ImageStacking;
-//void stack_frames(std::vector<Image_ptr> imgvec, cv::Mat final, int stack_t, int l_sigma, int u_sigma) 
 
 void IS::Average(std::vector<IS::ImagePtr> imgvec,cv::Mat final_image){
     ushort* fptr = (ushort*)final_image.data;
@@ -47,7 +46,7 @@ void IS::SigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image,dou
         old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
             median = pixelstack[pixelstack.size() / 2];
-            stddev = StandardDeviation(&pixelstack[0], (int)pixelstack.size());
+            stddev = (int)StandardDeviation<unsigned short,int64_t>(&pixelstack[0], (int)pixelstack.size());
 
             if (stddev == 0 || (old_stddev - stddev) == 0)  break;
 
@@ -101,7 +100,7 @@ void IS::WinsorizedSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final
         old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
             median = pixelstack[pixelstack.size() / 2];
-            stddev = StandardDeviation(&pixelstack[0], (int)pixelstack.size());
+            stddev = (int)StandardDeviation<unsigned short,int64_t>(&pixelstack[0], (int)pixelstack.size());
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
             int unn = 0;
