@@ -110,6 +110,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CoordinateTransformation.h" />
+    <ClInclude Include="FileIO.h" />
     <ClInclude Include="Image-Math.h" />
     <ClInclude Include="ImageStacking.h" />
     <ClInclude Include="StarDetection.h" />

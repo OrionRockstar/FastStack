@@ -25,10 +25,10 @@ public:
 
     typedef std::vector<Star>StarVector;
 
-    void TrinerizeImage(cv::Mat input, cv::Mat &output, int threshold, bool blur);
+    void TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blur);
 
-    void AperturePhotometry(cv::Mat img, StarVector &starvector);
+    void AperturePhotometry(cv::Mat &img, StarVector &starvector);
 
-    StarVector DetectStars(cv::Mat img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius,const bool medianblur);
+    StarVector DetectStars(cv::Mat &img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius,const bool medianblur);
 };
 

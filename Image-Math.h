@@ -46,9 +46,9 @@ static double StandardDeviation(PtrType* ptr, int size) {
 
 static void MedianBlur(cv::Mat img) {
     //3x3 kernel median blur 
-    unsigned short* iptr = (unsigned short*)img.data;
-    std::array<unsigned short, 9>kernel = { 0 };
-    std::vector<unsigned short> imgbuf(img.rows * img.cols);
+    float* iptr = (float*)img.data;
+    std::array<float, 9>kernel = { 0 };
+    std::vector<float> imgbuf(img.rows * img.cols);
 
 #pragma omp parallel for firstprivate(kernel)
     for (int y = 1; y < img.rows - 1; ++y) {
@@ -73,12 +73,13 @@ static void MedianBlur(cv::Mat img) {
 }
 
 static void RotateTranslate(cv::Mat img, double* aff_mat) {
-    ushort* fptr = (ushort*)img.data;
+    float* fptr = (float*)img.data;
     int x_n, y_n, temp, yx, yy, size = img.rows * img.cols, disp = (img.cols * (int)round(aff_mat[5])) + (int)round(aff_mat[2]);
 
     double theta = atan2(aff_mat[3], aff_mat[0]);
 
-    std::vector<unsigned short> pixels(size);
+    std::vector<float> pixels(size);
+
     if (fabs(theta) <= M_PI_2) {
 #pragma omp parallel for private(x_n,y_n,yx,yy,temp)
         for (int y = 0; y < img.rows; ++y) {
@@ -136,8 +137,6 @@ static void RotateTranslate(cv::Mat img, double* aff_mat) {
 static void MTF(cv::Mat img) {
     //Midtone Transfer Function
     float* ptr = (float*)img.data;
-    for (int el = 0; el < img.rows * img.cols; ++el)
-        ptr[el] /= 65535;
     
     std::array<double,2> median_nmad = Median_nMAD(ptr,img.rows*img.cols);
 

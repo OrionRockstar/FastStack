@@ -2,24 +2,24 @@
 
 using IS = ImageStacking;
 
-void IS::Average(std::vector<IS::ImagePtr> imgvec,cv::Mat final_image){
-    ushort* fptr = (ushort*)final_image.data;
-    std::vector<ushort> pixelstack(imgvec.size());
-    int median = 0, mean = 0, stddev = 0, old_stddev = 0;
+void IS::Average(std::vector<IS::ImagePtr> &imgvec,cv::Mat &final_image){
+    float* fptr = (float*)final_image.data;
+    std::vector<float> pixelstack(imgvec.size());
+    double median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i].iptr[el];
-        fptr[el] = ushort(std::accumulate(pixelstack.begin(), pixelstack.end(), 0) / pixelstack.size());
+        fptr[el] = std::accumulate(pixelstack.begin(), pixelstack.end(), (float)0) / pixelstack.size();
     }
         
 }
     
-void IS::Median(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image) {
-    ushort* fptr = (ushort*)final_image.data;
+void IS::Median(std::vector<IS::ImagePtr> &imgvec, cv::Mat &final_image) {
+    float* fptr = (float*)final_image.data;
     std::vector<ushort> pixelstack(imgvec.size());
-    int median = 0, mean = 0, stddev = 0, old_stddev = 0;
+    double median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {
@@ -31,12 +31,12 @@ void IS::Median(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image) {
     }
 }
 
-void IS::SigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image,double l_sigma,double u_sigma) {
-    ushort* fptr = (ushort*)final_image.data;
-    std::vector<ushort> pixelstack(imgvec.size());
-    int median = 0, mean = 0, stddev = 0, old_stddev = 0;
+void IS::SigmaClipping(std::vector<IS::ImagePtr> &imgvec, cv::Mat &final_image,double l_sigma,double u_sigma) {
+    float* fptr = (float*)final_image.data;
+    std::vector<float> pixelstack(imgvec.size());
+    double median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
-#pragma omp parallel for firstprivate(pixelstack,median,stddev,old_stddev,imgvec)
+#pragma omp parallel for firstprivate(pixelstack,median,stddev,old_stddev)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {
         pixelstack.resize(imgvec.size());
         for (int i = 0; i < pixelstack.size(); ++i)
@@ -46,21 +46,21 @@ void IS::SigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image,dou
         old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
             median = pixelstack[pixelstack.size() / 2];
-            stddev = (int)StandardDeviation<unsigned short,int64_t>(&pixelstack[0], (int)pixelstack.size());
+            stddev = StandardDeviation<float,double>(&pixelstack[0], (int)pixelstack.size());
 
             if (stddev == 0 || (old_stddev - stddev) == 0)  break;
 
             std::experimental::erase_if(pixelstack,[median, stddev, l_sigma, u_sigma](auto x) {return (x < median - l_sigma * stddev || x > median + u_sigma * stddev); });
             old_stddev = stddev;
         }
-        fptr[el] = ushort(std::accumulate(pixelstack.begin(), pixelstack.end(), 0) / pixelstack.size());
+        fptr[el] = std::accumulate(pixelstack.begin(), pixelstack.end(), (float)0) / pixelstack.size();
     }
 }
 
-void IS::KappaSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image, double l_sigma, double u_sigma) {
-    ushort* fptr = (ushort*)final_image.data;
-    std::vector<ushort> pixelstack(imgvec.size());
-    int median = 0, mean = 0, stddev = 0, old_stddev = 0;
+void IS::KappaSigmaClipping(std::vector<IS::ImagePtr> &imgvec, cv::Mat &final_image, double l_sigma, double u_sigma) {
+    float* fptr = (float*)final_image.data;
+    std::vector<float> pixelstack(imgvec.size());
+    double median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
 #pragma omp parallel for firstprivate(pixelstack,mean,stddev,old_stddev)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {
@@ -81,15 +81,15 @@ void IS::KappaSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_imag
 
             old_stddev = stddev;
         }
-        fptr[el] = ushort(std::accumulate(pixelstack.begin(), pixelstack.end(), 0) / pixelstack.size());
+        fptr[el] = std::accumulate(pixelstack.begin(), pixelstack.end(), (float)0) / pixelstack.size();
     }
    
 }
 
-void IS::WinsorizedSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final_image, double l_sigma, double u_sigma) {
-    ushort* fptr = (ushort*)final_image.data;
-    std::vector<ushort> pixelstack(imgvec.size());
-    int median = 0, mean = 0, stddev = 0, old_stddev = 0;
+void IS::WinsorizedSigmaClipping(std::vector<IS::ImagePtr> &imgvec, cv::Mat &final_image, double l_sigma, double u_sigma) {
+    float* fptr = (float*)final_image.data;
+    std::vector<float> pixelstack(imgvec.size());
+    double median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
 #pragma omp parallel for firstprivate(pixelstack,median,stddev,old_stddev)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {
@@ -100,7 +100,7 @@ void IS::WinsorizedSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final
         old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
             median = pixelstack[pixelstack.size() / 2];
-            stddev = (int)StandardDeviation<unsigned short,int64_t>(&pixelstack[0], (int)pixelstack.size());
+            stddev = StandardDeviation<float,double>(&pixelstack[0], (int)pixelstack.size());
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
             int unn = 0;
@@ -116,7 +116,7 @@ void IS::WinsorizedSigmaClipping(std::vector<IS::ImagePtr> imgvec, cv::Mat final
 
             old_stddev = stddev;
         }
-        fptr[el] = ushort(std::accumulate(pixelstack.begin(), pixelstack.end(), 0) / pixelstack.size());
+        fptr[el] = std::accumulate(pixelstack.begin(), pixelstack.end(), (float)0) / pixelstack.size();
     }
 }
 
