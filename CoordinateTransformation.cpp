@@ -27,7 +27,7 @@ std::vector<int> CT::RandomPoints(int maxnum) {
     return randint;
 }
 
-Eigen::Matrix3d CT::Homography(SD::StarVector refstarvector, SD::StarVector tgtstarvector, SM::TVGSPVector tvgspvector, std::vector<int> randompoints) {
+Eigen::Matrix3d CT::Homography(const SD::StarVector &refstarvector,const SD::StarVector &tgtstarvector,const SM::TVGSPVector &tvgspvector, std::vector<int> randompoints) {
     
     CT::Matrix8d matrix(8, 8);
     CT::E_Vector8d tgtmat;
@@ -66,7 +66,7 @@ Eigen::Matrix3d CT::Homography(SD::StarVector refstarvector, SD::StarVector tgts
     return homography;
 }
 
-Eigen::Matrix3d CT::FinalHomography(CT::InlierVector final_ref_inlier, CT::InlierVector final_tgt_inlier) {
+Eigen::Matrix3d CT::FinalHomography(const CT::InlierVector &final_ref_inlier,const CT::InlierVector &final_tgt_inlier) {
 
     Eigen::Matrix <double, Eigen::Dynamic, 8> matrix(2 * final_ref_inlier.size(), 8);
     Eigen::Matrix <double, Eigen::Dynamic, 1> tgtmat(2 * final_ref_inlier.size(), 1);
@@ -91,7 +91,7 @@ Eigen::Matrix3d CT::FinalHomography(CT::InlierVector final_ref_inlier, CT::Inlie
     return homography;
 }
 
-Eigen::Matrix3d CT::RANSAC(SD::StarVector refstarvector, SD::StarVector tgtstarvector, SM::TVGSPVector tvgspvector){
+Eigen::Matrix3d CT::RANSAC(const SD::StarVector &refstarvector,const SD::StarVector &tgtstarvector,const SM::TVGSPVector &tvgspvector){
     std::vector<int>randints;
     Eigen::Matrix3d homography;
     Eigen::Matrix3d finalhomography;

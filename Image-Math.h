@@ -3,10 +3,10 @@
 #include <opencv2/opencv.hpp>
 #include <cmath>
 
-static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+inline double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
 template<typename PtrType>
-static PtrType Median(PtrType * ptr, int size){
+inline PtrType Median(PtrType * ptr, int size){
     std::vector<PtrType> imgbuf(size);
     std::copy(&ptr[0], &ptr[size], &imgbuf[0]);
 
@@ -14,7 +14,7 @@ static PtrType Median(PtrType * ptr, int size){
     return (PtrType)imgbuf[size / 2];
 }
 
-static std::array<double,2> Median_nMAD (float* ptr,int size){
+inline std::array<double,2> Median_nMAD (float* ptr,int size){
     std::vector<double> imgbuf(size);
     std::copy(&ptr[0], &ptr[size], &imgbuf[0]);
 
@@ -30,7 +30,7 @@ static std::array<double,2> Median_nMAD (float* ptr,int size){
 }
 
 template<typename PtrType,typename SType>
-static double StandardDeviation(PtrType* ptr, int size) {
+inline double StandardDeviation(PtrType* ptr, int size) {
     SType mean = 0;
     for (int el = 0; el < size; el++)
         mean += ptr[el];
@@ -44,7 +44,7 @@ static double StandardDeviation(PtrType* ptr, int size) {
     return sqrt(var / size);
 };
 
-static void MedianBlur(cv::Mat img) {
+inline void MedianBlur(cv::Mat &img) {
     //3x3 kernel median blur 
     float* iptr = (float*)img.data;
     std::array<float, 9>kernel = { 0 };
@@ -72,7 +72,7 @@ static void MedianBlur(cv::Mat img) {
     std::copy(&imgbuf[0], &imgbuf[imgbuf.size()], &iptr[0]);
 }
 
-static void RotateTranslate(cv::Mat img, double* aff_mat) {
+inline void RotateTranslate(cv::Mat &img, double* aff_mat) {
     float* fptr = (float*)img.data;
     int x_n, y_n, temp, yx, yy, size = img.rows * img.cols, disp = (img.cols * (int)round(aff_mat[5])) + (int)round(aff_mat[2]);
 
@@ -134,7 +134,7 @@ static void RotateTranslate(cv::Mat img, double* aff_mat) {
     std::copy(pixels.begin(), pixels.end(), &fptr[0]);
 }
 
-static void MTF(cv::Mat img) {
+inline void MTF(cv::Mat &img) {
     //Midtone Transfer Function
     float* ptr = (float*)img.data;
     

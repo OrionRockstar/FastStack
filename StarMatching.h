@@ -7,11 +7,11 @@ class StarMatching
 public:
     struct Triangle {
         //triangle descriptors
-        double rx; //ratio middle/longest side
-        double ry; //ratio shortest/longest side
-        int star1; //star numbers
-        int star2;
-        int star3;
+        float rx; //ratio middle/longest side
+        float ry; //ratio shortest/longest side
+        unsigned char star1; //star numbers
+        unsigned char star2;
+        unsigned char star3;
 
         bool operator()(const Triangle &a, const Triangle &b) { return a.rx < b.rx; };
     };
@@ -25,9 +25,9 @@ public:
     typedef std::vector<Triangle> TriangleVector;
     typedef std::vector<TVGSP> TVGSPVector;
 
-    TriangleVector TrianglesComputation(StarDetection::StarVector starvector);
+    TriangleVector TrianglesComputation(const StarDetection::StarVector &starvector);
 
-    TVGSPVector MatchStars(TriangleVector reftri,TriangleVector tgttri,int psprow,int pspcol);
+    TVGSPVector MatchStars(const TriangleVector &reftri,const TriangleVector &tgttri,int psprow,int pspcol);
 };
 
 //double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }

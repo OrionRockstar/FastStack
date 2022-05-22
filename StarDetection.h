@@ -8,7 +8,7 @@ public:
         double xc=0; //x-center coordinate
         double yc=0; //y-center coordinate
         double radius=0; //mean radius
-        double luminance=0; //approximated absolte magnitude of star
+        double luminance=0; //approximated absolute magnitude of star
 
         Star()=default;
 
@@ -27,7 +27,7 @@ public:
 
     void TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blur);
 
-    void AperturePhotometry(cv::Mat &img, StarVector &starvector);
+    void AperturePhotometry(const cv::Mat &img, StarVector &starvector);
 
     StarVector DetectStars(cv::Mat &img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius,const bool medianblur);
 };

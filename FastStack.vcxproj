@@ -99,6 +99,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CoordinateTransformation.cpp" />
+    <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
     <ClCompile Include="StarDetection.cpp" />
     <ClCompile Include="StarMatching.cpp" />
@@ -110,8 +111,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CoordinateTransformation.h" />
-    <ClInclude Include="FileIO.h" />
     <ClInclude Include="Image-Math.h" />
+    <ClInclude Include="Image.h" />
     <ClInclude Include="ImageStacking.h" />
     <ClInclude Include="StarDetection.h" />
     <ClInclude Include="StarMatching.h" />

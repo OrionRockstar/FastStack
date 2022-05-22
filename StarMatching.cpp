@@ -2,8 +2,9 @@
 
 using SM = StarMatching;
 
-SM::TriangleVector StarMatching::TrianglesComputation(StarDetection::StarVector starvector) {
+SM::TriangleVector StarMatching::TrianglesComputation(const StarDetection::StarVector &starvector) {
     int count = 0;
+    unsigned char sa, sb, sc;
     double side_ab = 0;
     int mm = (int)starvector.size();
     int maxtri = int(((mm * (mm - 1) * (mm - 2)) / 6));
@@ -11,10 +12,10 @@ SM::TriangleVector StarMatching::TrianglesComputation(StarDetection::StarVector 
 
     SM::TriangleVector trianglevector(maxtri);
 
-    for (int sa = 0; sa < mm; ++sa) {
-        for (int sb = sa + 1; sb < mm; ++sb) {
+    for (sa = 0; sa < mm; ++sa) {
+        for (sb = sa + 1; sb < mm; ++sb) {
             side_ab = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sb].xc, starvector[sb].yc);
-            for (int sc = sb + 1; sc < mm; ++sc) {
+            for (sc = sb + 1; sc < mm; ++sc) {
                 sides[0] = side_ab;
                 sides[1] = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sc].xc, starvector[sc].yc);
                 sides[2] = Distance(starvector[sb].xc, starvector[sb].yc, starvector[sc].xc, starvector[sc].yc);
@@ -27,7 +28,7 @@ SM::TriangleVector StarMatching::TrianglesComputation(StarDetection::StarVector 
                 }
                 if (sides[2] != 0)
                     if (sides[1] / sides[2] < .9) {
-                        trianglevector[count] = { sides[1] / sides[2],sides[0] / sides[2],sa,sb,sc };
+                        trianglevector[count] = { float(sides[1] / sides[2]),float(sides[0] / sides[2]),sa,sb,sc };
                         count++;
                     }
             }
@@ -41,11 +42,11 @@ SM::TriangleVector StarMatching::TrianglesComputation(StarDetection::StarVector 
     return trianglevector;
 }
 
-SM::TVGSPVector SM::MatchStars(SM::TriangleVector reftri, SM::TriangleVector tgttri,int psprow,int pspcol) {
+SM::TVGSPVector SM::MatchStars(const SM::TriangleVector &reftri,const SM::TriangleVector &tgttri,int psprow,int pspcol) {
 
     std::vector<int> psp(psprow*pspcol);
 
-    auto vote = [&psp,pspcol](int target, int reference) {return psp[reference*pspcol + target]++; };
+    auto vote = [&psp,pspcol](auto target, auto reference) {return psp[reference*pspcol + target]++; };
     double tol = 0.0002;
 
     int lref = 0, iref;

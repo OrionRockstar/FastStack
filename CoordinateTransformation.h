@@ -19,10 +19,10 @@ public:
 
 	std::vector<int> RandomPoints(int maxnum); //maxnum=tvgspvector.size()
 
-	Eigen::Matrix3d Homography(StarDetection::StarVector refstarvector, StarDetection::StarVector tgtstarvector, StarMatching::TVGSPVector tvgspvector, std::vector<int> randompoints);
+	Eigen::Matrix3d Homography(const StarDetection::StarVector &refstarvector,const StarDetection::StarVector &tgtstarvector,const StarMatching::TVGSPVector &tvgspvector,const std::vector<int> randompoints);
 
-	Eigen::Matrix3d FinalHomography(InlierVector final_ref_inlier,InlierVector final_tgt_inlier);
+	Eigen::Matrix3d FinalHomography(const InlierVector &final_ref_inlier,const InlierVector &final_tgt_inlier);
 
-	Eigen::Matrix3d RANSAC(StarDetection::StarVector refstarvector , StarDetection::StarVector tgtstarvector, StarMatching::TVGSPVector tvgspvector);
+	Eigen::Matrix3d RANSAC(const StarDetection::StarVector &refstarvector ,const StarDetection::StarVector &tgtstarvector,const StarMatching::TVGSPVector &tvgspvector);
 };
 

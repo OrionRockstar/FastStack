@@ -26,7 +26,7 @@ void SD::TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blu
     output.convertTo(output, CV_8U);
 }
 
-void SD::AperturePhotometry(cv::Mat &img, SD::StarVector &starvector) {
+void SD::AperturePhotometry(const cv::Mat &img, SD::StarVector &starvector) {
     float * iptr = (float*)img.data;
    
     int x, y, r, num;
