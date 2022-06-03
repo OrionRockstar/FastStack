@@ -4,6 +4,8 @@ using CT = CoordinateTransformation;
 using SD = StarDetection;
 using SM = StarMatching;
 
+static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+
 std::vector<int> CT::RandomPoints(int maxnum) {
     int randnum = 0;
     std::vector<int> randint;

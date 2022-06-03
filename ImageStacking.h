@@ -1,4 +1,5 @@
 #pragma once
+#include "Image.h"
 #include "Image-Math.h"
 #include <numeric>
 #include <algorithm>
@@ -7,18 +8,15 @@
 class ImageStacking
 {
 public:
-	struct ImagePtr{
-		cv::Mat img;
-		float* iptr;
-	};
-	void Average(std::vector<ImageStacking::ImagePtr> &imgvec, cv::Mat &final_image);
+	
+	void Average(std::vector<Image> &imgvec, Image& final_image);
 
-	void Median(std::vector<ImageStacking::ImagePtr> &imgvec, cv::Mat &final_image);
+	void Median(std::vector<Image> &imgvec, Image& final_image);
 
-	void SigmaClipping(std::vector<ImagePtr> &imgvec, cv::Mat &final_image, double l_sigma, double u_sigma);
+	void SigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
 
-	void KappaSigmaClipping(std::vector<ImageStacking::ImagePtr> &imgvec, cv::Mat &final_image, double l_sigma, double u_sigma);
+	void KappaSigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
 
-	void WinsorizedSigmaClipping(std::vector<ImageStacking::ImagePtr> &imgvec, cv::Mat &final_image, double l_sigma, double u_sigma);
+	void WinsorizedSigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
 };
 

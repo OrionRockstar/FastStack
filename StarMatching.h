@@ -1,6 +1,6 @@
 #pragma once
 #include "StarDetection.h"
-#include <omp.h>
+//#include <omp.h>
 
 class StarMatching
 {
@@ -29,5 +29,3 @@ public:
 
     TVGSPVector MatchStars(const TriangleVector &reftri,const TriangleVector &tgttri,int psprow,int pspcol);
 };
-
-//double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }

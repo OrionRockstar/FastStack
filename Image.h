@@ -1,11 +1,15 @@
 #pragma once
 #include <memory>
+#include <Eigen/Dense>
+#include "tiffio.h"
+#include "cfitsio/fitsio.h"
+#include <regex>
+#include <array>
+
+
 class Image
 {
 public:
-	//unsigned char* data8 = nullptr;
-	//unsigned short* data16 = new unsigned short[0];
-	//float* data32 = nullptr;
 	void* data = nullptr;
 	int rows = 0;
 	int cols = 0;
@@ -15,6 +19,7 @@ public:
 	Image(int rows, int cols, int bitdepth);
 	Image() = default;
 	Image(const Image& img);
+	Image(Image&& img);
 	~Image() {
 		delete[](void*)data;
 		data = nullptr;
@@ -84,3 +89,24 @@ public:
 	void Update(int r, int c, int bd);
 };
 
+namespace ImageOP {
+	Image ImRead(char* file);
+
+	void AlignFrame(Image& img, Eigen::Matrix3d homography);
+
+	void MedianBlur3x3(Image& img);
+
+	double Median(Image& img);
+
+	double StandardDeviation(Image& img);
+
+	double StandardDeviation256(Image& img);
+
+	void nMAD(Image& img, double& median, double& nMAD);
+
+	void AvgAbsDev(Image& img, double& median, double& abs_dev);
+
+	void STFImageStretch(Image& img);
+
+	void STFImageStretch256(Image& img);
+}

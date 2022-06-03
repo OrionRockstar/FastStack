@@ -2,12 +2,14 @@
 
 using SD = StarDetection;
 
-void SD::TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blur) {
-    output = input.clone();
+static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+
+void SD::TrinerizeImage(Image &input, Image &output, int threshold, bool blur) {
+    output = input.DeepCopy();
     float* iptr = (float*)output.data;
 
-    if (blur)
-        MedianBlur(output);
+    if (blur);
+        ImageOP::MedianBlur3x3(output);
 
     for (int i = 0; i < output.rows * output.cols; ++i) {
         if (iptr[i] >= threshold)  iptr[i] = 1;
@@ -23,10 +25,10 @@ void SD::TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blu
             }
         }
     }
-    output.convertTo(output, CV_8U);
+    output.Convert<float, unsigned char>(output);
 }
 
-void SD::AperturePhotometry(const cv::Mat &img, SD::StarVector &starvector) {
+void SD::AperturePhotometry(const Image &img, SD::StarVector &starvector) {
     float * iptr = (float*)img.data;
    
     int x, y, r, num;
@@ -72,19 +74,19 @@ void SD::AperturePhotometry(const cv::Mat &img, SD::StarVector &starvector) {
 
 }
 
-SD::StarVector SD::DetectStars(cv::Mat &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
+SD::StarVector SD::DetectStars(Image &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
     float* iptr = (float*)img.data;
 
-    double median = Median<float>(iptr, img.rows * img.cols);
-    double stddev = StandardDeviation<float,double>(iptr, img.rows * img.cols);
+    double median = ImageOP::Median(img);//Median<float>(iptr, img.rows * img.cols);
+    double stddev = ImageOP::StandardDeviation(img);//StandardDeviation<float,double>(iptr, img.rows * img.cols);
     double threshold = median + star_thresh * stddev;
 
     std::vector <StarDetection::TrigAngles> trigang;
     for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
         trigang.push_back({ cos(theta),sin(theta) });
 
-    cv::Mat tri;
-    SD().TrinerizeImage(img, tri, threshold, blur);
+    Image tri;
+    SD::TrinerizeImage(img, tri, threshold, blur);
     uchar* tptr = (uchar*)tri.data;
 
     bool newp = true;
@@ -135,9 +137,9 @@ SD::StarVector SD::DetectStars(cv::Mat &img,const double star_thresh,const int v
         }
     }
 
-    tri.release();
+    tri.Release();
 
-    SD().AperturePhotometry(img, starvector);
+    SD::AperturePhotometry(img, starvector);
 
     std::sort(starvector.begin(), starvector.end(), StarDetection::Star());
 

@@ -63,9 +63,6 @@
     <ClInclude Include="StarMatching.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Image-Math.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="CoordinateTransformation.h">
       <Filter>Header Files</Filter>
     </ClInclude>

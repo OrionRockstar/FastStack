@@ -2,7 +2,31 @@
 
 using SM = StarMatching;
 
-SM::TriangleVector StarMatching::TrianglesComputation(const StarDetection::StarVector &starvector) {
+static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+
+static int Median(std::vector<int>& psp) {
+    std::vector<int> pspbuf(psp.size());
+    std::copy(psp.begin(), psp.end(), pspbuf.begin());
+
+    std::nth_element(pspbuf.begin(), pspbuf.begin()+pspbuf.size()/2, pspbuf.end());
+    return pspbuf[pspbuf.size()/ 2];
+}
+
+static double StandardDeviation(std::vector<int>& psp) {
+    int mean = 0;
+    for (int& val : psp)
+        mean += val;
+    mean /= psp.size();
+    int d;
+    uint64_t var = 0;
+    for (int& val : psp) {
+        d = val - mean;
+        var += d * d;
+    }
+    return sqrt(var / psp.size());
+}
+
+SM::TriangleVector StarMatching::TrianglesComputation(const StarDetection::StarVector& starvector) {
     int count = 0;
     unsigned char sa, sb, sc;
     double side_ab = 0;
@@ -42,7 +66,7 @@ SM::TriangleVector StarMatching::TrianglesComputation(const StarDetection::StarV
     return trianglevector;
 }
 
-SM::TVGSPVector SM::MatchStars(const SM::TriangleVector &reftri,const SM::TriangleVector &tgttri,int psprow,int pspcol) {
+SM::TVGSPVector SM::MatchStars(const SM::TriangleVector& reftri,const SM::TriangleVector& tgttri,int psprow,int pspcol) {
 
     std::vector<int> psp(psprow*pspcol);
 
@@ -75,7 +99,7 @@ SM::TVGSPVector SM::MatchStars(const SM::TriangleVector &reftri,const SM::Triang
 
     SM::TVGSPVector tvgspvector;
 
-    int tcount = 0, tgtemp = 0, rtemp = 0, thresh=Median<int>(&psp[0],psp.size())+(int)StandardDeviation<int,int64_t>(&psp[0],psp.size()), maxv = thresh + 1;
+    int tcount = 0, tgtemp = 0, rtemp = 0, thresh=Median(psp)+StandardDeviation(psp), maxv = thresh + 1;
     bool spe = false;
 
     while (tcount<200 && maxv>thresh) {

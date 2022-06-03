@@ -61,6 +61,7 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -68,6 +69,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
       <OpenMPSupport>true</OpenMPSupport>
+      <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <QtRcc />
   </ItemDefinitionGroup>
@@ -111,7 +113,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CoordinateTransformation.h" />
-    <ClInclude Include="Image-Math.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageStacking.h" />
     <ClInclude Include="StarDetection.h" />

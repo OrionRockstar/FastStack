@@ -1,4 +1,5 @@
 #pragma once
+#include "Image.h"
 #include"Image-Math.h"
 
 class StarDetection
@@ -25,10 +26,10 @@ public:
 
     typedef std::vector<Star>StarVector;
 
-    void TrinerizeImage(cv::Mat &input, cv::Mat &output, int threshold, bool blur);
+    void TrinerizeImage(Image &input, Image &output, int threshold, bool blur);
 
-    void AperturePhotometry(const cv::Mat &img, StarVector &starvector);
+    void AperturePhotometry(const Image &img, StarVector &starvector);
 
-    StarVector DetectStars(cv::Mat &img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius,const bool medianblur);
+    StarVector DetectStars(Image &img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius,const bool medianblur);
 };
 
