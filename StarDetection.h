@@ -1,6 +1,5 @@
 #pragma once
 #include "Image.h"
-#include"Image-Math.h"
 
 class StarDetection
 {
@@ -11,6 +10,7 @@ public:
         double radius=0; //mean radius
         double luminance=0; //approximated absolute magnitude of star
 
+        Star(double x, double y, double r) :xc(x), yc(y), radius(r) {};
         Star()=default;
 
         bool operator()(Star& a, Star& b) { return (a.luminance < b.luminance); }

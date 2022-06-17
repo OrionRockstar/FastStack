@@ -35,20 +35,8 @@ public:
 				delete[] data;
 				data = nullptr;
 			}
-			switch (type) {
-			case 8:
-				data = new unsigned char[total];
-				memcpy(data, img.data, (size_t)total);
-				break;
-			case 16:
-				data = new unsigned short[total];
-				memcpy(data, img.data, (size_t)total * 2);
-				break;
-			case 32:
-				data = new float[total];
-				memcpy(data, img.data, (size_t)total * 4);
-				break;
-			}
+			data = img.data;
+			img.data = nullptr;
 		}
 		return *this;
 	}
@@ -63,6 +51,26 @@ public:
 		return *this;
 	}
 
+	template <typename T> inline
+		T& at(int index) {
+		return ((T*)data)[index];
+	}
+
+	template <typename T> inline
+		T& at(int index) const {
+		return ((T*)data)[index];
+	}
+
+	template <typename T> inline
+		T& at(int row, int col) {
+		return ((T*)data)[row * cols + col];
+	}
+
+	template <typename T> inline
+		T& at(int row, int col) const {
+		return ((T*)data)[row * cols + col];
+	}
+
 	template<typename Old, typename New>
 	void Convert(Image &output) {
 
@@ -71,22 +79,18 @@ public:
 		output.data = new New[output.total];
 		New* nptr = (New*)output.data;
 
-		std::copy(&ptr[0], &ptr[Image::total], &nptr[0]);
+		for (size_t el = 0; el < total; ++el)
+			nptr[el] = ptr[el];
 
-		switch (sizeof(New)) {
-		case 1: output.type = 8; break;
-		case 2: output.type = 16; break;
-		case 4: output.type = 32; break;
-		default: output.type = 0; break;
-		}
-		delete ptr;
+		output.type = sizeof(New) * 8;
+
+		delete[] ptr;
 	}
 
 	Image DeepCopy();
 
 	void Release();
 
-	void Update(int r, int c, int bd);
 };
 
 namespace ImageOP {

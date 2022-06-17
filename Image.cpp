@@ -3,11 +3,11 @@
 Image::Image(int r, int c, int bitdepth) :rows(r), cols(c), type(bitdepth) {
 	switch (bitdepth) {
 	case 8:
-		Image::data = new unsigned char[r * c];
+		Image::data = new uint8_t[r * c];
 		break;
 	case 16:
 		//Image::data16 = new unsigned short[r * c];
-		Image::data = new unsigned short[r * c];
+		Image::data = new uint16_t[r * c];
 		break;
 	case 32:
 		Image::data = new float[r * c];
@@ -69,27 +69,6 @@ void Image::Release()
 	}
 }
 
-void Image::Update(int r, int c, int bd) {
-	Image::rows = r;
-	Image::cols = c;
-	Image::total = r * c;
-	Image::type = bd;
-	switch (bd) {
-	case 8:
-		Image::data = new unsigned char[r * c];
-		break;
-	case 16:
-		Image::data = new unsigned short[r * c];
-		break;
-	case 32:
-		Image::data = new float[r * c];
-		break;
-	default:
-		Image::data = nullptr;
-		break;
-	}
-}
-
 Image ImageOP::ImRead(char* file) {
 	Image img;
 	if (std::regex_search(file, std::regex("tif+$"))) {
@@ -102,13 +81,13 @@ Image ImageOP::ImRead(char* file) {
 			TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bd);
 			switch (bd) {
 			case 16: {
-				img.Update(imagelength, imagewidth, bd);
-				unsigned short* ptr = (unsigned short*)img.data;
+				img = std::move(Image(imagelength, imagewidth, bd));
+				uint16_t* ptr = (uint16_t*)img.data;
 
 				for (uint32_t row = 0; row < imagelength; ++row)
 					TIFFReadScanline(tiff, &ptr[row * imagewidth], row);
 
-				img.Convert<unsigned short, float>(img);
+				img.Convert<uint16_t, float>(img);
 
 				float* nptr = (float*)img.data;
 
@@ -117,13 +96,13 @@ Image ImageOP::ImRead(char* file) {
 				break; }
 
 			case 8: {
-				img.Update(imagelength, imagewidth, bd);
-				unsigned char* ptr = (unsigned char*)img.data;
+				img = std::move(Image(imagelength, imagewidth, bd));
+				uint8_t* ptr = (uint8_t*)img.data;
 
 				for (uint32_t row = 0; row < imagelength; ++row)
 					TIFFReadScanline(tiff, &ptr[row * imagewidth], row);
 
-				img.Convert<unsigned char, float>(img);
+				img.Convert<uint8_t, float>(img);
 
 				float* nptr = (float*)img.data;
 
@@ -151,10 +130,10 @@ Image ImageOP::ImRead(char* file) {
 				{
 					switch (bitpix) {
 					case 16: {
-						img.Update(naxes[1], naxes[0], bitpix);
-						unsigned short* ptr = (unsigned short*)img.data;
-						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, ptr, NULL, &status);
-						img.Convert<unsigned short, float>(img);
+						img=std::move(Image(naxes[1], naxes[0], bitpix));
+
+						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, (uint16_t*)img.data, NULL, &status);
+						img.Convert<uint16_t, float>(img);
 
 						float* nptr = (float*)img.data;
 
@@ -164,10 +143,10 @@ Image ImageOP::ImRead(char* file) {
 					}
 
 					case 8: {
-						img.Update(naxes[1], naxes[0], bitpix);
-						unsigned char* ptr = (unsigned char*)img.data;
-						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, ptr, NULL, &status);
-						img.Convert<unsigned char, float>(img);
+						img = std::move(Image(naxes[1], naxes[0], bitpix));
+
+						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, (uint8_t*)img.data, NULL, &status);
+						img.Convert<uint8_t, float>(img);
 
 						float* nptr = (float*)img.data;
 

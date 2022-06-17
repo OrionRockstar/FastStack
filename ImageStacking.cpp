@@ -55,7 +55,7 @@ void IS::Average(std::vector<Image>& imgvec,Image& final_image){
     
 void IS::Median(std::vector<Image>& imgvec, Image& final_image) {
     float* fptr = (float*)final_image.data;
-    std::vector<ushort> pixelstack(imgvec.size());
+    std::vector<float> pixelstack(imgvec.size());
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.rows * final_image.cols; ++el) {

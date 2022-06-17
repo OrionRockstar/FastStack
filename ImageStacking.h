@@ -1,6 +1,5 @@
 #pragma once
 #include "Image.h"
-#include "Image-Math.h"
 #include <numeric>
 #include <algorithm>
 #include<experimental/vector>
