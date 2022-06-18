@@ -166,7 +166,7 @@ Image ImageOP::ImRead(char* file) {
 }
 
 void ImageOP::AlignFrame(Image& img, Eigen::Matrix3d homography) {
-	float* fptr = (float*)img.data;
+	//float* fptr = (float*)img.data;
 	int x_n, y_n, temp, yx, yy, size = img.rows * img.cols, disp = img.cols * (int)round(homography(1, 2)) + (int)round(homography(0, 2));
 	double theta = atan2(homography(1, 0), homography(0, 0));
 	double aff[4] = { cos(theta),sin(theta),-sin(theta),cos(theta) };
@@ -189,7 +189,7 @@ void ImageOP::AlignFrame(Image& img, Eigen::Matrix3d homography) {
 				else if (temp < 0)
 					temp += size;
 
-				pixels[temp] = fptr[y * img.cols + x];
+				pixels[temp] = img.at<float>(y,x);
 			}
 		}
 	}
@@ -210,12 +210,12 @@ void ImageOP::AlignFrame(Image& img, Eigen::Matrix3d homography) {
 				else if (temp < 0)
 					temp += size;
 
-				pixels[temp] = fptr[y * img.cols + x];
+				pixels[temp] = img.at<float>(y,x);
 			}
 		}
 	}
-	//memcpy(img.data, &pixels[0], 4 * img.total);
-	std::copy(pixels.begin(), pixels.end(), &fptr[0]);
+	memcpy(img.data, &pixels[0], 4 * img.total);
+	//std::copy(pixels.begin(), pixels.end(), &fptr[0]);
 	//delete pixels;
 }
 
@@ -228,9 +228,9 @@ void ImageOP::MedianBlur3x3(Image& img) {
 #pragma omp parallel for firstprivate(kernel)
 	for (int y = 1; y < img.rows - 1; ++y) {
 		for (int x = 1; x < img.cols - 1; ++x) {
-			kernel = { iptr[(y - 1) * img.cols + x - 1], iptr[(y - 1) * img.cols + x], iptr[(y - 1) * img.cols + x + 1],
-					   iptr[y * img.cols + x - 1], iptr[y * img.cols + x], iptr[y * img.cols + x + 1],
-					   iptr[(y + 1) * img.cols + x - 1], iptr[(y + 1) * img.cols + x], iptr[(y + 1) * img.cols + x + 1] };
+			kernel = { img.at<float>(y - 1, x - 1), img.at<float>(y - 1, x), img.at<float>(y - 1, x + 1),
+					   img.at<float>(y , x - 1), img.at<float>(y, x), img.at<float>(y, x + 1),
+					   img.at<float>(y - 1, x - 1), img.at<float>(y + 1, x), img.at<float>(y + 1, x + 1) };
 
 			for (int r = 0; r < 3; ++r) {
 				for (int i = 0; i < 4; ++i) {
@@ -334,7 +334,7 @@ void ImageOP::STFImageStretch(Image& img) {
 
 	for (int el = 0; el < (img.rows * img.cols); ++el) {
 
-		if (ptr[el] < shadow) { ptr[el] = 0; continue; }
+		if (ptr[el] < shadow) { ptr[el] = shadow; continue; }
 
 		ptr[el] = (ptr[el] - shadow) / (1 - shadow);
 
