@@ -165,58 +165,80 @@ Image ImageOP::ImRead(char* file) {
 	return img;
 }
 
-void ImageOP::AlignFrame(Image& img, Eigen::Matrix3d homography) {
-	//float* fptr = (float*)img.data;
-	int x_n, y_n, temp, yx, yy, size = img.rows * img.cols, disp = img.cols * (int)round(homography(1, 2)) + (int)round(homography(0, 2));
-	double theta = atan2(homography(1, 0), homography(0, 0));
-	double aff[4] = { cos(theta),sin(theta),-sin(theta),cos(theta) };
+void ImageOP::AlignFrame_Bilinear(Image& img, Eigen::Matrix3d homography) {
+	double x_s, y_s, yx, yy, r1, r2;
+	int x_f, y_f;
 
-	std::vector<float> pixels(size, 0);
-	if (fabs(theta) <= M_PI_2) {
-#pragma omp parallel for private(x_n,y_n,yx,yy,temp)
-		for (int y = 0; y < img.rows; ++y) {
-			yx = int(y * aff[1]);
-			yy = int(y * aff[3]);
-			for (int x = 0; x < img.cols; ++x)
-			{
-				x_n = int(x * aff[0] + yx);
-				y_n = int(x * aff[2] + yy);
-				temp = (y_n * img.cols + x_n) - disp;
+	std::vector<float> pixels(img.total, 0);
 
-				if (temp >= size)
-					temp -= size;
+#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, y_f, r1, r2)
+	for (int y = 0; y < img.rows; ++y) {
+		yx = y * homography(0, 1);
+		yy = y * homography(1, 1);
 
-				else if (temp < 0)
-					temp += size;
+		for (int x = 0; x < img.cols; ++x) {
+			x_s = x * homography(0, 0) + yx + homography(0, 2);
+			y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-				pixels[temp] = img.at<float>(y,x);
-			}
+			if (x_s < 1 || x_s >= img.cols - 1 || y_s < 1 || y_s >= img.rows - 1) continue;
+
+			x_f = (int)floor(x_s);
+			y_f = (int)floor(y_s);
+
+			r1 = img.at<float>(y_f, x_f) * (x_f + 1 - x_s) + img.at<float>(y_f, x_s + 1) * (x_s - x_f);
+			r2 = img.at<float>(y_f + 1, x_f) * (x_f + 1 - x_s) + img.at<float>(y_f + 1, x_f + 1) * (x_s - x_f);
+
+			pixels[y * img.cols + x] = float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
 		}
 	}
 
-	else {
-#pragma omp parallel for private(x_n,y_n,yx,yy,temp)
-		for (int y = 0; y < img.rows; ++y) {
-			yx = int(y * homography(0, 1));
-			yy = int(y * homography(1, 1));
-			for (int x = 0; x < img.cols; ++x)
-			{
-				x_n = int(x * homography(0, 0) + yx);
-				y_n = int(x * homography(1, 0) + yy);
-				temp = (y_n * img.cols + x_n) + disp;
-				if (temp >= size)
-					temp -= size;
+	std::copy(pixels.begin(), pixels.end(), &img.at<float>(0));
 
-				else if (temp < 0)
-					temp += size;
+}
 
-				pixels[temp] = img.at<float>(y,x);
+void ImageOP::AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography) {
+	double x_s, y_s, yx, yy;
+	int x_f, y_f;
+
+	std::vector<float> pixels(img.total, 0);
+
+	double a, b, c, d, dx, dy;
+	double px[4] = { 0,0,0,0 };
+
+#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, dx, y_f, dy, a, b, c, d, px)
+	for (int y = 0; y < img.rows; ++y) {
+		yx = y * homography(0, 1);
+		yy = y * homography(1, 1);
+
+		for (int x = 0; x < img.cols; ++x) {
+			x_s = x * homography(0, 0) + yx + homography(0, 2);
+			y_s = x * homography(1, 0) + yy + homography(1, 2);
+
+			if (x_s < 1 || x_s >= img.cols - 2 || y_s < 1 || y_s >= img.rows - 2) continue;
+
+			x_f = (int)floor(x_s);
+			dx = x_s - x_f;
+			y_f = (int)floor(y_s);
+			dy = y_s - y_f;
+
+			for (int i = -1; i < 3; ++i) {
+				a = -.5f * img.at<float>(y_f + i, x_f - 1) + 1.5f * img.at<float>(y_f + i, x_f) - 1.5f * img.at<float>(y_f + i, x_f + 1) + .5f * img.at<float>(y_f + i, x_f + 2);
+				b = img.at<float>(y_f + i, x_f - 1) - 2.5 * img.at<float>(y_f + i, x_f) + 2 * img.at<float>(y_f + i, x_f + 1) - .5 * img.at<float>(y_f + i, x_f + 2);
+				c = -.5 * img.at<float>(y_f + i, x_f - 1) + .5 * img.at<float>(y_f + i, x_f + 1);
+				d = img.at<float>(y_f + i, x_f);
+				px[i + 1] = (a * dx * dx * dx) + (b * dx * dx) + (c * dx) + d;
 			}
+
+			a = -.5 * px[0] + 1.5 * px[1] - 1.5 * px[2] + .5 * px[3];
+			b = px[0] - 2.5 * px[1] + 2 * px[2] - .5 * px[3];
+			c = -.5 * px[0] + .5 * px[2];
+			d = px[1];
+
+			pixels[y * img.cols + x] = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
 		}
 	}
-	memcpy(img.data, &pixels[0], 4 * img.total);
-	//std::copy(pixels.begin(), pixels.end(), &fptr[0]);
-	//delete pixels;
+	//will need to clamp/trim data
+	std::copy(pixels.begin(), pixels.end(), &img.at<float>(0));
 }
 
 void ImageOP::MedianBlur3x3(Image& img) {
@@ -322,6 +344,16 @@ void ImageOP::AvgAbsDev(Image& img, double& median, double& abs_dev) {
 		sum += fabs(buf[el] - median);
 	}
 	abs_dev = sum / img.total;
+}
+
+void ImageOP::TrimHighLow(Image& img, float high, float low) {
+
+	for (int el = 0; el < img.total; ++el) {
+		if (img.at<float>(el) > high)
+			img.at<float>(el) = high;
+		else if (img.at<float>(el) < low)
+			img.at<float>(el) = low;
+	}
 }
 
 void ImageOP::STFImageStretch(Image& img) {

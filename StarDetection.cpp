@@ -1,10 +1,10 @@
 #include "StarDetection.h"
 
-using SD = StarDetection;
+//using SD = StarDetection;
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-void SD::TrinerizeImage(Image &input, Image &output, int threshold, bool blur) {
+void stardetection::TrinerizeImage(Image &input, Image &output, int threshold, bool blur) {
     output = input.DeepCopy();
     float* iptr = (float*)output.data;
 
@@ -28,7 +28,7 @@ void SD::TrinerizeImage(Image &input, Image &output, int threshold, bool blur) {
     output.Convert<float, uint8_t>(output);
 }
 
-void SD::AperturePhotometry(const Image &img, SD::StarVector &starvector) {
+void stardetection::AperturePhotometry(const Image &img, StarVector &starvector) {
    
     int x, y, r, num;
     double intensity_x, intensity_y, intensity2, intensity_sum;
@@ -74,24 +74,24 @@ void SD::AperturePhotometry(const Image &img, SD::StarVector &starvector) {
 
 }
 
-SD::StarVector SD::DetectStars(Image &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
+StarVector stardetection::DetectStars(Image &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
 
     double median = ImageOP::Median(img);
     double stddev = ImageOP::StandardDeviation(img);
     double threshold = median + star_thresh * stddev;
 
-    std::vector <StarDetection::TrigAngles> trigang;
+    TrigVector trigang;
     for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
         trigang.push_back({ cos(theta),sin(theta) });
 
     Image tri;
-    SD::TrinerizeImage(img, tri, threshold, blur);
+    stardetection::TrinerizeImage(img, tri, threshold, blur);
     uint8_t* tptr = (uint8_t*)tri.data;
 
     bool newp = true;
     int vote, spacev, istarv, a, b;
 
-    SD::StarVector starvector;
+    StarVector starvector;
     starvector.reserve(2000);
 
     for (int y = 0; y < img.rows; y++) {
@@ -142,9 +142,9 @@ SD::StarVector SD::DetectStars(Image &img,const double star_thresh,const int vot
 
     tri.Release();
 
-    SD::AperturePhotometry(img, starvector);
+    stardetection::AperturePhotometry(img, starvector);
 
-    std::sort(starvector.begin(), starvector.end(), StarDetection::Star());
+    std::sort(starvector.begin(), starvector.end(), Star());
 
     if (starvector.size() > 200)
         starvector.resize(200);

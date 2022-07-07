@@ -46,7 +46,7 @@
     <ClCompile Include="StarMatching.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CoordinateTransformation.cpp">
+    <ClCompile Include="Homography.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ImageStacking.cpp">
@@ -63,7 +63,7 @@
     <ClInclude Include="StarMatching.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CoordinateTransformation.h">
+    <ClInclude Include="Homography.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ImageStacking.h">

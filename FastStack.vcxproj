@@ -100,7 +100,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CoordinateTransformation.cpp" />
+    <ClCompile Include="Homography.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
     <ClCompile Include="StarDetection.cpp" />
@@ -112,7 +112,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CoordinateTransformation.h" />
+    <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageStacking.h" />
     <ClInclude Include="StarDetection.h" />

@@ -1,12 +1,10 @@
-#include "CoordinateTransformation.h"
+#include "Homography.h"
 //#include <eigen3/Eigen/Dense
-using CT = CoordinateTransformation;
-using SD = StarDetection;
-using SM = StarMatching;
+
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-std::vector<int> CT::RandomPoints(int maxnum) {
+std::vector<int> homography::RandomPoints(int maxnum) {
     int randnum = 0;
     std::vector<int> randint;
     bool newnum = false;
@@ -29,11 +27,11 @@ std::vector<int> CT::RandomPoints(int maxnum) {
     return randint;
 }
 
-Eigen::Matrix3d CT::Homography(const SD::StarVector &refstarvector,const SD::StarVector &tgtstarvector,const SM::TVGSPVector &tvgspvector, std::vector<int> randompoints) {
+Eigen::Matrix3d homography::ComputeHomography(const StarVector &refstarvector,const StarVector &tgtstarvector,const TVGSPVector &tvgspvector, std::vector<int> randompoints) {
     
-    CT::Matrix8d matrix(8, 8);
-    CT::E_Vector8d tgtmat;
-    CT::E_Vector8d homovec = CT::E_Vector8d::Zero();
+    Matrix8d matrix(8, 8);
+    E_Vector8d tgtmat;
+    E_Vector8d homovec = E_Vector8d::Zero();
     Eigen::Matrix3d homography = Eigen::Matrix3d::Ones();
 
     double rx1 = refstarvector[tvgspvector[randompoints[0]].refstar].xc,
@@ -68,11 +66,11 @@ Eigen::Matrix3d CT::Homography(const SD::StarVector &refstarvector,const SD::Sta
     return homography;
 }
 
-Eigen::Matrix3d CT::FinalHomography(const CT::InlierVector &final_ref_inlier,const CT::InlierVector &final_tgt_inlier) {
+Eigen::Matrix3d homography::ComputeFinalHomography(const InlierVector &final_ref_inlier,const InlierVector &final_tgt_inlier) {
 
     Eigen::Matrix <double, Eigen::Dynamic, 8> matrix(2 * final_ref_inlier.size(), 8);
     Eigen::Matrix <double, Eigen::Dynamic, 1> tgtmat(2 * final_ref_inlier.size(), 1);
-    CT::E_Vector8d homovec = CT::E_Vector8d::Zero();
+    E_Vector8d homovec = E_Vector8d::Zero();
     Eigen::Matrix3d homography = Eigen::Matrix3d::Ones();
     double rx, ry, tx, ty;
 
@@ -93,12 +91,12 @@ Eigen::Matrix3d CT::FinalHomography(const CT::InlierVector &final_ref_inlier,con
     return homography;
 }
 
-Eigen::Matrix3d CT::RANSAC(const SD::StarVector &refstarvector,const SD::StarVector &tgtstarvector,const SM::TVGSPVector &tvgspvector){
+Eigen::Matrix3d homography::RANSAC(const StarVector &refstarvector,const StarVector &tgtstarvector,const TVGSPVector &tvgspvector){
     std::vector<int>randints;
     Eigen::Matrix3d homography;
     Eigen::Matrix3d finalhomography;
 
-    CT::InlierVector ref_inlier, final_ref_inlier, tgt_inlier, final_tgt_inlier;
+    InlierVector ref_inlier, final_ref_inlier, tgt_inlier, final_tgt_inlier;
 
     Eigen::Vector3d pred_pts;
     Eigen::Vector3d ref_pts = Eigen::Vector3d::Ones();
@@ -113,9 +111,9 @@ Eigen::Matrix3d CT::RANSAC(const SD::StarVector &refstarvector,const SD::StarVec
         match = 0;
         ref_inlier.clear();
         tgt_inlier.clear();
-        randints = CT::RandomPoints(tvgsptotal);
+        randints = RandomPoints(tvgsptotal);
 
-        homography = Homography(refstarvector, tgtstarvector, tvgspvector, randints);
+        homography = ComputeHomography(refstarvector, tgtstarvector, tvgspvector, randints);
 
         for (auto starnum : tvgspvector) {
             ref_pts << refstarvector[starnum.refstar].xc, refstarvector[starnum.refstar].yc;
@@ -137,7 +135,7 @@ Eigen::Matrix3d CT::RANSAC(const SD::StarVector &refstarvector,const SD::StarVec
     if (maxmatch < .25*tvgsptotal) 
         return Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN());
 
-    finalhomography = FinalHomography(final_ref_inlier, final_tgt_inlier);
+    finalhomography = ComputeFinalHomography(final_ref_inlier, final_tgt_inlier);
 
     return finalhomography;
 }

@@ -1,6 +1,7 @@
 #include "ImageStacking.h"
 
-using IS = ImageStacking;
+//using IS = ImageStacking;
+namespace IS=ImageStacking;
 
 static float Mean(std::vector<float>& pixelstack) {
     float mean = 0;

@@ -4,10 +4,8 @@
 #include <algorithm>
 #include<experimental/vector>
 
-class ImageStacking
+namespace ImageStacking
 {
-public:
-	
 	void Average(std::vector<Image> &imgvec, Image& final_image);
 
 	void Median(std::vector<Image> &imgvec, Image& final_image);

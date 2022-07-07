@@ -51,6 +51,96 @@ public:
 		return *this;
 	}
 
+	Image& operator -= (Image& other) {
+		switch (type) {
+		case 8: {
+			uint8_t* p = (uint8_t*)data;
+			uint8_t* op = (uint8_t*)other.data;
+			for (int el = 0; el < total; ++el)
+				p[el] -= op[el];
+			break;
+		}
+		case 16: {
+			uint16_t* p = (uint16_t*)data;
+			uint16_t* op = (uint16_t*)other.data;
+			for (int el = 0; el < total; ++el)
+				p[el] -= op[el];
+			break;
+		}
+		case 32: {
+			float* p = (float*)data;
+			float* op = (float*)other.data;
+			for (int el = 0; el < total; ++el)
+				p[el] -= op[el];
+			break;
+		}
+		}
+		return *this;
+	}
+
+	Image& operator /= (Image& other) {
+		switch (type) {
+		case 8: {
+			uint8_t* p = (uint8_t*)data;
+			uint8_t* op = (uint8_t*)other.data;
+			for (int el = 0; el < total; ++el) {
+				if (op[el] != 0)
+					p[el] /= op[el];
+				else
+					p[el] = 1;
+			}
+			break;
+		}
+		case 16: {
+			uint16_t* p = (uint16_t*)data;
+			uint16_t* op = (uint16_t*)other.data;
+			for (int el = 0; el < total; ++el) {
+				if (op[el] != 0)
+					p[el] /= op[el];
+				else
+					p[el] = 1;
+			}
+			break;
+		}
+		case 32: {
+			float* p = (float*)data;
+			float* op = (float*)other.data;
+			for (int el = 0; el < total; ++el) {
+				if (op[el] != 0)
+					p[el] /= op[el];
+				else
+					p[el] = 1;
+			}
+			break;
+		}
+		}
+		return *this;
+	}
+
+	Image& operator *= (float val) {
+		switch (type) {
+		case 8: {
+			uint8_t* p = (uint8_t*)data;
+			for (int el = 0; el < total; ++el)
+				p[el] *= val;
+			break;
+		}
+		case 16: {
+			uint16_t* p = (uint16_t*)data;
+			for (int el = 0; el < total; ++el)
+				p[el] *= val;
+			break;
+		}
+		case 32: {
+			float* p = (float*)data;
+			for (int el = 0; el < total; ++el)
+				p[el] *= val;
+			break;
+		}
+		}
+		return *this;
+	}
+
 	template <typename T> inline
 		T& at(int index) {
 		return ((T*)data)[index];
@@ -96,7 +186,9 @@ public:
 namespace ImageOP {
 	Image ImRead(char* file);
 
-	void AlignFrame(Image& img, Eigen::Matrix3d homography);
+	void AlignFrame_Bilinear(Image& img, Eigen::Matrix3d homography);
+
+	void AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography);
 
 	void MedianBlur3x3(Image& img);
 
@@ -109,6 +201,8 @@ namespace ImageOP {
 	void nMAD(Image& img, double& median, double& nMAD);
 
 	void AvgAbsDev(Image& img, double& median, double& abs_dev);
+
+	void TrimHighLow(Image& img, float high, float low);
 
 	void STFImageStretch(Image& img);
 
