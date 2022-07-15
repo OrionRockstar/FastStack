@@ -6,14 +6,14 @@
 
 namespace ImageStacking
 {
-	void Average(std::vector<Image> &imgvec, Image& final_image);
+	void Average(std::vector<Image32> &imgvec, Image32& final_image);
 
-	void Median(std::vector<Image> &imgvec, Image& final_image);
+	void Median(std::vector<Image32> &imgvec, Image32& final_image);
 
-	void SigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
+	void SigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
 
-	void KappaSigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
+	void KappaSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
 
-	void WinsorizedSigmaClipping(std::vector<Image> &imgvec, Image& final_image, double l_sigma, double u_sigma);
+	void WinsorizedSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
 };
 

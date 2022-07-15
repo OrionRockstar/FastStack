@@ -4,41 +4,39 @@
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-void stardetection::TrinerizeImage(Image &input, Image &output, int threshold, bool blur) {
-    output = input.DeepCopy();
-    float* iptr = (float*)output.data;
+void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold, bool blur) {
+    
+    Image32 temp(input.Rows(), input.Cols());
+    input.CopyTo(temp);
 
-    if (blur);
-        ImageOP::MedianBlur3x3(output);
+    if (blur)
+        ImageOP::MedianBlur3x3(temp);
 
-    for (int i = 0; i < output.rows * output.cols; ++i) {
-        if (iptr[i] >= threshold)  iptr[i] = 1;
-        else  iptr[i] = 0;
+    for (int i = 0; i < temp.Total(); ++i) {
+        if (temp[i] >= threshold)  output[i] = 1;
+        else  output[i] = 0;
     }
 
-    for (int y = 1; y < output.rows - 1; ++y) {
-        for (int x = 1; x < output.cols - 1; ++x) {
-            if (iptr[y * output.cols + x] == 1) {
-                //if ((x - 1 >= 0 && mptr[y * col + (x - 1)] == 0) || (x + 1 < col && mptr[y * col + (x + 1)] == 0) || (y - 1 >= 0 && mptr[(y - 1) * col + x] == 0) || (y + 1 < row && mptr[(y + 1) * col + x] == 0))  continue;
-                if (iptr[y * output.cols + (x - 1)] == 0 || iptr[y * output.cols + (x + 1)] == 0 || iptr[(y - 1) * output.cols + x] == 0 || iptr[(y + 1) * output.cols + x] == 0)  continue;
-                else  iptr[y * output.cols + x] = 2;
+    for (int y = 1; y < output.Rows() - 1; ++y) {
+        for (int x = 1; x < output.Cols() - 1; ++x) {
+            if (output(y, x) == 1) {
+                if (output(y, x - 1) == 0 || output(y, x + 1) == 0 || output(y - 1, x) == 0 || output(y + 1, x) == 0)  continue;
+                else  output(y, x) = 2;
             }
         }
     }
-    output.Convert<float, uint8_t>(output);
 }
 
-void stardetection::AperturePhotometry(const Image &img, StarVector &starvector) {
-   
-    int x, y, r, num;
-    double intensity_x, intensity_y, intensity2, intensity_sum;
+void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvector) {
 
+    int xc, yc, r, num;
+    double intensity_x, intensity_y, intensity2, intensity_sum;
     std::vector<float> skyvec;
 
-    for (auto &star : starvector) {
-        x = int(round(star.xc));
-        y = int(round(star.yc));
-        r = int(round(star.radius))+1;
+    for (auto& star : starvector) {
+        xc = int(round(star.xc));
+        yc = int(round(star.yc));
+        r = int(round(star.radius)) + 1;
         intensity_x = 0;
         intensity_y = 0;
         intensity2 = 0;
@@ -46,23 +44,23 @@ void stardetection::AperturePhotometry(const Image &img, StarVector &starvector)
         num = 0;
         skyvec.clear();
 
-        for (int row = y - 6 * r; row <= y + 6 * r; row++) {
-            for (int col = x - 6 * r; col <= x + 6 * r; col++) {
-                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && ((4 * r) <= Distance(col, row, x, y) && Distance(col, row, x, y) <= (6 * r)))
-                    skyvec.push_back(img.at<float>(row,col));
+        for (int y = yc - 6 * r; y <= yc + 6 * r; y++) {
+            for (int x = xc - 6 * r; x <= xc + 6 * r; x++) {
+                if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && ((4 * r) <= Distance(x, y, xc, yc) && Distance(x, y, xc, yc) <= (6 * r)))
+                    skyvec.push_back(img(y, x));
             }
         }
         auto sky = skyvec.begin() + int(.5 * skyvec.size());
         std::nth_element(skyvec.begin(), sky, skyvec.end());
 
-        for (int row = y - r; row <= y + r; row++) {
-            for (int col = x - r; col <= x + r; col++) {
-                if ((0 <= row && row < img.rows) && (0 <= col && col < img.cols) && Distance(col, row, x, y) <= r) {
-                    double i2 = (double)img.at<float>(row, col) * img.at<float>(row, col);
-                    intensity_x += i2 * col;
-                    intensity_y += i2 * row;
+        for (int y = yc - r; y <= yc + r; y++) {
+            for (int x = xc - r; x <= xc + r; x++) {
+                if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && Distance(x, y, xc, yc) <= r) {
+                    double i2 = (double)img(y, x) * img(y, x);
+                    intensity_x += i2 * x;
+                    intensity_y += i2 * y;
                     intensity2 += i2;
-                    intensity_sum += img.at<float>(row,col);
+                    intensity_sum += img(y, x);
                     num++;
                 }
             }
@@ -71,22 +69,18 @@ void stardetection::AperturePhotometry(const Image &img, StarVector &starvector)
         star.yc = intensity_y / intensity2;
         star.luminance = -2.5 * log10(intensity_sum - (*sky) * num);
     }
-
 }
 
-StarVector stardetection::DetectStars(Image &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
+StarVector stardetection::DetectStars(Image32 &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
 
-    double median = ImageOP::Median(img);
-    double stddev = ImageOP::StandardDeviation(img);
-    double threshold = median + star_thresh * stddev;
+    double threshold = img.median + star_thresh * img.stdev;
 
     TrigVector trigang;
     for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
         trigang.push_back({ cos(theta),sin(theta) });
 
-    Image tri;
+    Image8 tri(img.Rows(),img.Cols());
     stardetection::TrinerizeImage(img, tri, threshold, blur);
-    uint8_t* tptr = (uint8_t*)tri.data;
 
     bool newp = true;
     int vote, spacev, istarv, a, b;
@@ -94,9 +88,9 @@ StarVector stardetection::DetectStars(Image &img,const double star_thresh,const 
     StarVector starvector;
     starvector.reserve(2000);
 
-    for (int y = 0; y < img.rows; y++) {
-        for (int x = 0; x < img.cols; x++) {
-            if (tri.at<uint8_t>(y,x) == 2) {
+    for (int y = 0; y < img.Rows(); y++) {
+        for (int x = 0; x < img.Cols(); x++) {
+            if (tri(y,x) == 2) {
                 newp = true;
                 for (int r = min_radius; r <= max_radius; r++) {
 
@@ -107,9 +101,9 @@ StarVector stardetection::DetectStars(Image &img,const double star_thresh,const 
                         a = int(round(x + r * tf.costheta)); //x
                         b = int(round(y + r * tf.sintheta)); //y
 
-                        if (0 <= a && a < img.cols && 0 <= b && b < img.rows) {
-                            if (tri.at<uint8_t>(b,a) == 2)  istarv++;
-                            else if ((tri.at<uint8_t>(b,a) == 1) && (img.at<float>(y,x) > 1.5 * img.at<float>(b,a)))  vote++;
+                        if (0 <= a && a < img.Cols() && 0 <= b && b < img.Rows()) {
+                            if (tri(b,a) == 2)  istarv++;
+                            else if ((tri(b,a) == 1) && (img(y,x) > 1.5 * img(b,a)))  vote++;
                             else  spacev++;
                         }
                         else {
@@ -139,8 +133,6 @@ StarVector stardetection::DetectStars(Image &img,const double star_thresh,const 
             }
         }
     }
-
-    tri.Release();
 
     stardetection::AperturePhotometry(img, starvector);
 

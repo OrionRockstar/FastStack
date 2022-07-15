@@ -1,220 +1,200 @@
 #include "Image.h"
 
-Image::Image(int r, int c, int bitdepth) :rows(r), cols(c), type(bitdepth) {
-	switch (bitdepth) {
-	case 8:
-		Image::data = new uint8_t[r * c];
-		break;
-	case 16:
-		//Image::data16 = new unsigned short[r * c];
-		Image::data = new uint16_t[r * c];
-		break;
-	case 32:
-		Image::data = new float[r * c];
-		break;
-	default:
-		Image::data = nullptr;
+void ImageOP::TiffRead(std::string file, Image32& img) {
 
-	}
-}
+	uint32_t imagelength, imagewidth;
+	short bd;
+	TIFF* tiff = TIFFOpen(file.c_str(), "r");
+	if (tiff) {
+		TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &imagelength);
+		TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &imagewidth);
+		TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bd);
+		switch (bd) {
+		case 16: {
+			Image16 temp(imagelength, imagewidth);
 
-Image::Image(const Image &img) {
-	rows = img.rows;
-	cols = img.cols;
-	type = img.type;
-	total = img.total;
-	if (data)
-		delete[] data;
+			for (uint32_t row = 0; row < imagelength; ++row)
+				TIFFReadScanline(tiff, &temp[row * imagewidth], row);
 
-	switch (type) {
-	case 8:
-		data = new unsigned char[total];
-		memcpy(data, img.data, (size_t)total);
-		break;
-	case 16:
-		data = new unsigned short[total];
-		memcpy(data, img.data, (size_t)total * 2);
-		break;
-	case 32:
-		data = new float[total];
-		memcpy(data, img.data, (size_t)total * 4);
-		break;
-	}
-}
+			img = Image32(imagelength, imagewidth);
 
-Image::Image(Image&& img) {
-	rows = img.rows;
-	cols = img.cols;
-	type = img.type;
-	total = img.total;
-	data = img.data;
+			for (int el = 0; el < img.Total(); ++el)
+				img[el] = float(temp[el]) / 65535;
 
-	img.data = nullptr;
-}
 
-Image Image::DeepCopy() {
-	Image temp(Image::rows, Image::cols, Image::type);
-	memcpy(temp.data, Image::data, (size_t)Image::total*(Image::type/8));
-	return temp;
-}
+			break; }
 
-void Image::Release()
-{
-	if (data) {
-		Image::~Image();
-		Image::rows = 0,
-		Image::cols = 0,
-		Image::total = 0,
-		Image::type = 0;
-	}
-}
+		case 8: {
+			Image8 temp(imagelength, imagewidth);
 
-Image ImageOP::ImRead(char* file) {
-	Image img;
-	if (std::regex_search(file, std::regex("tif+$"))) {
-		uint32_t imagelength, imagewidth;
-		short bd;
-		TIFF* tiff = TIFFOpen(file, "r");
-		if (tiff) {
-			TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &imagelength);
-			TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &imagewidth);
-			TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bd);
-			switch (bd) {
-			case 16: {
-				img = std::move(Image(imagelength, imagewidth, bd));
-				uint16_t* ptr = (uint16_t*)img.data;
+			for (uint32_t row = 0; row < imagelength; ++row)
+				TIFFReadScanline(tiff, &temp[row * imagewidth], row);
 
-				for (uint32_t row = 0; row < imagelength; ++row)
-					TIFFReadScanline(tiff, &ptr[row * imagewidth], row);
+			img = Image32(imagelength, imagewidth);
 
-				img.Convert<uint16_t, float>(img);
+			for (int el = 0; el < img.Total(); ++el)
+				img[el] = float(temp[el]) / 255;
 
-				float* nptr = (float*)img.data;
-
-				for (int el = 0; el < img.total; ++el) nptr[el] /= 65535;
-
-				break; }
-
-			case 8: {
-				img = std::move(Image(imagelength, imagewidth, bd));
-				uint8_t* ptr = (uint8_t*)img.data;
-
-				for (uint32_t row = 0; row < imagelength; ++row)
-					TIFFReadScanline(tiff, &ptr[row * imagewidth], row);
-
-				img.Convert<uint8_t, float>(img);
-
-				float* nptr = (float*)img.data;
-
-				for (int el = 0; el < img.total; ++el) nptr[el] /= 255;
-
-				break; }
-			}
-			TIFFClose;
+			break; }
 		}
-
+		TIFFClose(tiff);
 	}
-	else if (std::regex_search(file, std::regex("fits$"))) {
-		fitsfile* fptr;
-		int status = 0;
-		int bitpix, naxis;
-		long naxes[2] = { 1,1 }, fpixel[2] = { 1,1 };//naxes={row,col}
+}
 
-		if (!fits_open_file(&fptr, file, READONLY, &status))
+void ImageOP::FitsRead(std::string file, Image32& img) {
+
+	//Image img;
+	fitsfile* fptr;
+	int status = 0;
+	int bitpix, naxis;
+	long naxes[2] = { 1,1 }, fpixel[2] = { 1,1 };//naxes={row,col}
+
+	if (!fits_open_file(&fptr, file.c_str(), READONLY, &status))
+	{
+		if (!fits_get_img_param(fptr, 2, &bitpix, &naxis, naxes, &status))
 		{
-			if (!fits_get_img_param(fptr, 2, &bitpix, &naxis, naxes, &status))
+			if (naxis > 2 || naxis == 0)
+				NULL;
+				//std::cout << "Error: only 2D images are supported\n";
+			else
 			{
-				if (naxis > 2 || naxis == 0);
-					//std::cout << "Error: only 2D images are supported\n";
-				else
-				{
-					switch (bitpix) {
-					case 16: {
-						img=std::move(Image(naxes[1], naxes[0], bitpix));
+				switch (bitpix) {
+				case 16: {
 
-						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, (uint16_t*)img.data, NULL, &status);
-						img.Convert<uint16_t, float>(img);
+					Image16 temp(naxes[1], naxes[0]);
 
-						float* nptr = (float*)img.data;
+					fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, temp.data.get(), NULL, &status);
 
-						for (int el = 0; el < img.total; ++el) nptr[el] /= 65535;
+					img = Image32(naxes[1], naxes[0]);
 
-						break;
-					}
+					for (int el = 0; el < img.Total(); ++el)
+						img[el] = float(temp[el]) / 65535;
 
-					case 8: {
-						img = std::move(Image(naxes[1], naxes[0], bitpix));
+					break;
+				}
 
-						fits_read_pix(fptr, TUSHORT, fpixel, naxes[0] * naxes[1], NULL, (uint8_t*)img.data, NULL, &status);
-						img.Convert<uint8_t, float>(img);
+				case 8: {
+					Image8 temp(naxes[1], naxes[0]);
 
-						float* nptr = (float*)img.data;
+					fits_read_pix(fptr, TBYTE, fpixel, naxes[0] * naxes[1], NULL, img.data.get(), NULL, &status);
 
-						for (int el = 0; el < img.total; ++el) nptr[el] /= 255;
+					img = Image32(naxes[1], naxes[0]);
 
-						break;
-					}
-					}
+					for (int el = 0; el < img.Total(); ++el)
+						img[el] = float(temp[el]) / 255;
+
+					break;
+				}
+				case -32: {
+					Image32 img(naxes[1], naxes[0]);
+
+					fits_read_pix(fptr, TFLOAT, fpixel, naxes[0] * naxes[1], NULL, img.data.get(), NULL, &status);
+
+					break;
+				}
 				}
 			}
-			fits_close_file(fptr, &status);
 		}
-
-		if (status) fits_report_error(stderr, status); /* print any error message */
+		fits_close_file(fptr, &status);
 	}
-	return img;
+
+	if (status) fits_report_error(stderr, status); // print any error message 
+
 }
 
-void ImageOP::AlignFrame_Bilinear(Image& img, Eigen::Matrix3d homography) {
+/*void ImageOP::XISFRead(std::string file, Image32& img) {
+	pcl::UInt16Image temp;
+	pcl::XISFReader xisf;
+
+	xisf.Open(file.c_str());
+	//(int)xisf.ImageOptions().bitsPerSample
+	xisf.ReadImage(temp);
+	xisf.Close();
+
+	Image32 img(temp.Height(), temp.Width());
+
+	for (int y = 0; y < img.Rows(); ++y)
+		for (int x = 0; x < img.Cols(); ++x)
+			img(y, x) = (float)temp(pcl::Point(x, y)) / 65535;
+
+}*/
+
+void ImageOP::FitsWrite(Image32& img, std::string filename) {
+	fitsfile* fptr;
+	int status, exists;
+	long  fpixel = 1, naxis = 2;// exposure;
+	long naxes[2] = { img.Cols(), img.Rows() };
+
+	status = 0;
+	fits_file_exists((filename + ".fits").c_str(), &exists, &status);
+
+	if (exists == 1) {
+		fits_open_file(&fptr, (filename + ".fits").c_str(), READWRITE, &status);
+		fits_delete_file(fptr, &status);
+	}
+
+	fits_create_file(&fptr, (filename + ".fits").c_str(), &status);
+
+	fits_create_img(fptr, FLOAT_IMG, naxis, naxes, &status);
+
+	fits_write_img(fptr, TFLOAT, fpixel, img.Total(), img.data.get(), &status);
+
+	fits_close_file(fptr, &status);
+
+	fits_report_error(stderr, status);
+	//return(status);
+}
+
+void ImageOP::AlignFrame_Bilinear(Image32& img, Eigen::Matrix3d homography) {
 	double x_s, y_s, yx, yy, r1, r2;
 	int x_f, y_f;
 
-	std::vector<float> pixels(img.total, 0);
+	std::vector<float> pixels(img.Total(), 0);
 
 #pragma omp parallel for private(x_s, y_s, yx, yy, x_f, y_f, r1, r2)
-	for (int y = 0; y < img.rows; ++y) {
+	for (int y = 0; y < img.Rows(); ++y) {
 		yx = y * homography(0, 1);
 		yy = y * homography(1, 1);
 
-		for (int x = 0; x < img.cols; ++x) {
+		for (int x = 0; x < img.Cols(); ++x) {
 			x_s = x * homography(0, 0) + yx + homography(0, 2);
 			y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-			if (x_s < 1 || x_s >= img.cols - 1 || y_s < 1 || y_s >= img.rows - 1) continue;
+			if (x_s < 1 || x_s >= img.Cols() - 1 || y_s < 1 || y_s >= img.Rows() - 1) continue;
 
 			x_f = (int)floor(x_s);
 			y_f = (int)floor(y_s);
 
-			r1 = img.at<float>(y_f, x_f) * (x_f + 1 - x_s) + img.at<float>(y_f, x_s + 1) * (x_s - x_f);
-			r2 = img.at<float>(y_f + 1, x_f) * (x_f + 1 - x_s) + img.at<float>(y_f + 1, x_f + 1) * (x_s - x_f);
+			r1 = img(y_f, x_f) * (x_f + 1 - x_s) + img(y_f, x_s + 1) * (x_s - x_f);
+			r2 = img(y_f + 1, x_f) * (x_f + 1 - x_s) + img(y_f + 1, x_f + 1) * (x_s - x_f);
 
-			pixels[y * img.cols + x] = float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
+			pixels[y * img.Cols() + x] = float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
 		}
 	}
 
-	std::copy(pixels.begin(), pixels.end(), &img.at<float>(0));
+	std::copy(pixels.begin(), pixels.end(), img.data.get());
 
 }
 
-void ImageOP::AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography) {
+void ImageOP::AlignFrame_Bicubic(Image32& img, Eigen::Matrix3d homography) {
 	double x_s, y_s, yx, yy;
 	int x_f, y_f;
-
-	std::vector<float> pixels(img.total, 0);
+	float val;
+	std::vector<float> pixels(img.Total(), 0);
 
 	double a, b, c, d, dx, dy;
 	double px[4] = { 0,0,0,0 };
 
-#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, dx, y_f, dy, a, b, c, d, px)
-	for (int y = 0; y < img.rows; ++y) {
+#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, dx, y_f, dy, a, b, c, d, px, val)
+	for (int y = 0; y < img.Rows(); ++y) {
 		yx = y * homography(0, 1);
 		yy = y * homography(1, 1);
 
-		for (int x = 0; x < img.cols; ++x) {
+		for (int x = 0; x < img.Cols(); ++x) {
 			x_s = x * homography(0, 0) + yx + homography(0, 2);
 			y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-			if (x_s < 1 || x_s >= img.cols - 2 || y_s < 1 || y_s >= img.rows - 2) continue;
+			if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) continue;
 
 			x_f = (int)floor(x_s);
 			dx = x_s - x_f;
@@ -222,10 +202,10 @@ void ImageOP::AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography) {
 			dy = y_s - y_f;
 
 			for (int i = -1; i < 3; ++i) {
-				a = -.5f * img.at<float>(y_f + i, x_f - 1) + 1.5f * img.at<float>(y_f + i, x_f) - 1.5f * img.at<float>(y_f + i, x_f + 1) + .5f * img.at<float>(y_f + i, x_f + 2);
-				b = img.at<float>(y_f + i, x_f - 1) - 2.5 * img.at<float>(y_f + i, x_f) + 2 * img.at<float>(y_f + i, x_f + 1) - .5 * img.at<float>(y_f + i, x_f + 2);
-				c = -.5 * img.at<float>(y_f + i, x_f - 1) + .5 * img.at<float>(y_f + i, x_f + 1);
-				d = img.at<float>(y_f + i, x_f);
+				a = -.5f * img(y_f + i, x_f - 1) + 1.5f * img(y_f + i, x_f) - 1.5f * img(y_f + i, x_f + 1) + .5f * img(y_f + i, x_f + 2);
+				b = img(y_f + i, x_f - 1) - 2.5 * img(y_f + i, x_f) + 2 * img(y_f + i, x_f + 1) - .5 * img(y_f + i, x_f + 2);
+				c = -.5 * img(y_f + i, x_f - 1) + .5 * img(y_f + i, x_f + 1);
+				d = img(y_f + i, x_f);
 				px[i + 1] = (a * dx * dx * dx) + (b * dx * dx) + (c * dx) + d;
 			}
 
@@ -233,26 +213,33 @@ void ImageOP::AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography) {
 			b = px[0] - 2.5 * px[1] + 2 * px[2] - .5 * px[3];
 			c = -.5 * px[0] + .5 * px[2];
 			d = px[1];
+			val = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
+			if (val > 1)
+				pixels[y * img.Cols() + x] = 1;
+			else if (val < 0)
+				pixels[y * img.Cols() + x] = 0;
+			else
+				pixels[y * img.Cols() + x] = val;
 
-			pixels[y * img.cols + x] = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
+			//pixels[y * img.cols + x] = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
 		}
 	}
 	//will need to clamp/trim data
-	std::copy(pixels.begin(), pixels.end(), &img.at<float>(0));
+	std::copy(pixels.begin(), pixels.end(), img.data.get());
 }
 
-void ImageOP::MedianBlur3x3(Image& img) {
-	float* iptr = (float*)img.data;
+void ImageOP::MedianBlur3x3(Image32& img) {
+	//float* iptr = (float*)img.data;
 
 	std::array<float, 9>kernel = { 0 };
-	std::vector<float> imgbuf(img.rows * img.cols);
+	std::vector<float> imgbuf(img.Total());
 
 #pragma omp parallel for firstprivate(kernel)
-	for (int y = 1; y < img.rows - 1; ++y) {
-		for (int x = 1; x < img.cols - 1; ++x) {
-			kernel = { img.at<float>(y - 1, x - 1), img.at<float>(y - 1, x), img.at<float>(y - 1, x + 1),
-					   img.at<float>(y , x - 1), img.at<float>(y, x), img.at<float>(y, x + 1),
-					   img.at<float>(y - 1, x - 1), img.at<float>(y + 1, x), img.at<float>(y + 1, x + 1) };
+	for (int y = 1; y < img.Rows() - 1; ++y) {
+		for (int x = 1; x < img.Cols() - 1; ++x) {
+			kernel = { img(y - 1, x - 1), img(y - 1, x), img(y - 1, x + 1),
+					   img(y , x - 1), img(y, x), img(y, x + 1),
+					   img(y - 1, x - 1), img(y + 1, x), img(y + 1, x + 1) };
 
 			for (int r = 0; r < 3; ++r) {
 				for (int i = 0; i < 4; ++i) {
@@ -263,156 +250,41 @@ void ImageOP::MedianBlur3x3(Image& img) {
 				}
 			}
 
-			imgbuf[y * img.cols + x] = kernel[4];
+			imgbuf[y * img.Cols() + x] = kernel[4];
 		}
 	}
-	memcpy(img.data, &imgbuf[0], img.total * 4);
+	memcpy(img.data.get(), &imgbuf[0], img.Total() * 4);
 }
 
-double ImageOP::Median(Image& img) {
-	std::vector<float>imgbuf(img.total);
-	memcpy(&imgbuf[0], img.data, img.total * 4);
-	std::nth_element(&imgbuf[0], &imgbuf[imgbuf.size() / 2], &imgbuf[imgbuf.size()]);
-	return (double)imgbuf[imgbuf.size() / 2];
-}
+void ImageOP::TrimHighLow(Image32& img, float high, float low) {
 
-double ImageOP::StandardDeviation(Image& img) {
-	float* ptr = (float*)img.data;
-	float mean = 0;
-
-	for (int el = 0; el < img.total; ++el)
-		mean += ptr[el];
-
-	mean /= img.total;
-	float var = 0, d;
-
-	for (int el = 0; el < img.total; ++el) {
-		d = ptr[el] - mean;
-		var += d * d;
-	}
-	return sqrt(var / img.total);
-}
-
-double ImageOP::StandardDeviation256(Image& img) {
-	float* ptr = (float*)img.data;
-	__m256 mean = _mm256_setzero_ps();
-
-	for (int el = 0; el < img.total / 8; ++el, ptr += 8)
-		mean = _mm256_add_ps(mean, _mm256_load_ps(ptr));
-
-	mean = _mm256_div_ps(mean, _mm256_set1_ps(img.total));
-	float* mp = (float*)&mean;
-	float m = 0;
-	for (int el = 0; el < 8; ++el, ++mp)
-		m += *mp;
-
-	mean = _mm256_set1_ps(m);
-	__m256 var = _mm256_setzero_ps(), d;
-	ptr -= img.total;
-
-	for (int el = 0; el < img.total / 8; ++el, ptr += 8) {
-		d = _mm256_sub_ps(_mm256_load_ps(ptr), mean);
-		var = _mm256_add_ps(var, _mm256_mul_ps(d, d));
-	}
-
-	float* vp = (float*)&var;
-	float v = 0;
-	for (int el = 0; el < 8; ++el, ++vp)
-		v += *vp;
-	return sqrt(v / img.total);
-}
-
-void ImageOP::nMAD(Image& img, double& median, double& nMAD) {
-	std::vector<float> imgbuf(img.total);
-	float* bptr = &imgbuf[0];
-	memcpy(&imgbuf[0], img.data, img.total * 4);
-	std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-	median = imgbuf[imgbuf.size() / 2];
-	for (int i = 0; i < (int)imgbuf.size(); ++i)
-		imgbuf[i] = fabs(imgbuf[i] - median);
-	std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-	nMAD = 1.4826 * imgbuf[imgbuf.size() / 2];
-}
-
-void ImageOP::AvgAbsDev(Image& img, double& median, double& abs_dev) {
-	std::vector<float> buf(img.total);
-	memcpy(&buf[0], img.data, img.total * 4);
-	std::nth_element(buf.begin(), buf.begin() + img.total / 2, buf.end());
-	median = buf[img.total / 2];
-	double sum = 0;
-	for (int el = 0; el < img.total; ++el) {
-		sum += fabs(buf[el] - median);
-	}
-	abs_dev = sum / img.total;
-}
-
-void ImageOP::TrimHighLow(Image& img, float high, float low) {
-
-	for (int el = 0; el < img.total; ++el) {
-		if (img.at<float>(el) > high)
-			img.at<float>(el) = high;
-		else if (img.at<float>(el) < low)
-			img.at<float>(el) = low;
+	for (int el = 0; el < img.Total(); ++el) {
+		if (img[el] > high)
+			img[el] = high;
+		else if (img[el] < low)
+			img[el] = low;
 	}
 }
 
-void ImageOP::STFImageStretch(Image& img) {
-	float* ptr = (float*)img.data;
+void ImageOP::STFImageStretch(Image32& img) {
 
-	double median, nMAD;
-	ImageOP::nMAD(img, median, nMAD);
+	float median, nMAD;
+	img.nMAD(median, nMAD);
 
-	float shadow = median - 2.8 * nMAD, midtone = 4 * 1.4826 * (median - shadow);
+	float shadow = median - 2.8f * nMAD, midtone = 4 * 1.4826f * (median - shadow);
 
-	for (int el = 0; el < (img.rows * img.cols); ++el) {
+	for (int el = 0; el < img.Total(); ++el) {
 
-		if (ptr[el] < shadow) { ptr[el] = shadow; continue; }
+		if (img[el] < shadow) { img[el] = shadow; continue; }
 
-		ptr[el] = (ptr[el] - shadow) / (1 - shadow);
+		img[el] = (img[el] - shadow) / (1 - shadow);
 
-		if (ptr[el] == 0 || ptr[el] == 1)  continue;
+		if (img[el] == 0 || img[el] == 1)  continue;
 
-		else if (ptr[el] == midtone)  ptr[el] = .5;
+		else if (img[el] == midtone)  img[el] = .5;
 
 		else
-			ptr[el] = ((midtone - 1) * ptr[el]) / (((2 * midtone - 1) * ptr[el]) - midtone);
-
-	}
-
-}
-
-void ImageOP::STFImageStretch256(Image& img) {
-	float* ptr = (float*)img.data;
-
-	double median, nMAD;
-	ImageOP::nMAD(img, median, nMAD);
-
-	double shadow = median - 2.8 * nMAD, midtone = 4 * 1.4826 * (median - shadow);
-
-	__m256 _sh, one, pixels, midtone_mask, _mt, _midp, _pm, zero, two;
-	_mt = _mm256_set1_ps(midtone);
-	_midp = _mm256_set1_ps(0.5);
-	one = _mm256_set1_ps(1);
-	zero = _mm256_setzero_ps();
-	_sh = _mm256_set1_ps(shadow);
-	two = _mm256_set1_ps(2);
-
-	for (int el = 0; el < (img.rows * img.cols) / 8; ++el, ptr += 8) {
-		pixels = _mm256_div_ps(_mm256_sub_ps(_mm256_load_ps(ptr), _sh), _mm256_sub_ps(one, _sh));
-
-		_pm = _mm256_cmp_ps(pixels, zero, _CMP_LT_OQ);
-		pixels = _mm256_add_ps(_mm256_sub_ps(pixels, _mm256_and_ps(pixels, _pm)), _mm256_and_ps(_mm256_set1_ps(0.005), _pm));
-
-		midtone_mask = _mm256_cmp_ps(pixels, _mt, _CMP_EQ_OQ);
-		pixels = _mm256_add_ps(_mm256_sub_ps(pixels, _mm256_and_ps(_mt, midtone_mask)), _mm256_and_ps(_midp, midtone_mask));
-
-		_pm = _mm256_and_ps(_mm256_cmp_ps(pixels, one, _CMP_NEQ_OQ), _mm256_cmp_ps(pixels, zero, _CMP_NEQ_OQ));
-		_pm = _mm256_and_ps(_pm, _mm256_cmp_ps(pixels, _midp, _CMP_NEQ_OQ));
-		pixels = _mm256_and_ps(pixels, _pm);
-
-		pixels = _mm256_div_ps(_mm256_mul_ps(_mm256_sub_ps(_mt, one), pixels), _mm256_fmsub_ps(_mm256_fmsub_ps(two, _mt, one), pixels, _mt));
-
-		_mm256_store_ps(ptr, pixels);
+			img[el] = ((midtone - 1) * img[el]) / (((2 * midtone - 1) * img[el]) - midtone);
 
 	}
 

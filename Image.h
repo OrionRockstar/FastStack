@@ -3,208 +3,164 @@
 #include <Eigen/Dense>
 #include "tiffio.h"
 #include "cfitsio/fitsio.h"
-#include <regex>
 #include <array>
 
-
-class Image
-{
-public:
-	void* data = nullptr;
+template <typename T>
+class Image {
+private:
 	int rows = 0;
 	int cols = 0;
 	int total = rows * cols;
-	int type = 0;
+	char bitdepth = 0;
 
-	Image(int rows, int cols, int bitdepth);
+public:
+	std::unique_ptr<T[]> data;
+	float median = 0;
+	float mean = 0;
+	float stdev = 0;
+
+	Image(int r, int c) :rows(r), cols(c) {
+		bitdepth = sizeof(T) * 8;
+		data = std::make_unique<T[]>(r * c);
+	}
 	Image() = default;
-	Image(const Image& img);
-	Image(Image&& img);
-	~Image() {
-		delete[](void*)data;
-		data = nullptr;
+	//Image(const Image& img);
+	Image(Image&& img) {
+		rows = img.rows;
+		cols = img.cols;
+		bitdepth = img.bitdepth;
+		total = img.total;
+		median = img.median;
+		mean = img.mean;
+		stdev = img.stdv;
+		data = std::move(img.data);
 	}
 
-	Image& operator=(Image &&img) {
+	~Image() {}
+
+	Image& operator=(Image&& img) {
 		if (this != &img) {
 			rows = img.rows;
 			cols = img.cols;
-			type = img.type;
+			bitdepth = img.bitdepth;
 			total = img.total;
-			if (data) {
-				delete[] data;
-				data = nullptr;
-			}
-			data = img.data;
-			img.data = nullptr;
+			median = img.median;
+			mean = img.mean;
+			stdev = img.stdev;
+			data = std::move(img.data);
 		}
 		return *this;
 	}
 
-	Image& operator=(const Image &img) {
-		rows = img.rows;
-		cols = img.cols;
-		type = img.type;
-		total = img.total;
-		data = img.data;
-
-		return *this;
+	T& operator[](int el) {
+		return data[el];
 	}
 
-	Image& operator -= (Image& other) {
-		switch (type) {
-		case 8: {
-			uint8_t* p = (uint8_t*)data;
-			uint8_t* op = (uint8_t*)other.data;
-			for (int el = 0; el < total; ++el)
-				p[el] -= op[el];
-			break;
-		}
-		case 16: {
-			uint16_t* p = (uint16_t*)data;
-			uint16_t* op = (uint16_t*)other.data;
-			for (int el = 0; el < total; ++el)
-				p[el] -= op[el];
-			break;
-		}
-		case 32: {
-			float* p = (float*)data;
-			float* op = (float*)other.data;
-			for (int el = 0; el < total; ++el)
-				p[el] -= op[el];
-			break;
-		}
-		}
-		return *this;
+	T& operator[](int el) const {
+		return data[el];
 	}
 
-	Image& operator /= (Image& other) {
-		switch (type) {
-		case 8: {
-			uint8_t* p = (uint8_t*)data;
-			uint8_t* op = (uint8_t*)other.data;
-			for (int el = 0; el < total; ++el) {
-				if (op[el] != 0)
-					p[el] /= op[el];
-				else
-					p[el] = 1;
-			}
-			break;
-		}
-		case 16: {
-			uint16_t* p = (uint16_t*)data;
-			uint16_t* op = (uint16_t*)other.data;
-			for (int el = 0; el < total; ++el) {
-				if (op[el] != 0)
-					p[el] /= op[el];
-				else
-					p[el] = 1;
-			}
-			break;
-		}
-		case 32: {
-			float* p = (float*)data;
-			float* op = (float*)other.data;
-			for (int el = 0; el < total; ++el) {
-				if (op[el] != 0)
-					p[el] /= op[el];
-				else
-					p[el] = 1;
-			}
-			break;
-		}
-		}
-		return *this;
+	T& operator()(int y, int x) {
+		return data[y * cols + x];
 	}
 
-	Image& operator *= (float val) {
-		switch (type) {
-		case 8: {
-			uint8_t* p = (uint8_t*)data;
-			for (int el = 0; el < total; ++el)
-				p[el] *= val;
-			break;
+	T& operator()(int y, int x) const {
+		return data[y * cols + x];
+	}
+
+	int Rows() const { return rows; }
+
+	int Cols() const { return cols; }
+
+	int Total() const { return total; }
+
+	void CopyTo(Image& img) const {
+		if (img.total != total || img.bitdepth != bitdepth)
+			img = Image<T>(rows, cols);
+		memcpy(img.data.get(), data.get(), total * sizeof(T));
+	}
+
+	T Median() {
+		std::vector<T> temp(total);
+		memcpy(&temp[0], data.get(), total * sizeof(T));
+		std::nth_element(temp.begin(), temp.begin() + total / 2, temp.end());
+		return temp[total / 2];
+	}
+
+	float Mean() {
+		float sum = 0;
+		for (int el = 0; el < total; ++el)
+			sum += data[el];
+		return sum / total;
+	}
+
+	float Standard_Deviation(float mean) {
+		float d, var = 0;
+		for (int el = 0; el < this->total; ++el) {
+			d = data[el] - mean;
+			var += d * d;
 		}
-		case 16: {
-			uint16_t* p = (uint16_t*)data;
-			for (int el = 0; el < total; ++el)
-				p[el] *= val;
-			break;
+		return sqrt(var / total);
+	}
+
+	void nMAD(float& median, float& nMAD) {
+		std::vector<float> imgbuf(total);
+
+		memcpy(&imgbuf[0], data.get(), total * 4);
+
+		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
+		median = imgbuf[imgbuf.size() / 2];
+
+		for (size_t i = 0; i < imgbuf.size(); ++i)
+			imgbuf[i] = fabs(imgbuf[i] - median);
+
+		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
+		nMAD = 1.4826 * imgbuf[imgbuf.size() / 2];
+	}
+
+	float AvgDev_trimmed() {
+
+		float sum = 0;
+		int count = 0;
+		for (int el = 0; el < total; ++el) {
+			if (data[el] < 0.00002f || data[el] > 0.99998f)
+				continue;
+			sum += fabs(data[el] - this->median);
+			count++;
 		}
-		case 32: {
-			float* p = (float*)data;
-			for (int el = 0; el < total; ++el)
-				p[el] *= val;
-			break;
-		}
-		}
-		return *this;
+		return sum / count;
 	}
 
-	template <typename T> inline
-		T& at(int index) {
-		return ((T*)data)[index];
+	T Max() {
+		T max = std::numeric_limits<T>::min();
+		for (int el = 0; el < total; ++el)
+			if (data[el] > max) max = data[el];
+		return max;
 	}
-
-	template <typename T> inline
-		T& at(int index) const {
-		return ((T*)data)[index];
-	}
-
-	template <typename T> inline
-		T& at(int row, int col) {
-		return ((T*)data)[row * cols + col];
-	}
-
-	template <typename T> inline
-		T& at(int row, int col) const {
-		return ((T*)data)[row * cols + col];
-	}
-
-	template<typename Old, typename New>
-	void Convert(Image &output) {
-
-		Old* ptr = (Old*)Image::data;
-
-		output.data = new New[output.total];
-		New* nptr = (New*)output.data;
-
-		for (size_t el = 0; el < total; ++el)
-			nptr[el] = ptr[el];
-
-		output.type = sizeof(New) * 8;
-
-		delete[] ptr;
-	}
-
-	Image DeepCopy();
-
-	void Release();
-
 };
 
+typedef Image<float> Image32;
+typedef Image<uint16_t> Image16;
+typedef Image<uint8_t> Image8;
+
 namespace ImageOP {
-	Image ImRead(char* file);
 
-	void AlignFrame_Bilinear(Image& img, Eigen::Matrix3d homography);
+	void TiffRead(std::string file, Image32& img);
 
-	void AlignFrame_Bicubic(Image& img, Eigen::Matrix3d homography);
+	void FitsRead(std::string file, Image32& img);
 
-	void MedianBlur3x3(Image& img);
+	//void XISFRead(std::string file, Image32& img);
 
-	double Median(Image& img);
+	void FitsWrite(Image32& img, std::string filename);
 
-	double StandardDeviation(Image& img);
+	void AlignFrame_Bilinear(Image32& img, Eigen::Matrix3d homography);
 
-	double StandardDeviation256(Image& img);
+	void AlignFrame_Bicubic(Image32& img, Eigen::Matrix3d homography);
 
-	void nMAD(Image& img, double& median, double& nMAD);
+	void MedianBlur3x3(Image32& img);
 
-	void AvgAbsDev(Image& img, double& median, double& abs_dev);
+	void TrimHighLow(Image32& img, float high, float low);
 
-	void TrimHighLow(Image& img, float high, float low);
+	void STFImageStretch(Image32& img);
 
-	void STFImageStretch(Image& img);
-
-	void STFImageStretch256(Image& img);
 }
