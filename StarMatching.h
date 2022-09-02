@@ -1,17 +1,16 @@
 #pragma once
 #include "StarDetection.h"
-//#include <omp.h>
 
-//class StarMatching
-//{
-//public:
 struct Triangle {
     //triangle descriptors
-    float rx; //ratio middle/longest side
-    float ry; //ratio shortest/longest side
-    unsigned char star1; //star numbers
-    unsigned char star2;
-    unsigned char star3;
+    float rx=0; //ratio middle/longest side
+    float ry=0; //ratio shortest/longest side
+    uint8_t star1=0; //star numbers
+    uint8_t star2=0;
+    uint8_t star3=0;
+
+    Triangle(float x, float y, uint8_t s1, uint8_t s2, uint8_t s3) : rx(x), ry(y), star1(s1), star2(s2), star3(s3) {};
+    Triangle() = default;
 
     bool operator()(const Triangle &a, const Triangle &b) { return a.rx < b.rx; };
 };
@@ -29,4 +28,3 @@ namespace starmatching {
 
     TVGSPVector MatchStars(const TriangleVector& reftri, const TriangleVector& tgttri, int psprow, int pspcol);
 }
-//};

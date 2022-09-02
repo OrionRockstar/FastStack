@@ -26,19 +26,18 @@ static double StandardDeviation(std::vector<int>& psp) {
 }
 
 TriangleVector starmatching::TrianglesComputation(const StarVector& starvector) {
-    int count = 0;
-    unsigned char sa, sb, sc;
-    double side_ab = 0;
-    int mm = (int)starvector.size();
-    int maxtri = int(((mm * (mm - 1) * (mm - 2)) / 6));
+    
+    uint8_t nstars = (uint8_t)starvector.size();
+    int maxtri = int(((nstars * (nstars - 1) * (nstars - 2)) / 6));
     std::vector<double>sides(3);
 
-    TriangleVector trianglevector(maxtri);
+    TriangleVector trianglevector;
+    trianglevector.reserve(maxtri);
 
-    for (sa = 0; sa < mm; ++sa) {
-        for (sb = sa + 1; sb < mm; ++sb) {
-            side_ab = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sb].xc, starvector[sb].yc);
-            for (sc = sb + 1; sc < mm; ++sc) {
+    for (uint8_t sa = 0; sa < nstars; ++sa) {
+        for (uint8_t sb = sa + 1; sb < nstars; ++sb) {
+            double side_ab = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sb].xc, starvector[sb].yc);
+            for (uint8_t sc = sb + 1; sc < nstars; ++sc) {
                 sides[0] = side_ab;
                 sides[1] = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sc].xc, starvector[sc].yc);
                 sides[2] = Distance(starvector[sb].xc, starvector[sb].yc, starvector[sc].xc, starvector[sc].yc);
@@ -49,16 +48,14 @@ TriangleVector starmatching::TrianglesComputation(const StarVector& starvector) 
                             std::swap(sides[i], sides[j]);
                     }
                 }
+
                 if (sides[2] != 0)
-                    if (sides[1] / sides[2] < .9) {
-                        trianglevector[count] = { float(sides[1] / sides[2]),float(sides[0] / sides[2]),sa,sb,sc };
-                        count++;
-                    }
+                    if (sides[1] / sides[2] < .9)
+                        trianglevector.emplace_back(float(sides[1] / sides[2]),float(sides[0] / sides[2]),sa,sb,sc);
+
             }
         }
     }
-
-    trianglevector.resize(count);
 
     std::sort(trianglevector.begin(), trianglevector.end(), Triangle());
 

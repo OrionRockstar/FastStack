@@ -103,6 +103,7 @@
     <ClCompile Include="Homography.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
+    <ClCompile Include="Interpolation.cpp" />
     <ClCompile Include="StarDetection.cpp" />
     <ClCompile Include="StarMatching.cpp" />
     <QtRcc Include="FastStack.qrc" />
@@ -115,6 +116,7 @@
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageStacking.h" />
+    <ClInclude Include="Interpolation.h" />
     <ClInclude Include="StarDetection.h" />
     <ClInclude Include="StarMatching.h" />
   </ItemGroup>

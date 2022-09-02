@@ -1,4 +1,5 @@
 #include "Image.h"
+#include "Interpolation.h"
 
 void ImageOP::TiffRead(std::string file, Image32& img) {
 
@@ -145,75 +146,21 @@ void ImageOP::FitsWrite(Image32& img, std::string filename) {
 	//return(status);
 }
 
-void ImageOP::AlignFrame_Bilinear(Image32& img, Eigen::Matrix3d homography) {
-	double x_s, y_s, yx, yy, r1, r2;
-	int x_f, y_f;
-
+void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, float (*interp_type)(Image32&, double& x_s, double& y_s)) {
 	std::vector<float> pixels(img.Total(), 0);
 
-#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, y_f, r1, r2)
+#pragma omp parallel for
 	for (int y = 0; y < img.Rows(); ++y) {
-		yx = y * homography(0, 1);
-		yy = y * homography(1, 1);
+
+		double yx = y * homography(0, 1);
+		double yy = y * homography(1, 1);
 
 		for (int x = 0; x < img.Cols(); ++x) {
-			x_s = x * homography(0, 0) + yx + homography(0, 2);
-			y_s = x * homography(1, 0) + yy + homography(1, 2);
+			double x_s = x * homography(0, 0) + yx + homography(0, 2);
+			double y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-			if (x_s < 1 || x_s >= img.Cols() - 1 || y_s < 1 || y_s >= img.Rows() - 1) continue;
+			float val = interp_type(img, x_s, y_s);
 
-			x_f = (int)floor(x_s);
-			y_f = (int)floor(y_s);
-
-			r1 = img(y_f, x_f) * (x_f + 1 - x_s) + img(y_f, x_s + 1) * (x_s - x_f);
-			r2 = img(y_f + 1, x_f) * (x_f + 1 - x_s) + img(y_f + 1, x_f + 1) * (x_s - x_f);
-
-			pixels[y * img.Cols() + x] = float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
-		}
-	}
-
-	std::copy(pixels.begin(), pixels.end(), img.data.get());
-
-}
-
-void ImageOP::AlignFrame_Bicubic(Image32& img, Eigen::Matrix3d homography) {
-	double x_s, y_s, yx, yy;
-	int x_f, y_f;
-	float val;
-	std::vector<float> pixels(img.Total(), 0);
-
-	double a, b, c, d, dx, dy;
-	double px[4] = { 0,0,0,0 };
-
-#pragma omp parallel for private(x_s, y_s, yx, yy, x_f, dx, y_f, dy, a, b, c, d, px, val)
-	for (int y = 0; y < img.Rows(); ++y) {
-		yx = y * homography(0, 1);
-		yy = y * homography(1, 1);
-
-		for (int x = 0; x < img.Cols(); ++x) {
-			x_s = x * homography(0, 0) + yx + homography(0, 2);
-			y_s = x * homography(1, 0) + yy + homography(1, 2);
-
-			if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) continue;
-
-			x_f = (int)floor(x_s);
-			dx = x_s - x_f;
-			y_f = (int)floor(y_s);
-			dy = y_s - y_f;
-
-			for (int i = -1; i < 3; ++i) {
-				a = -.5f * img(y_f + i, x_f - 1) + 1.5f * img(y_f + i, x_f) - 1.5f * img(y_f + i, x_f + 1) + .5f * img(y_f + i, x_f + 2);
-				b = img(y_f + i, x_f - 1) - 2.5 * img(y_f + i, x_f) + 2 * img(y_f + i, x_f + 1) - .5 * img(y_f + i, x_f + 2);
-				c = -.5 * img(y_f + i, x_f - 1) + .5 * img(y_f + i, x_f + 1);
-				d = img(y_f + i, x_f);
-				px[i + 1] = (a * dx * dx * dx) + (b * dx * dx) + (c * dx) + d;
-			}
-
-			a = -.5 * px[0] + 1.5 * px[1] - 1.5 * px[2] + .5 * px[3];
-			b = px[0] - 2.5 * px[1] + 2 * px[2] - .5 * px[3];
-			c = -.5 * px[0] + .5 * px[2];
-			d = px[1];
-			val = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
 			if (val > 1)
 				pixels[y * img.Cols() + x] = 1;
 			else if (val < 0)
@@ -221,11 +168,202 @@ void ImageOP::AlignFrame_Bicubic(Image32& img, Eigen::Matrix3d homography) {
 			else
 				pixels[y * img.Cols() + x] = val;
 
-			//pixels[y * img.cols + x] = float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
 		}
 	}
-	//will need to clamp/trim data
-	std::copy(pixels.begin(), pixels.end(), img.data.get());
+
+	std::memcpy(img.data.get(), &pixels[0], img.Total() * 4);
+}
+
+void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
+
+	input.homography = Eigen::Inverse(input.homography);
+	float oweight = 1;
+	if (output.IsZero())
+		oweight = 0;
+
+	float s2 = drop * drop;
+	float offset = (1 - drop) / 2;
+	float x2drop = 2 * drop;
+	float drop_area = x2drop * x2drop;
+
+#pragma omp parallel for
+	for (int y = 0; y < input.Rows(); ++y) {
+
+		double yx = y * input.homography(0, 1);
+		double yy = y * input.homography(1, 1);
+
+		for (int x = 0; x < input.Cols(); ++x) {
+			double x_s = x * input.homography(0, 0) + yx + input.homography(0, 2) + offset;
+			double y_s = x * input.homography(1, 0) + yy + input.homography(1, 2) + offset;
+
+			int x_f = (int)floor(2 * x_s);
+			int y_f = (int)floor(2 * y_s);
+
+			if (x_f < 0 || x_f >= output.Cols() - 2 || y_f < 0 || y_f >= output.Rows() - 2)
+				continue;
+
+			float vx = (1 - ((2 * (x_s)) - x_f));
+			float vy = (1 - ((2 * (y_s)) - y_f));
+
+			std::array<float, 9> area{ 0 };
+
+			if (x2drop > vx && x2drop > vy)
+				area[0] = (vx * vy) / drop_area;
+			else if (x2drop < vx && x2drop > vy)
+				area[0] = ((x2drop)*vy) / drop_area;
+			else if (x2drop > vx && x2drop < vy)
+				area[0] = (vx * (x2drop)) / drop_area;
+			else
+				area[0] = ((x2drop) * (x2drop)) / drop_area;
+
+			output(y_f, x_f) = (input(y, x) * area[0] * s2 + output(y_f, x_f)) / (area[0] + oweight);
+
+			if (x2drop >= vx + 1 && x2drop > vy) {
+				area[1] = vy / drop_area;
+				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+			}
+			else if (x2drop < vx + 1 && x2drop >= vx && x2drop>vy) {
+				area[1] = (vy * (x2drop - vx)) / drop_area;
+				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+			}
+			else if (x2drop < vx + 1 && x2drop >= vx && x2drop < vy) {
+				area[1] = (x2drop * (x2drop - vx)) / drop_area;
+				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+			}
+
+			if (x2drop >= vx + 1) {
+				area[2] = (vy * (x2drop - vx - 1)) / drop_area;
+				output(y_f, x_f + 2) = (input(y, x) * area[2] * s2 + output(y_f, x_f + 2)) / (area[2] + oweight);
+			}
+
+			if (x2drop >= vy + 1) {
+				area[3] = vx / drop_area;
+				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+			}
+			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx) {
+				area[3] = (vx * (x2drop - vy)) / drop_area;
+				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+			}
+			else if (x2drop < vy + 1 && x2drop >= vy && x2drop < vx) {
+				area[3] = ((x2drop) * (x2drop - vy)) / drop_area;
+				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+			}
+
+			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
+				area[4] = 1 / drop_area;
+				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+			}
+			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx + 1) {
+				area[4] = (x2drop - vy) / drop_area;
+				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+			}
+			else if (x2drop < vx + 1 && x2drop >= vx && x2drop >= vy + 1) {
+				area[4] = (x2drop - vx) / drop_area;
+				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+			}
+			else if ((x2drop < vx + 1 && x2drop >= vx) && (x2drop < vy + 1 && x2drop >= vy)) {
+				area[4] = ((x2drop - vx) * (x2drop - vy)) / drop_area;
+				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+			}
+
+			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
+				area[5] = (x2drop - vx - 1) / drop_area;
+				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
+			}
+			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx + 1) {
+				area[5] = ((x2drop - vy) * (x2drop - vx - 1)) / drop_area;
+				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
+			}
+
+			if (x2drop >= vy + 1) {
+				area[6] = (vx * (x2drop - vy - 1)) / drop_area;
+				output(y_f + 2, x_f) = (input(y, x) * area[6] * s2 + output(y_f + 2, x_f)) / (area[6] + oweight);
+			}
+
+			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
+				area[7] = (x2drop - vy - 1) / drop_area;
+				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
+			}
+			else if (x2drop < vx + 1 && x2drop >= vx && x2drop >= vy + 1) {
+				area[7] = ((x2drop - vy - 1) * (x2drop - vx)) / drop_area;
+				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
+			}
+
+			if (x2drop >= vy + 1 && x2drop >= vx + 1) {
+				area[8] = ((x2drop - vy - 1) * (x2drop - vx - 1)) / drop_area;
+				output(y_f + 2, x_f + 2) = (input(y, x) * area[8] * s2 + output(y_f + 2, x_f + 2)) / (area[8] + oweight);
+			}
+		}
+	}
+}
+
+void ImageOP::Resize2x_Bicubic(Image32& img) {
+	Image32 temp(img.Rows() * 2, img.Cols() * 2);
+
+#pragma omp parallel for
+	for (int y = 0; y < temp.Rows(); ++y) {
+		double y_s = 0.5 * y;
+
+		for (int x = 0; x < temp.Cols(); ++x) {
+			double x_s = 0.5 * x;
+
+			float val = Interpolation::Bicubic_Spline(img, x_s, y_s);
+
+			if (val > 1)
+				temp(y, x) = 1;
+			else if (val < 0)
+				temp(y, x) = 0;
+			else
+				temp(y, x) = val;
+		}
+	}
+
+	img = std::move(temp);
+}
+
+void ImageOP::ImageResize_Bicubic(Image32& img, int new_rows, int new_cols) {
+	Image32 temp(new_rows, new_cols);
+	double ry = double(img.Rows()) / temp.Rows();
+	double rx = double(img.Cols()) / temp.Cols();
+
+#pragma omp parallel for
+	for (int y = 0; y < temp.Rows(); ++y) {
+		double y_s = y * ry;
+
+		for (int x = 0; x < temp.Cols(); ++x) {
+			double x_s = x * rx;
+
+			float val = Interpolation::Bicubic_Spline(img, x_s, y_s);
+
+			if (val > 1)
+				temp(y, x) = 1;
+			else if (val < 0)
+				temp(y, x) = 0;
+			else
+				temp(y, x) = val;
+		}
+	}
+
+	img = std::move(temp);
+	img.ComputeStats();
+}
+
+void ImageOP::Bin2x(Image32& img) {
+	Image32 temp(img.Rows() / 2, img.Cols() / 2);
+
+#pragma omp parallel for
+	for (int y = 0; y < temp.Rows(); ++y) {
+		int y_s = 2 * y;
+
+		for (int x = 0; x < temp.Cols(); ++x) {
+			int x_s = 2 * x;
+
+			temp(y, x) = (img(y_s, x_s) + img(y_s, x_s + 1) + img(y_s + 1, x_s) + img(y_s + 1, x_s + 1)) / 4;
+
+		}
+	}
+	img = std::move(temp);
+	img.ComputeStats();
 }
 
 void ImageOP::MedianBlur3x3(Image32& img) {
@@ -268,10 +406,9 @@ void ImageOP::TrimHighLow(Image32& img, float high, float low) {
 
 void ImageOP::STFImageStretch(Image32& img) {
 
-	float median, nMAD;
-	img.nMAD(median, nMAD);
+	float nMAD=img.nMAD();
 
-	float shadow = median - 2.8f * nMAD, midtone = 4 * 1.4826f * (median - shadow);
+	float shadow = img.median - 2.8f * nMAD, midtone = 4 * 1.4826f * (img.median - shadow);
 
 	for (int el = 0; el < img.Total(); ++el) {
 

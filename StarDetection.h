@@ -1,9 +1,6 @@
 #pragma once
 #include "Image.h"
 
-//class StarDetection
-//{
-//public:
 struct Star {
     double xc=0; //x-center coordinate
     double yc=0; //y-center coordinate
@@ -26,12 +23,12 @@ struct TrigAngles {
 typedef std::vector<TrigAngles>TrigVector;
 typedef std::vector<Star>StarVector;
 
-//};
+
 namespace stardetection {
 
 void TrinerizeImage(Image32& input, Image8& output, int threshold, bool blur);
 
 void AperturePhotometry(const Image32& img, StarVector& starvector);
 
-StarVector DetectStars(Image32& img, const double star_thresh, const int vote_thresh, const int total_votes, const int min_radius, const int max_radius, const bool medianblur);
+StarVector DetectStars(Image32& img, const double thresh_mult1, const double thresh_mult2, const int max_radius, const bool medianblur);
 }

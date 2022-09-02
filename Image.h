@@ -15,9 +15,13 @@ private:
 
 public:
 	std::unique_ptr<T[]> data;
+	float max = std::numeric_limits<float>::min();
+	float min = std::numeric_limits<float>::max();
 	float median = 0;
 	float mean = 0;
 	float stdev = 0;
+	Eigen::Matrix3d homography = Eigen::Matrix3d::Identity();
+
 
 	Image(int r, int c) :rows(r), cols(c) {
 		bitdepth = sizeof(T) * 8;
@@ -80,6 +84,30 @@ public:
 		memcpy(img.data.get(), data.get(), total * sizeof(T));
 	}
 
+	void ComputeStats() {
+		std::vector<T> temp(this->Total());
+		memcpy(&temp[0], this->data.get(), this->Total() * sizeof(T));
+		std::nth_element(temp.begin(), temp.begin() + temp.size() / 2, temp.end());
+
+		this->median = temp[temp.size() / 2];
+		float sum = 0;
+		for (size_t el = 0; el < temp.size(); ++el) {
+			sum += temp[el];
+			if (temp[el] > this->max)
+				this->max = temp[el];
+			else if (temp[el] < this->min)
+				this->min = temp[el];
+		}
+		this->mean = sum / this->Total();
+		float d, var = 0;
+		for (size_t el = 0; el < temp.size(); ++el) {
+			d = temp[el] - this->mean;
+			var += d * d;
+		}
+		this->stdev = sqrt(var / this->Total());
+
+	}
+
 	T Median() {
 		std::vector<T> temp(total);
 		memcpy(&temp[0], data.get(), total * sizeof(T));
@@ -103,19 +131,22 @@ public:
 		return sqrt(var / total);
 	}
 
-	void nMAD(float& median, float& nMAD) {
-		std::vector<float> imgbuf(total);
+	float nMAD() {
 
-		memcpy(&imgbuf[0], data.get(), total * 4);
+		std::vector<T> imgbuf(total);
 
-		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-		median = imgbuf[imgbuf.size() / 2];
+		memcpy(&imgbuf[0], this->data.get(), total * 4);
+
+		if (this->median == 0) {
+			std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
+			this->median = imgbuf[imgbuf.size() / 2];
+		}
 
 		for (size_t i = 0; i < imgbuf.size(); ++i)
-			imgbuf[i] = fabs(imgbuf[i] - median);
+			imgbuf[i] = fabs(imgbuf[i] - this->median);
 
 		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-		nMAD = 1.4826 * imgbuf[imgbuf.size() / 2];
+		return (float)1.4826 * imgbuf[imgbuf.size() / 2];
 	}
 
 	float AvgDev_trimmed() {
@@ -137,6 +168,20 @@ public:
 			if (data[el] > max) max = data[el];
 		return max;
 	}
+
+	T Min() {
+		T min = std::numeric_limits<T>::max();
+		for (int el = 0; el < this->Total(); ++el)
+			if (this->data[el] < min) min = this->data[el];
+		return min;
+	}
+
+	bool IsZero() {
+		for (int el = 0; el < this->Total(); ++el)
+			if (this->data[el] != 0)
+				return false;
+		return true;
+	}
 };
 
 typedef Image<float> Image32;
@@ -153,9 +198,15 @@ namespace ImageOP {
 
 	void FitsWrite(Image32& img, std::string filename);
 
-	void AlignFrame_Bilinear(Image32& img, Eigen::Matrix3d homography);
+	void AlignFrame(Image32& img, Eigen::Matrix3d homography, float (*interp_type)(Image32&, double& x_s, double& y_s));
 
-	void AlignFrame_Bicubic(Image32& img, Eigen::Matrix3d homography);
+	void DrizzleFrame(Image32& input, Image32& output, float drop);
+
+	void Resize2x_Bicubic(Image32& img);
+
+	void ImageResize_Bicubic(Image32& img, int new_rows, int new_cols);
+
+	void Bin2x(Image32& img);
 
 	void MedianBlur3x3(Image32& img);
 

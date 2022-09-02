@@ -1,7 +1,5 @@
 #include "StarDetection.h"
 
-//using SD = StarDetection;
-
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
 void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold, bool blur) {
@@ -71,12 +69,14 @@ void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvecto
     }
 }
 
-StarVector stardetection::DetectStars(Image32 &img,const double star_thresh,const int vote_thresh,const int total_votes, const int min_radius, const int max_radius,bool blur) {
+StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,const double thresh_mult2, const int max_radius, const bool blur) {
 
-    double threshold = img.median + star_thresh * img.stdev;
+    double threshold = (thresh_mult1 * img.median) + (thresh_mult2 * img.stdev);
+
+    const int vote_thresh = 6;
 
     TrigVector trigang;
-    for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
+    for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / 12)
         trigang.push_back({ cos(theta),sin(theta) });
 
     Image8 tri(img.Rows(),img.Cols());
@@ -92,7 +92,7 @@ StarVector stardetection::DetectStars(Image32 &img,const double star_thresh,cons
         for (int x = 0; x < img.Cols(); x++) {
             if (tri(y,x) == 2) {
                 newp = true;
-                for (int r = min_radius; r <= max_radius; r++) {
+                for (int r = 2; r <= max_radius; r++) {
 
                     vote = 0, spacev = 0, istarv = 0;
                     for (auto &tf:trigang) {
