@@ -207,7 +207,7 @@ void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 
 			std::array<float, 9> area{ 0 };
 
-			if (x2drop > vx && x2drop > vy)
+			if (x2drop >= vx && x2drop >= vy)
 				area[0] = (vx * vy) / drop_area;
 			else if (x2drop < vx && x2drop > vy)
 				area[0] = ((x2drop)*vy) / drop_area;
@@ -231,7 +231,7 @@ void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
 			}
 
-			if (x2drop >= vx + 1) {
+			if (x2drop > vx + 1) {
 				area[2] = (vy * (x2drop - vx - 1)) / drop_area;
 				output(y_f, x_f + 2) = (input(y, x) * area[2] * s2 + output(y_f, x_f + 2)) / (area[2] + oweight);
 			}
@@ -266,30 +266,30 @@ void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
 			}
 
-			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
+			if (x2drop > vx + 1 && x2drop > vy + 1) {
 				area[5] = (x2drop - vx - 1) / drop_area;
 				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
 			}
-			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx + 1) {
+			else if (x2drop < vy + 1 && x2drop >= vy && x2drop > vx + 1) {
 				area[5] = ((x2drop - vy) * (x2drop - vx - 1)) / drop_area;
 				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
 			}
 
-			if (x2drop >= vy + 1) {
+			if (x2drop > vy + 1) {
 				area[6] = (vx * (x2drop - vy - 1)) / drop_area;
 				output(y_f + 2, x_f) = (input(y, x) * area[6] * s2 + output(y_f + 2, x_f)) / (area[6] + oweight);
 			}
 
-			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
+			if (x2drop > vx + 1 && x2drop > vy + 1) {
 				area[7] = (x2drop - vy - 1) / drop_area;
 				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
 			}
-			else if (x2drop < vx + 1 && x2drop >= vx && x2drop >= vy + 1) {
+			else if (x2drop < vx + 1 && x2drop >= vx && x2drop > vy + 1) {
 				area[7] = ((x2drop - vy - 1) * (x2drop - vx)) / drop_area;
 				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
 			}
 
-			if (x2drop >= vy + 1 && x2drop >= vx + 1) {
+			if (x2drop > vy + 1 && x2drop > vx + 1) {
 				area[8] = ((x2drop - vy - 1) * (x2drop - vx - 1)) / drop_area;
 				output(y_f + 2, x_f + 2) = (input(y, x) * area[8] * s2 + output(y_f + 2, x_f + 2)) / (area[8] + oweight);
 			}
