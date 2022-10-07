@@ -10,17 +10,14 @@ void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold
     if (blur)
         ImageOP::MedianBlur3x3(temp);
 
-    for (int i = 0; i < temp.Total(); ++i) {
-        if (temp[i] >= threshold)  output[i] = 1;
-        else  output[i] = 0;
-    }
+    for (int el = 0; el < temp.Total(); ++el) 
+        (input[el] >= threshold) ? output[el] = 1 : output[el] = 0;
+    
 
     for (int y = 1; y < output.Rows() - 1; ++y) {
         for (int x = 1; x < output.Cols() - 1; ++x) {
-            if (output(y, x) == 1) {
-                if (output(y, x - 1) == 0 || output(y, x + 1) == 0 || output(y - 1, x) == 0 || output(y + 1, x) == 0)  continue;
-                else  output(y, x) = 2;
-            }
+            if (output(y, x) == 1)
+                if (output(y, x - 1) != 0 && output(y, x + 1) != 0 && output(y - 1, x) != 0 && output(y + 1, x) != 0) output(y, x) = 2;
         }
     }
 }
@@ -34,21 +31,23 @@ void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvecto
     for (auto& star : starvector) {
         xc = int(round(star.xc));
         yc = int(round(star.yc));
-        r = int(round(star.radius)) + 1;
+        r = int(ceil(star.radius + .5));
         intensity_x = 0;
         intensity_y = 0;
         intensity2 = 0;
         intensity_sum = 0;
         num = 0;
         skyvec.clear();
+        int r6 = r * 6;
+        int r4 = r * 4;
 
-        for (int y = yc - 6 * r; y <= yc + 6 * r; y++) {
-            for (int x = xc - 6 * r; x <= xc + 6 * r; x++) {
-                if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && ((4 * r) <= Distance(x, y, xc, yc) && Distance(x, y, xc, yc) <= (6 * r)))
+        for (int y = yc - r6; y <= yc + r6; y++) {
+            for (int x = xc - r6; x <= xc + r6; x++) {
+                if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && (r4 <= Distance(x, y, xc, yc) && Distance(x, y, xc, yc) <= r6))
                     skyvec.push_back(img(y, x));
             }
         }
-        auto sky = skyvec.begin() + int(.5 * skyvec.size());
+        auto sky = skyvec.begin() + skyvec.size()/2;
         std::nth_element(skyvec.begin(), sky, skyvec.end());
 
         for (int y = yc - r; y <= yc + r; y++) {
@@ -82,16 +81,16 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
     Image8 tri(img.Rows(),img.Cols());
     stardetection::TrinerizeImage(img, tri, threshold, blur);
 
-    bool newp = true;
     int vote, spacev, istarv, a, b;
 
     StarVector starvector;
     starvector.reserve(2000);
 
-    for (int y = 0; y < img.Rows(); y++) {
-        for (int x = 0; x < img.Cols(); x++) {
+    for (int y = 0; y < img.Rows(); ++y) {
+        for (int x = 0; x < img.Cols(); ++x) {
+            newstar:
             if (tri(y,x) == 2) {
-                newp = true;
+
                 for (int r = 2; r <= max_radius; r++) {
 
                     vote = 0, spacev = 0, istarv = 0;
@@ -107,26 +106,24 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
                             else  spacev++;
                         }
                         else {
-                            spacev += vote_thresh;
-                            vote = 0;
-                            break;
+                            x++;
+                            if (x == img.Cols()) { y++; x = 0; }
+                            goto newstar;
                         }
                     }
 
                     if (vote >= vote_thresh) {
-                        for (auto &star:starvector){
+                        for (auto &star : starvector){
                             if (Distance(double(x), double(y), star.xc, star.yc) <= r) {
                                 star.xc = .5 * (star.xc + x);
                                 star.yc = .5 * (star.yc + y);
                                 star.radius = .5 * (star.radius + r);
-                                newp = false;
-                                break;
+                                x++;
+                                if (x == img.Cols()) { y++; x = 0; }
+                                goto newstar;
                             }
                         }
-                        if (newp)
-                            starvector.emplace_back(Star(x,y,r));
-
-                        else  break;
+                        starvector.emplace_back(Star(x,y,r));
                     }
                     else if (spacev >= vote_thresh)  break;
                 }

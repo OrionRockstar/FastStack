@@ -1,5 +1,21 @@
 #include "Interpolation.h"
 
+float* getKernelRow(Image32& img, int x, int y) {
+	float pixrow[4];
+	pixrow[0] = img(y, x - 1);
+	pixrow[1] = img(y, x);
+	pixrow[2] = img(y, x + 1);
+	pixrow[3] = img(y, x + 2);
+	return pixrow;
+}
+
+float Interpolate(float* pixrow, float* vec) {
+	float f03 = pixrow[0] * vec[0] + pixrow[3] * vec[3];
+	float f12 = pixrow[1] * vec[1] + pixrow[2] * vec[2];
+
+	return (-f03 < .3 * f12) ? f03 + f12 : f12 / (vec[1] + vec[2]);
+}
+
 float Interpolation::Bilinear(Image32& img, double& x_s, double& y_s) {
 
 	if (x_s < 1 || x_s >= img.Cols() - 1 || y_s < 1 || y_s >= img.Rows() - 1) {
@@ -18,41 +34,7 @@ float Interpolation::Bilinear(Image32& img, double& x_s, double& y_s) {
 	return float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
 }
 
-float Interpolation::Catmull_Rom_V1(Image32& img, double& x_s, double& y_s) {
-
-	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
-		int xs = (int)round(x_s);
-		int ys = (int)round(y_s);
-		if (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows())
-			return img(ys, xs);
-		else return 0;
-	}
-
-	int x_f = (int)floor(x_s);
-	double dx = x_s - x_f;
-	int y_f = (int)floor(y_s);
-	double dy = y_s - y_f;
-
-	double a, b, c, d;
-	double px[4];
-
-	for (int i = -1; i < 3; ++i) {
-		a = -.5 * img(y_f + i, x_f - 1) + 1.5 * img(y_f + i, x_f) - 1.5 * img(y_f + i, x_f + 1) + .5 * img(y_f + i, x_f + 2);
-		b = img(y_f + i, x_f - 1) - 2.5 * img(y_f + i, x_f) + 2 * img(y_f + i, x_f + 1) - .5 * img(y_f + i, x_f + 2);
-		c = -.5 * img(y_f + i, x_f - 1) + .5 * img(y_f + i, x_f + 1);
-		d = img(y_f + i, x_f);
-		px[i + 1] = (a * dx * dx * dx) + (b * dx * dx) + (c * dx) + d;
-	}
-
-	a = -.5 * px[0] + 1.5 * px[1] - 1.5 * px[2] + .5 * px[3];
-	b = px[0] - 2.5 * px[1] + 2 * px[2] - .5 * px[3];
-	c = -.5 * px[0] + .5 * px[2];
-	d = px[1];
-
-	return float((a * dy * dy * dy) + (b * dy * dy) + (c * dy) + d);
-}
-
-float Interpolation::Catmull_Rom_V2(Image32& img, double& x_s, double& y_s) {
+float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s) {
 
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);

@@ -1,7 +1,13 @@
 #include "ImageStacking.h"
 
-//using IS = ImageStacking;
-namespace IS=ImageStacking;
+static void RemoveOutliers(std::vector<float>& pixstack, float l_limit, float u_limit) {
+
+    for (auto it = pixstack.begin(); it != pixstack.end(); ++it)
+        if (*it<l_limit || *it>u_limit) {
+            pixstack.erase(it);
+            it--;
+        }
+}
 
 static float Mean(std::vector<float>& pixelstack) {
     float mean = 0;
@@ -10,7 +16,7 @@ static float Mean(std::vector<float>& pixelstack) {
     return mean /pixelstack.size();
 }
 
-static float Median(std::vector<float>& pixelstack);
+static float Median(std::vector<float>& pixelstack){}
 
 static float StandardDeviation(std::vector<float>& pixelstack) {
     float mean = 0;
@@ -40,7 +46,7 @@ static void MeanStandardDeviation(std::vector<float>& pixelstack,float& mean,flo
     stddev=(float)sqrt(var / pixelstack.size());
 }
 
-void IS::Average(std::vector<Image32>& imgvec,Image32& final_image){
+void ImageStacking::Average(std::vector<Image32>& imgvec,Image32& final_image){
 
     std::vector<float> pixelstack(imgvec.size());
     float median = 0, mean = 0, stddev = 0, old_stddev = 0;
@@ -54,7 +60,7 @@ void IS::Average(std::vector<Image32>& imgvec,Image32& final_image){
         
 }
     
-void IS::Median(std::vector<Image32>& imgvec, Image32& final_image) {
+void ImageStacking::Median(std::vector<Image32>& imgvec, Image32& final_image) {
 
     std::vector<float> pixelstack(imgvec.size());
 
@@ -68,7 +74,7 @@ void IS::Median(std::vector<Image32>& imgvec, Image32& final_image) {
     }
 }
 
-void IS::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_image,double l_sigma,double u_sigma) {
+void ImageStacking::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
     float median = 0, stddev = 0, old_stddev = 0;
@@ -87,14 +93,15 @@ void IS::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_image,double
 
             if (stddev == 0 || (old_stddev - stddev) == 0)  break;
 
-            std::experimental::erase_if(pixelstack,[median, stddev, l_sigma, u_sigma](auto x) {return (x < median - l_sigma * stddev || x > median + u_sigma * stddev); });
+            RemoveOutliers(pixelstack, median - l_sigma * stddev, median + l_sigma * stddev);
+
             old_stddev = stddev;
         }
         final_image[el] = Mean(pixelstack);
     }
 }
 
-void IS::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, double l_sigma, double u_sigma) {
+void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
     float mean = 0, stddev = 0, old_stddev = 0;
@@ -109,7 +116,7 @@ void IS::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, 
             MeanStandardDeviation(pixelstack, mean, stddev);
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
-            std::experimental::erase_if(pixelstack, [mean, stddev, l_sigma, u_sigma](auto x) {return (x < mean - l_sigma * stddev || x > mean + u_sigma * stddev); });
+            RemoveOutliers(pixelstack, mean - l_sigma * stddev, mean + l_sigma * stddev);
 
             old_stddev = stddev;
         }
@@ -118,7 +125,7 @@ void IS::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, 
    
 }
 
-void IS::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, double l_sigma, double u_sigma) {
+void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
     float median = 0, mean = 0, stddev = 0, old_stddev = 0;
@@ -151,3 +158,24 @@ void IS::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image32& final_im
     }
 }
 
+void ImageStacking::StackImages(std::vector<Image32>& imgvec, Image32& final_image, int stack_type, float l_sigma, float u_sigma) {
+    switch (stack_type) {
+    case 0:
+        ImageStacking::Average(imgvec, final_image);
+        break;
+    case 1:
+        ImageStacking::Median(imgvec, final_image);
+        break;
+    case 2:
+        ImageStacking::SigmaClipping(imgvec, final_image, l_sigma, u_sigma);
+        break;
+    case 3:
+        ImageStacking::KappaSigmaClipping(imgvec, final_image, l_sigma, u_sigma);
+        break;
+    case 4:
+        ImageStacking::WinsorizedSigmaClipping(imgvec, final_image, l_sigma, u_sigma);
+        break;
+    }
+
+    final_image.ComputeStats();
+}

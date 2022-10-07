@@ -1,5 +1,26 @@
 #include "Image.h"
 #include "Interpolation.h"
+#include "tiffio.h"
+#include "cfitsio/fitsio.h"
+#include <array>
+#include <map>
+
+
+static float ClipZero(float pixel) {
+	return (pixel < 0) ? 0 : pixel;
+}
+
+static float ClipOne(float pixel) {
+	return (pixel > 1) ? 1 : pixel;
+}
+
+static float ClipPixel(float pixel) {
+	if (pixel > 1)
+		return 1;
+	else if (pixel < 0)
+		return 0;
+	return pixel;
+}
 
 void ImageOP::TiffRead(std::string file, Image32& img) {
 
@@ -146,9 +167,9 @@ void ImageOP::FitsWrite(Image32& img, std::string filename) {
 	//return(status);
 }
 
-void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, float (*interp_type)(Image32&, double& x_s, double& y_s)) {
-	std::vector<float> pixels(img.Total(), 0);
-
+void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function<float(Image32&, double& x_s, double& y_s)> interp_type) {
+	Image32 pixels(img.Rows(), img.Cols());
+	pixels.homography = img.homography;
 #pragma omp parallel for
 	for (int y = 0; y < img.Rows(); ++y) {
 
@@ -159,27 +180,19 @@ void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, float (*inter
 			double x_s = x * homography(0, 0) + yx + homography(0, 2);
 			double y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-			float val = interp_type(img, x_s, y_s);
-
-			if (val > 1)
-				pixels[y * img.Cols() + x] = 1;
-			else if (val < 0)
-				pixels[y * img.Cols() + x] = 0;
-			else
-				pixels[y * img.Cols() + x] = val;
+			pixels(y, x) = ClipPixel(interp_type(img, x_s, y_s));
 
 		}
 	}
 
-	std::memcpy(img.data.get(), &pixels[0], img.Total() * 4);
+	pixels.ComputeStats();
+	img = std::move(pixels);
 }
 
 void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 
 	input.homography = Eigen::Inverse(input.homography);
 	float oweight = 1;
-	if (output.IsZero())
-		oweight = 0;
 
 	float s2 = drop * drop;
 	float offset = (1 - drop) / 2;
@@ -216,83 +229,139 @@ void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 			else
 				area[0] = ((x2drop) * (x2drop)) / drop_area;
 
-			output(y_f, x_f) = (input(y, x) * area[0] * s2 + output(y_f, x_f)) / (area[0] + oweight);
+			if (output(y_f, x_f) == 0)
+				output(y_f, x_f) = (input(y, x) * area[0] * s2 + output(y_f, x_f)) / area[0];
+			else
+				output(y_f, x_f) = (input(y, x) * area[0] * s2 + output(y_f, x_f)) / (area[0] + oweight);
 
 			if (x2drop >= vx + 1 && x2drop > vy) {
 				area[1] = vy / drop_area;
-				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+				if (output(y_f, x_f + 1) == 0)
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / area[1];
+				else
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
 			}
 			else if (x2drop < vx + 1 && x2drop >= vx && x2drop>vy) {
 				area[1] = (vy * (x2drop - vx)) / drop_area;
-				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+				if (output(y_f, x_f + 1) == 0)
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / area[1];
+				else
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
 			}
 			else if (x2drop < vx + 1 && x2drop >= vx && x2drop < vy) {
 				area[1] = (x2drop * (x2drop - vx)) / drop_area;
-				output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
+				if (output(y_f, x_f + 1) == 0)
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / area[1];
+				else
+					output(y_f, x_f + 1) = (input(y, x) * area[1] * s2 + output(y_f, x_f + 1)) / (area[1] + oweight);
 			}
 
 			if (x2drop > vx + 1) {
 				area[2] = (vy * (x2drop - vx - 1)) / drop_area;
-				output(y_f, x_f + 2) = (input(y, x) * area[2] * s2 + output(y_f, x_f + 2)) / (area[2] + oweight);
+				if (output(y_f, x_f + 2) == 0)
+					output(y_f, x_f + 2) = (input(y, x) * area[2] * s2 + output(y_f, x_f + 2)) / area[2];
+				else
+					output(y_f, x_f + 2) = (input(y, x) * area[2] * s2 + output(y_f, x_f + 2)) / (area[2] + oweight);
 			}
 
 			if (x2drop >= vy + 1) {
 				area[3] = vx / drop_area;
-				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+				if (output(y_f + 1, x_f) == 0)
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / area[3];
+				else
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
 			}
 			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx) {
 				area[3] = (vx * (x2drop - vy)) / drop_area;
-				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+				if (output(y_f + 1, x_f) == 0)
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / area[3];
+				else
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
 			}
 			else if (x2drop < vy + 1 && x2drop >= vy && x2drop < vx) {
 				area[3] = ((x2drop) * (x2drop - vy)) / drop_area;
-				output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
+				if (output(y_f + 1, x_f) == 0)
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / area[3];
+				else
+					output(y_f + 1, x_f) = (input(y, x) * area[3] * s2 + output(y_f + 1, x_f)) / (area[3] + oweight);
 			}
 
 			if (x2drop >= vx + 1 && x2drop >= vy + 1) {
 				area[4] = 1 / drop_area;
-				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+				if (output(y_f + 1, x_f + 1) == 0)
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / area[4];
+				else
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
 			}
 			else if (x2drop < vy + 1 && x2drop >= vy && x2drop >= vx + 1) {
 				area[4] = (x2drop - vy) / drop_area;
-				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+				if (output(y_f + 1, x_f + 1) == 0)
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / area[4];
+				else
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
 			}
 			else if (x2drop < vx + 1 && x2drop >= vx && x2drop >= vy + 1) {
 				area[4] = (x2drop - vx) / drop_area;
-				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+				if (output(y_f + 1, x_f + 1) == 0)
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / area[4];
+				else
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
 			}
 			else if ((x2drop < vx + 1 && x2drop >= vx) && (x2drop < vy + 1 && x2drop >= vy)) {
 				area[4] = ((x2drop - vx) * (x2drop - vy)) / drop_area;
-				output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
+				if (output(y_f + 1, x_f + 1) == 0)
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / area[4];
+				else
+					output(y_f + 1, x_f + 1) = (input(y, x) * area[4] * s2 + output(y_f + 1, x_f + 1)) / (area[4] + oweight);
 			}
 
 			if (x2drop > vx + 1 && x2drop > vy + 1) {
 				area[5] = (x2drop - vx - 1) / drop_area;
-				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
+				if (output(y_f + 1, x_f + 2) == 0)
+					output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / area[5];
+				else
+					output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
 			}
 			else if (x2drop < vy + 1 && x2drop >= vy && x2drop > vx + 1) {
 				area[5] = ((x2drop - vy) * (x2drop - vx - 1)) / drop_area;
-				output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
+				if (output(y_f + 1, x_f + 2) == 0)
+					output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / area[5];
+				else
+					output(y_f + 1, x_f + 2) = (input(y, x) * area[5] * s2 + output(y_f + 1, x_f + 2)) / (area[5] + oweight);
 			}
 
 			if (x2drop > vy + 1) {
 				area[6] = (vx * (x2drop - vy - 1)) / drop_area;
-				output(y_f + 2, x_f) = (input(y, x) * area[6] * s2 + output(y_f + 2, x_f)) / (area[6] + oweight);
+
+				if (output(y_f + 2, x_f) == 0)
+					output(y_f + 2, x_f) = (input(y, x) * area[6] * s2 + output(y_f + 2, x_f)) / area[6];
+				else
+					output(y_f + 2, x_f) = (input(y, x) * area[6] * s2 + output(y_f + 2, x_f)) / (area[6] + oweight);
 			}
 
 			if (x2drop > vx + 1 && x2drop > vy + 1) {
 				area[7] = (x2drop - vy - 1) / drop_area;
-				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
+				if (output(y_f + 2, x_f + 1) == 0)
+					output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / area[7];
+				else
+					output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
 			}
 			else if (x2drop < vx + 1 && x2drop >= vx && x2drop > vy + 1) {
 				area[7] = ((x2drop - vy - 1) * (x2drop - vx)) / drop_area;
-				output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
+				if (output(y_f + 2, x_f + 1) == 0)
+					output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / area[7];
+				else
+					output(y_f + 2, x_f + 1) = (input(y, x) * area[7] * s2 + output(y_f + 2, x_f + 1)) / (area[7] + oweight);
 			}
 
 			if (x2drop > vy + 1 && x2drop > vx + 1) {
 				area[8] = ((x2drop - vy - 1) * (x2drop - vx - 1)) / drop_area;
-				output(y_f + 2, x_f + 2) = (input(y, x) * area[8] * s2 + output(y_f + 2, x_f + 2)) / (area[8] + oweight);
+				if (output(y_f + 2, x_f + 2) == 0)
+					output(y_f + 2, x_f + 2) = (input(y, x) * area[8] * s2 + output(y_f + 2, x_f + 2)) / area[8];
+				else
+					output(y_f + 2, x_f + 2) = (input(y, x) * area[8] * s2 + output(y_f + 2, x_f + 2)) / (area[8] + oweight);
 			}
+
 		}
 	}
 }
@@ -307,14 +376,8 @@ void ImageOP::Resize2x_Bicubic(Image32& img) {
 		for (int x = 0; x < temp.Cols(); ++x) {
 			double x_s = 0.5 * x;
 
-			float val = Interpolation::Bicubic_Spline(img, x_s, y_s);
+			float val = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
 
-			if (val > 1)
-				temp(y, x) = 1;
-			else if (val < 0)
-				temp(y, x) = 0;
-			else
-				temp(y, x) = val;
 		}
 	}
 
@@ -333,14 +396,8 @@ void ImageOP::ImageResize_Bicubic(Image32& img, int new_rows, int new_cols) {
 		for (int x = 0; x < temp.Cols(); ++x) {
 			double x_s = x * rx;
 
-			float val = Interpolation::Bicubic_Spline(img, x_s, y_s);
+			float val = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
 
-			if (val > 1)
-				temp(y, x) = 1;
-			else if (val < 0)
-				temp(y, x) = 0;
-			else
-				temp(y, x) = val;
 		}
 	}
 
@@ -366,11 +423,35 @@ void ImageOP::Bin2x(Image32& img) {
 	img.ComputeStats();
 }
 
-void ImageOP::MedianBlur3x3(Image32& img) {
-	//float* iptr = (float*)img.data;
+inline static float kernelmedian(std::array<float, 9>& kernel) {
+	for (int r = 0; r < 3; ++r) {
+		if (kernel[0] > kernel[4])
+			std::swap(kernel[0], kernel[4]);
+		if (kernel[5] < kernel[4])
+			std::swap(kernel[5], kernel[4]);
 
+		if (kernel[1] > kernel[4])
+			std::swap(kernel[1], kernel[4]);
+		if (kernel[6] < kernel[4])
+			std::swap(kernel[6], kernel[4]);
+
+
+		if (kernel[2] > kernel[4])
+			std::swap(kernel[2], kernel[4]);
+		if (kernel[7] < kernel[4])
+			std::swap(kernel[7], kernel[4]);
+
+		if (kernel[3] > kernel[4])
+			std::swap(kernel[3], kernel[4]);
+		if (kernel[8] < kernel[4])
+			std::swap(kernel[8], kernel[4]);
+	}
+	return kernel[4];
+}
+
+void ImageOP::MedianBlur3x3(Image32& img) {
+	Image32 imgbuf(img.Rows(), img.Cols());
 	std::array<float, 9>kernel = { 0 };
-	std::vector<float> imgbuf(img.Total());
 
 #pragma omp parallel for firstprivate(kernel)
 	for (int y = 1; y < img.Rows() - 1; ++y) {
@@ -379,19 +460,10 @@ void ImageOP::MedianBlur3x3(Image32& img) {
 					   img(y , x - 1), img(y, x), img(y, x + 1),
 					   img(y - 1, x - 1), img(y + 1, x), img(y + 1, x + 1) };
 
-			for (int r = 0; r < 3; ++r) {
-				for (int i = 0; i < 4; ++i) {
-					if (kernel[i] > kernel[4])
-						std::swap(kernel[i], kernel[4]);
-					if (kernel[i + 5] < kernel[4])
-						std::swap(kernel[i + 5], kernel[4]);
-				}
-			}
-
-			imgbuf[y * img.Cols() + x] = kernel[4];
+			imgbuf(y, x) = kernelmedian(kernel);
 		}
 	}
-	memcpy(img.data.get(), &imgbuf[0], img.Total() * 4);
+	img.data = std::move(imgbuf.data);
 }
 
 void ImageOP::TrimHighLow(Image32& img, float high, float low) {
@@ -404,7 +476,15 @@ void ImageOP::TrimHighLow(Image32& img, float high, float low) {
 	}
 }
 
+void ImageOP::MaxMin_Normalization(Image32& img, float max, float min) {
+	for (float& pixel : img)
+		pixel = (pixel - min) / (max - min);
+}
+
 void ImageOP::STFImageStretch(Image32& img) {
+
+	if (img.max > 1 || img.min < 0)
+		MaxMin_Normalization(img, 1, 0);
 
 	float nMAD=img.nMAD();
 
@@ -426,3 +506,45 @@ void ImageOP::STFImageStretch(Image32& img) {
 	}
 
 }
+
+void ImageOP::ASinhStretch(Image32& img, float stretch_factor) {
+
+	std::map<uint16_t, int> hist;
+	for (const auto& pixel : img)
+		hist[pixel * 65535] ++;
+
+	int sum = 0;
+	uint16_t key;
+	int i = 0;
+	while (sum < img.Total() * .02) {
+		sum += hist[i];
+		++i;
+	}
+
+	float blackpoint = i / 65535.0;
+
+	float low = 0;
+	float high = 10000;
+	float mid;
+	float beta;
+
+	for (int i = 0; i < 20; i++)
+	{
+		mid = (low + high) / 2;
+		double multiplier_mid = mid / asinh(mid);
+		(stretch_factor <= multiplier_mid) ? high = mid : low = mid;
+	}
+	beta = mid;
+
+	float asinhb = asinh(beta);
+	for (auto& pixel : img) {
+		float r = (pixel - blackpoint) / (1 - blackpoint);
+		if (r != 0)
+			pixel = ClipZero(r * asinh(beta * r) / (r * asinhb));
+		else pixel = 0;
+	}
+
+	ImageOP::MaxMin_Normalization(img, img.Max(), 0);
+
+}
+

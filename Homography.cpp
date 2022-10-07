@@ -7,23 +7,18 @@ static double Distance(double x1, double y1, double x2, double y2) { return sqrt
 std::vector<int> homography::RandomPoints(int maxnum) {
     int randnum = 0;
     std::vector<int> randint;
-    bool newnum = false;
+    randint.reserve(4);
+
     while (randint.size() < 4) {
+    newrand:
         randnum = rand() % maxnum;
-        for (int i : randint) {
-            if (randnum == i) {
-                newnum = true;
-                break;
-            }
-        }
-        if (newnum) {
-            newnum = false;
-            continue;
-        }
-        else {
-            randint.push_back(randnum);
-        }
+        for (int i : randint)
+            if (randnum == i)
+                goto newrand;
+
+        randint.emplace_back(randnum);
     }
+
     return randint;
 }
 

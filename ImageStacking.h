@@ -1,8 +1,5 @@
 #pragma once
 #include "Image.h"
-#include <numeric>
-#include <algorithm>
-#include<experimental/vector>
 
 namespace ImageStacking
 {
@@ -10,10 +7,12 @@ namespace ImageStacking
 
 	void Median(std::vector<Image32> &imgvec, Image32& final_image);
 
-	void SigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
+	void SigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, float l_sigma, float u_sigma);
 
-	void KappaSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
+	void KappaSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, float l_sigma, float u_sigma);
 
-	void WinsorizedSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, double l_sigma, double u_sigma);
+	void WinsorizedSigmaClipping(std::vector<Image32> &imgvec, Image32& final_image, float l_sigma, float u_sigma);
+
+	void StackImages(std::vector<Image32>& imgvec, Image32& final_image, int stack_type, float l_sigma, float u_sigma);
 };
 

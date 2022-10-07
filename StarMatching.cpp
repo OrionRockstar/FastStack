@@ -1,5 +1,5 @@
 #include "StarMatching.h"
-
+#include <array>
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
@@ -29,7 +29,7 @@ TriangleVector starmatching::TrianglesComputation(const StarVector& starvector) 
     
     uint8_t nstars = (uint8_t)starvector.size();
     int maxtri = int(((nstars * (nstars - 1) * (nstars - 2)) / 6));
-    std::vector<double>sides(3);
+    std::array<double,3>sides;
 
     TriangleVector trianglevector;
     trianglevector.reserve(maxtri);
@@ -96,8 +96,8 @@ TVGSPVector starmatching::MatchStars(const TriangleVector& reftri,const Triangle
     TVGSPVector tvgspvector;
 
     int tcount = 0, tgtemp = 0, rtemp = 0, thresh=Median(psp)+StandardDeviation(psp), maxv = thresh + 1;
-    bool spe = false;
 
+    newsp:
     while (tcount<200 && maxv>thresh) {
         maxv = thresh;
         for (int tgt = 0; tgt < pspcol; ++tgt) {
@@ -112,20 +112,15 @@ TVGSPVector starmatching::MatchStars(const TriangleVector& reftri,const Triangle
 
         for (auto starpair : tvgspvector) {
             if (starpair.tgtstar == tgtemp || starpair.refstar == rtemp) {
-                spe = true;
-                break;
+                psp[rtemp * pspcol + tgtemp] = 0;
+                goto newsp;
             }
         }
-        if (spe) {
-            spe = false;
-            psp[rtemp * pspcol + tgtemp] = 0;
-        }
-        else {
-            tvgspvector.push_back({ tgtemp,rtemp });
-            psp[rtemp * pspcol + tgtemp] = 0;
-            tcount++;
 
-        }
+        tvgspvector.push_back({ tgtemp,rtemp });
+        psp[rtemp * pspcol + tgtemp] = 0;
+        tcount++;
     }
+
     return tvgspvector;
 }

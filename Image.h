@@ -1,9 +1,5 @@
 #pragma once
-#include <memory>
 #include <Eigen/Dense>
-#include "tiffio.h"
-#include "cfitsio/fitsio.h"
-#include <array>
 
 template <typename T>
 class Image {
@@ -29,29 +25,73 @@ public:
 	}
 	Image() = default;
 	//Image(const Image& img);
-	Image(Image&& img) {
-		rows = img.rows;
-		cols = img.cols;
-		bitdepth = img.bitdepth;
-		total = img.total;
-		median = img.median;
-		mean = img.mean;
-		stdev = img.stdv;
-		data = std::move(img.data);
+	Image(Image&& other) {
+		rows = other.rows;
+		cols = other.cols;
+		bitdepth = other.bitdepth;
+		total = other.total;
+		max = other.max;
+		min = other.min;
+		median = other.median;
+		mean = other.mean;
+		stdev = other.stdv;
+		homography = other.homography;
+		data = std::move(other.data);
 	}
 
 	~Image() {}
 
-	Image& operator=(Image&& img) {
-		if (this != &img) {
-			rows = img.rows;
-			cols = img.cols;
-			bitdepth = img.bitdepth;
-			total = img.total;
-			median = img.median;
-			mean = img.mean;
-			stdev = img.stdev;
-			data = std::move(img.data);
+	struct Iterator {
+		using ValueType = T;
+		using PointerType = ValueType*;
+		using ReferenceType = ValueType&;
+
+		Iterator(PointerType ptr) : m_ptr(ptr) {};
+
+		Iterator operator++() { m_ptr++; return *this; }
+
+		Iterator operator++(int) {
+			Iterator iterator = *this;
+			++(*this);
+			return iterator;
+		}
+
+		Iterator operator--() { m_ptr--; return *this; }
+
+		Iterator operator--(int) {
+			Iterator iterator = *this;
+			--(*this);
+			return iterator;
+		}
+
+		ReferenceType operator*() { return *m_ptr; }
+
+		PointerType operator->() { return m_ptr; }
+
+		bool operator ==(const Iterator& other) const {
+			return m_ptr == other.m_ptr;
+		}
+
+		bool operator !=(const Iterator& other) const {
+			return m_ptr != other.m_ptr;
+		}
+
+	private:
+		PointerType m_ptr;
+	};
+
+	Image& operator=(Image&& other) {
+		if (this != &other) {
+			rows = other.rows;
+			cols = other.cols;
+			bitdepth = other.bitdepth;
+			total = other.total;
+			max = other.max;
+			min = other.min;
+			median = other.median;
+			mean = other.mean;
+			stdev = other.stdev;
+			data = std::move(other.data);
 		}
 		return *this;
 	}
@@ -72,6 +112,14 @@ public:
 		return data[y * cols + x];
 	}
 
+	Iterator begin() {
+		return Iterator(this->data.get());
+	}
+
+	Iterator end() {
+		return Iterator(this->data.get() + this->total);
+	}
+
 	int Rows() const { return rows; }
 
 	int Cols() const { return cols; }
@@ -90,18 +138,20 @@ public:
 		std::nth_element(temp.begin(), temp.begin() + temp.size() / 2, temp.end());
 
 		this->median = temp[temp.size() / 2];
-		float sum = 0;
-		for (size_t el = 0; el < temp.size(); ++el) {
-			sum += temp[el];
-			if (temp[el] > this->max)
-				this->max = temp[el];
-			else if (temp[el] < this->min)
-				this->min = temp[el];
+		double sum = 0;
+		for (T& pixel : temp ) {
+			sum += pixel;
+			if (pixel > this->max)
+				this->max = pixel;
+			else if (pixel < this->min)
+				this->min = pixel;
 		}
+
 		this->mean = sum / this->Total();
-		float d, var = 0;
-		for (size_t el = 0; el < temp.size(); ++el) {
-			d = temp[el] - this->mean;
+
+		double d, var = 0;
+		for (T& pixel : temp) {
+			d = pixel - this->mean;
 			var += d * d;
 		}
 		this->stdev = sqrt(var / this->Total());
@@ -116,10 +166,11 @@ public:
 	}
 
 	float Mean() {
-		float sum = 0;
-		for (int el = 0; el < total; ++el)
-			sum += data[el];
-		return sum / total;
+		double sum = 0;
+		for (auto& pixel : *this)
+			sum += pixel;
+
+		return float(sum / this->Total());
 	}
 
 	float Standard_Deviation(float mean) {
@@ -128,10 +179,10 @@ public:
 			d = data[el] - mean;
 			var += d * d;
 		}
-		return sqrt(var / total);
+		return (float)sqrt(var / total);
 	}
 
-	float nMAD() {
+	float MAD() {
 
 		std::vector<T> imgbuf(total);
 
@@ -141,25 +192,58 @@ public:
 			std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
 			this->median = imgbuf[imgbuf.size() / 2];
 		}
-
-		for (size_t i = 0; i < imgbuf.size(); ++i)
-			imgbuf[i] = fabs(imgbuf[i] - this->median);
+		for (auto& pixel : imgbuf)
+			pixel = fabs(pixel - this->median);
 
 		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-		return (float)1.4826 * imgbuf[imgbuf.size() / 2];
+		return imgbuf[imgbuf.size() / 2];
+	}
+
+	float nMAD() {
+		return (float)1.4826 * MAD();
+	}
+
+	float BWMV() {
+		//returns sqrt of biwweight midvariance
+		double x9mad = 1 / (9 * this->MAD());
+
+		if (this->median == 0)
+			this->median = this->Median();
+
+		double sum1 = 0, sum2 = 0;
+		double Y, a;
+
+		for (auto& pixel : *this) {
+			Y = (pixel - this->median) * x9mad;
+
+			(abs(Y) < 1) ? a = 1 : a = 0;
+
+			Y *= Y;
+
+			sum1 += (a * pow(pixel - this->median, 2) * pow(1 - Y, 4));
+			sum2 += (a * (1 - Y) * (1 - 5 * Y));
+		}
+
+		return (float)sqrt((this->Total() * sum1) / (abs(sum2) * abs(sum2)));
 	}
 
 	float AvgDev_trimmed() {
 
-		float sum = 0;
+		double sum = 0;
 		int count = 0;
-		for (int el = 0; el < total; ++el) {
-			if (data[el] < 0.00002f || data[el] > 0.99998f)
+
+		if (this->median == 0)
+			this->median = (*this).Median();
+
+		for (auto& pixel : *this) {
+			if (pixel < 0.00002f || pixel > 0.99998f)
 				continue;
-			sum += fabs(data[el] - this->median);
+
+			sum += fabs(pixel - this->median);
 			count++;
 		}
-		return sum / count;
+
+		return float(sum / count);
 	}
 
 	T Max() {
@@ -187,6 +271,7 @@ public:
 typedef Image<float> Image32;
 typedef Image<uint16_t> Image16;
 typedef Image<uint8_t> Image8;
+typedef std::vector<Image32> ImageVector;
 
 namespace ImageOP {
 
@@ -198,7 +283,7 @@ namespace ImageOP {
 
 	void FitsWrite(Image32& img, std::string filename);
 
-	void AlignFrame(Image32& img, Eigen::Matrix3d homography, float (*interp_type)(Image32&, double& x_s, double& y_s));
+	void AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function<float(Image32&, double& x_s, double& y_s)> interp_type);
 
 	void DrizzleFrame(Image32& input, Image32& output, float drop);
 
@@ -212,6 +297,9 @@ namespace ImageOP {
 
 	void TrimHighLow(Image32& img, float high, float low);
 
+	void MaxMin_Normalization(Image32& img, float max, float min);
+
 	void STFImageStretch(Image32& img);
 
+	void ASinhStretch(Image32& img, float stretch_factor);
 }
