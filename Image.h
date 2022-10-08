@@ -173,7 +173,11 @@ public:
 		return float(sum / this->Total());
 	}
 
-	float Standard_Deviation(float mean) {
+	float Standard_Deviation() {
+
+		if (this->mean == 0)
+			this->mean = this->Mean();
+
 		float d, var = 0;
 		for (int el = 0; el < this->total; ++el) {
 			d = data[el] - mean;
@@ -248,24 +252,18 @@ public:
 
 	T Max() {
 		T max = std::numeric_limits<T>::min();
-		for (int el = 0; el < total; ++el)
-			if (data[el] > max) max = data[el];
+		for (T& pixel : *this)
+			if (pixel > max) max = pixel;
 		return max;
 	}
 
 	T Min() {
 		T min = std::numeric_limits<T>::max();
-		for (int el = 0; el < this->Total(); ++el)
-			if (this->data[el] < min) min = this->data[el];
+		for (T& pixel: *this)
+			if (pixel < min) min = pixel;
 		return min;
 	}
 
-	bool IsZero() {
-		for (int el = 0; el < this->Total(); ++el)
-			if (this->data[el] != 0)
-				return false;
-		return true;
-	}
 };
 
 typedef Image<float> Image32;

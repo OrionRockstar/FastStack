@@ -49,7 +49,6 @@ static void MeanStandardDeviation(std::vector<float>& pixelstack,float& mean,flo
 void ImageStacking::Average(std::vector<Image32>& imgvec,Image32& final_image){
 
     std::vector<float> pixelstack(imgvec.size());
-    float median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
@@ -77,19 +76,18 @@ void ImageStacking::Median(std::vector<Image32>& imgvec, Image32& final_image) {
 void ImageStacking::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
-    float median = 0, stddev = 0, old_stddev = 0;
 
-#pragma omp parallel for firstprivate(pixelstack,median,stddev,old_stddev)
+#pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
         pixelstack.resize(imgvec.size());
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
         std::sort(pixelstack.begin(), pixelstack.end());
-        old_stddev = 0;
+        float old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
-            median = pixelstack[pixelstack.size() / 2];
-            stddev = StandardDeviation(pixelstack);
+            float median = pixelstack[pixelstack.size() / 2];
+            float stddev = StandardDeviation(pixelstack);
 
             if (stddev == 0 || (old_stddev - stddev) == 0)  break;
 
@@ -104,15 +102,15 @@ void ImageStacking::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_i
 void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
-    float mean = 0, stddev = 0, old_stddev = 0;
 
-#pragma omp parallel for firstprivate(pixelstack,mean,stddev,old_stddev)
+#pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
-        old_stddev = 0;
+        float old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
+            float mean, stddev;
             MeanStandardDeviation(pixelstack, mean, stddev);
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
@@ -128,28 +126,27 @@ void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& fi
 void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
-    float median = 0, mean = 0, stddev = 0, old_stddev = 0;
 
-#pragma omp parallel for firstprivate(pixelstack,median,stddev,old_stddev)
+#pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
         std::sort(pixelstack.begin(), pixelstack.end());
-        old_stddev = 0;
+        float old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
-            median = pixelstack[pixelstack.size() / 2];
-            stddev = StandardDeviation(pixelstack);
+            float median = pixelstack[pixelstack.size() / 2];
+            float stddev = StandardDeviation(pixelstack);
 
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
             float u_thresh = median + u_sigma * stddev;
-            for (int upper = pixelstack.size() / 2; upper < pixelstack.size(); ++upper) 
+            for (int upper = (int)pixelstack.size() / 2; upper < (int)pixelstack.size(); ++upper) 
                 if (pixelstack[upper] > u_thresh) pixelstack[upper] = pixelstack[upper - 1];
                 
             
             float l_thresh = median - l_sigma * stddev;
-            for (int lower = pixelstack.size() / 2; lower >= 0; lower--) 
+            for (int lower = (int)pixelstack.size() / 2; lower >= 0; lower--) 
                 if (pixelstack[lower] < l_thresh) pixelstack[lower] = pixelstack[lower + 1];
             
             old_stddev = stddev;

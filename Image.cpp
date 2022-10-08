@@ -194,10 +194,10 @@ void ImageOP::DrizzleFrame(Image32& input, Image32& output, float drop) {
 	input.homography = Eigen::Inverse(input.homography);
 	float oweight = 1;
 
-	float s2 = drop * drop;
-	float offset = (1 - drop) / 2;
-	float x2drop = 2 * drop;
-	float drop_area = x2drop * x2drop;
+	float s2 = drop * drop,
+		  offset = (1 - drop) / 2,
+		  x2drop = 2 * drop,
+		  drop_area = x2drop * x2drop;
 
 #pragma omp parallel for
 	for (int y = 0; y < input.Rows(); ++y) {

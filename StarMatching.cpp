@@ -11,7 +11,7 @@ static int Median(std::vector<int>& psp) {
     return pspbuf[pspbuf.size()/ 2];
 }
 
-static double StandardDeviation(std::vector<int>& psp) {
+static int StandardDeviation(std::vector<int>& psp) {
     int mean = 0;
     for (int& val : psp)
         mean += val;
@@ -22,7 +22,7 @@ static double StandardDeviation(std::vector<int>& psp) {
         d = val - mean;
         var += d * d;
     }
-    return sqrt(var / psp.size());
+    return (int)sqrt(var / psp.size());
 }
 
 TriangleVector starmatching::TrianglesComputation(const StarVector& starvector) {
@@ -42,8 +42,8 @@ TriangleVector starmatching::TrianglesComputation(const StarVector& starvector) 
                 sides[1] = Distance(starvector[sa].xc, starvector[sa].yc, starvector[sc].xc, starvector[sc].yc);
                 sides[2] = Distance(starvector[sb].xc, starvector[sb].yc, starvector[sc].xc, starvector[sc].yc);
 
-                for (size_t j = 0; j < 2; j++) {
-                    for (size_t i = 2; i > 0; i--) {
+                for (int j = 0; j < 2; j++) {
+                    for (int i = 2; i > 0; i--) {
                         if (sides[j] > sides[i])
                             std::swap(sides[i], sides[j]);
                     }

@@ -24,22 +24,20 @@ void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold
 
 void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvector) {
 
-    int xc, yc, r, num;
-    double intensity_x, intensity_y, intensity2, intensity_sum;
     std::vector<float> skyvec;
 
     for (auto& star : starvector) {
-        xc = int(round(star.xc));
-        yc = int(round(star.yc));
-        r = int(ceil(star.radius + .5));
-        intensity_x = 0;
-        intensity_y = 0;
-        intensity2 = 0;
-        intensity_sum = 0;
-        num = 0;
+        int xc = int(round(star.xc)),
+            yc = int(round(star.yc)),
+            r = int(ceil(star.radius + .5)),
+            r6 = r * 6,
+            r4 = r * 4,
+            num = 0;
+        double intensity_x = 0,
+               intensity_y = 0,
+               intensity2 = 0,
+               intensity_sum = 0;
         skyvec.clear();
-        int r6 = r * 6;
-        int r4 = r * 4;
 
         for (int y = yc - r6; y <= yc + r6; y++) {
             for (int x = xc - r6; x <= xc + r6; x++) {
@@ -81,8 +79,6 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
     Image8 tri(img.Rows(),img.Cols());
     stardetection::TrinerizeImage(img, tri, threshold, blur);
 
-    int vote, spacev, istarv, a, b;
-
     StarVector starvector;
     starvector.reserve(2000);
 
@@ -93,12 +89,12 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
 
                 for (int r = 2; r <= max_radius; r++) {
 
-                    vote = 0, spacev = 0, istarv = 0;
+                    int vote = 0, spacev = 0, istarv = 0;
                     for (auto &tf:trigang) {
                         if (istarv >= vote_thresh)  break;
 
-                        a = int(round(x + r * tf.costheta)); //x
-                        b = int(round(y + r * tf.sintheta)); //y
+                        int a = int(round(x + r * tf.costheta)); //x
+                        int b = int(round(y + r * tf.sintheta)); //y
 
                         if (0 <= a && a < img.Cols() && 0 <= b && b < img.Rows()) {
                             if (tri(b,a) == 2)  istarv++;
