@@ -1,7 +1,8 @@
 #include "Interpolation.h"
+#include <array>
 
-float* getKernelRow(Image32& img, int x, int y) {
-	float pixrow[4];
+std::array<float,4>& getKernelRow(Image32& img, int x, int y) {
+	std::array<float, 4> pixrow;
 	pixrow[0] = img(y, x - 1);
 	pixrow[1] = img(y, x);
 	pixrow[2] = img(y, x + 1);
@@ -9,7 +10,7 @@ float* getKernelRow(Image32& img, int x, int y) {
 	return pixrow;
 }
 
-float Interpolate(float* pixrow, float* vec) {
+float Interpolate(std::array<float,4>& pixrow, std::array<float,4>& vec) {
 	float f03 = pixrow[0] * vec[0] + pixrow[3] * vec[3];
 	float f12 = pixrow[1] * vec[1] + pixrow[2] * vec[2];
 
@@ -21,8 +22,8 @@ float Interpolation::Bilinear(Image32& img, double& x_s, double& y_s) {
 	if (x_s < 1 || x_s >= img.Cols() - 1 || y_s < 1 || y_s >= img.Rows() - 1) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
-		if (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows())
-			return img(ys, xs);
+
+		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(ys, xs) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -39,10 +40,8 @@ float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s) {
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
-		if (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows())
-			return img(ys, xs);
-		else
-			return 0;
+
+		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(ys, xs) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -50,34 +49,35 @@ float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s) {
 	int y_f = (int)floor(y_s);
 	double dy = y_s - y_f;
 
-	float vecx[4];
-	float vecy[4];
+	std::array<float, 4> vecx;
+	std::array<float, 4> vecy;
 
-	for (int i = -1; i < 3; ++i) {
-		double xd = fabs(dx - i);
-		double yd = fabs(dy - i);
+	dx++;
+	vecx[0] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
+	dx--;
+	vecx[1] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
+	dx = 1 - dx;
+	vecx[2] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
+	dx++;
+	vecx[3] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
 
-		if (xd < 1)
-			vecx[i + 1] = float(9 * (xd * xd * xd) - 15 * (xd * xd) + 6) / 6;
-		else if (1 <= xd && xd < 2)
-			vecx[i + 1] = float(-3 * (xd * xd * xd) + 15 * (xd * xd) - 24 * xd + 12) / 6;
-		else
-			vecx[i + 1] = 0;
+	dy++;
+	vecy[0] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
+	dy--;
+	vecy[1] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
+	dy = 1 - dy;
+	vecy[2] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
+	dy++;
+	vecy[3] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
 
-		if (yd < 1)
-			vecy[i + 1] = float(9 * (yd * yd * yd) - 15 * (yd * yd) + 6) / 6;
-		else if (1 <= yd && yd <= 2)
-			vecy[i + 1] = float(-3 * (yd * yd * yd) + 15 * (yd * yd) - 24 * yd + 12) / 6;
-		else
-			vecy[i + 1] = 0;
-	}
+	std::array<float, 4> resxv;
 
-	float a = vecy[0] * (img(y_f - 1, x_f - 1) * vecx[0] + img(y_f - 1, x_f) * vecx[1] + img(y_f - 1, x_f + 1) * vecx[2] + img(y_f - 1, x_f + 2) * vecx[3]);
-	float b = vecy[1] * (img(y_f, x_f - 1) * vecx[0] + img(y_f, x_f) * vecx[1] + img(y_f, x_f + 1) * vecx[2] + img(y_f, x_f + 2) * vecx[3]);
-	float c = vecy[2] * (img(y_f + 1, x_f - 1) * vecx[0] + img(y_f + 1, x_f) * vecx[1] + img(y_f + 1, x_f + 1) * vecx[2] + img(y_f + 1, x_f + 2) * vecx[3]);
-	float d = vecy[3] * (img(y_f + 2, x_f - 1) * vecx[0] + img(y_f + 2, x_f) * vecx[1] + img(y_f + 2, x_f + 1) * vecx[2] + img(y_f + 2, x_f + 2) * vecx[3]);
+	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1), vecx);
+	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f), vecx);
+	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1), vecx);
+	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2), vecx);
 
-	return a + b + c + d;
+	return Interpolate(resxv, vecy);
 }
 
 float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s) {
@@ -86,10 +86,7 @@ float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
 
-		if (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows())
-			return img(ys, xs);
-		else
-			return 0;
+		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(ys, xs) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -97,34 +94,35 @@ float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s) {
 	int y_f = (int)floor(y_s);
 	double dy = y_s - y_f;
 
-	float vecx[4];
-	float vecy[4];
+	std::array<float, 4> vecx;
+	std::array<float, 4> vecy;
 
-	for (int i = -1; i < 3; ++i) {
-		double xd = fabs(dx - i);
-		double yd = fabs(dy - i);
+	dx++;
+	vecx[0] = float(-.5 * (dx * dx * dx) + 2.5 * (dx * dx) - 4 * dx + 2);
+	dx--;
+	vecx[1] = float(1.5 * (dx * dx * dx) - 2.5 * (dx * dx) + 1);
+	dx = 1 - dx;
+	vecx[2] = float(1.5 * (dx * dx * dx) - 2.5 * (dx * dx) + 1);
+	dx++;
+	vecx[3] = float(-.5 * (dx * dx * dx) + 2.5 * (dx * dx) - 4 * dx + 2);
 
-		if (0 <= xd && xd <= 1)
-			vecx[i + 1] = float(1.5 * (xd * xd * xd) - 2.5 * (xd * xd) + 1);
-		else if (1 < xd && xd <= 2)
-			vecx[i + 1] = float(-.5 * (xd * xd * xd) + 2.5 * (xd * xd) - 4 * xd + 2);
-		else
-			vecx[i + 1] = 0;
+	dy++;
+	vecy[0] = float(-.5 * (dy * dy * dy) + 2.5 * (dy * dy) - 4 * dy + 2);
+	dy--;
+	vecy[1] = float(1.5 * (dy * dy * dy) - 2.5 * (dy * dy) + 1);
+	dy = 1 - dy;
+	vecy[2] = float(1.5 * (dy * dy * dy) - 2.5 * (dy * dy) + 1);
+	dy++;
+	vecy[3] = float(-.5 * (dy * dy * dy) + 2.5 * (dy * dy) - 4 * dy + 2);
 
-		if (yd >= 0 && yd <= 1)
-			vecy[i + 1] = float(1.5 * (yd * yd * yd) - 2.5 * (yd * yd) + 1);
-		else if (1 < yd && yd <= 2)
-			vecy[i + 1] = float(-.5 * (yd * yd * yd) + 2.5 * (yd * yd) - 4 * yd + 2);
-		else
-			vecy[i + 1] = 0;
-	}
+	std::array<float, 4> resxv;
 
-	float a = vecy[0] * (img(y_f - 1, x_f - 1) * vecx[0] + img(y_f - 1, x_f) * vecx[1] + img(y_f - 1, x_f + 1) * vecx[2] + img(y_f - 1, x_f + 2) * vecx[3]);
-	float b = vecy[1] * (img(y_f, x_f - 1) * vecx[0] + img(y_f, x_f) * vecx[1] + img(y_f, x_f + 1) * vecx[2] + img(y_f, x_f + 2) * vecx[3]);
-	float c = vecy[2] * (img(y_f + 1, x_f - 1) * vecx[0] + img(y_f + 1, x_f) * vecx[1] + img(y_f + 1, x_f + 1) * vecx[2] + img(y_f + 1, x_f + 2) * vecx[3]);
-	float d = vecy[3] * (img(y_f + 2, x_f - 1) * vecx[0] + img(y_f + 2, x_f) * vecx[1] + img(y_f + 2, x_f + 1) * vecx[2] + img(y_f + 2, x_f + 2) * vecx[3]);
+	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1), vecx);
+	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f), vecx);
+	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1), vecx);
+	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2), vecx);
 
-	return a + b + c + d;
+	return Interpolate(resxv, vecy);
 }
 
 float Interpolation::Bicubic_B_Spline(Image32& img, double& x_s, double& y_s) {
@@ -132,10 +130,8 @@ float Interpolation::Bicubic_B_Spline(Image32& img, double& x_s, double& y_s) {
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
-		if (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows())
-			return img(ys, xs);
-		else
-			return 0;
+
+		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(ys, xs) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -143,27 +139,26 @@ float Interpolation::Bicubic_B_Spline(Image32& img, double& x_s, double& y_s) {
 	int y_f = (int)floor(y_s);
 	double dy = y_s - y_f;
 
-	float vecx[4];
-	float vecy[4];
+	std::array<float, 4> vecx;
+	std::array<float, 4> vecy;
 
-	for (int i = -1; i < 3; i++) {
-		double xd = fabs(dx - i);
-		double yd = fabs(dy - i);
+	dx++;
+	vecx[0] = float(-(dx * dx * dx) + 6 * (dx * dx) - 12 * dx + 8) / 6;
+	dx--;
+	vecx[1] = float(3 * (dx * dx * dx) - 6 * (dx * dx) + 4) / 6;
+	dx = 1 - dx;
+	vecx[2] = float(3 * (dx * dx * dx) - 6 * (dx * dx) + 4) / 6;
+	dx++;
+	vecx[3] = float(-(dx * dx * dx) + 6 * (dx * dx) - 12 * dx + 8) / 6;
 
-		if (xd < 1)
-			vecx[i + 1] = float(3 * (xd * xd * xd) - 6 * (xd * xd) + 4) / 6;
-		else if (1 <= xd && xd < 2)
-			vecx[i + 1] = float(-(xd * xd * xd) + 6 * (xd * xd) - 12 * xd + 8) / 6;
-		else
-			vecx[i + 1] = 0;
-
-		if (yd < 1)
-			vecy[i + 1] = float(3 * (yd * yd * yd) - 6 * (yd * yd) + 4) / 6;
-		else if (1 <= yd && yd < 2)
-			vecy[i + 1] = float(-(yd * yd * yd) + 6 * (yd * yd) - 12 * yd + 8) / 6;
-		else
-			vecy[i + 1] = 0;
-	}
+	dy++;
+	vecy[0] = float(-(dy * dy * dy) + 6 * (dy * dy) - 12 * dy + 8) / 6;
+	dy--;
+	vecy[1] = float(3 * (dy * dy * dy) - 6 * (dy * dy) + 4) / 6;
+	dy = 1 - dy;
+	vecy[2] = float(3 * (dy * dy * dy) - 6 * (dy * dy) + 4) / 6;
+	dy++;
+	vecy[3] = float(-(dy * dy * dy) + 6 * (dy * dy) - 12 * dy + 8) / 6;
 
 	float a = vecy[0] * (img(y_f - 1, x_f - 1) * vecx[0] + img(y_f - 1, x_f) * vecx[1] + img(y_f - 1, x_f + 1) * vecx[2] + img(y_f - 1, x_f + 2) * vecx[3]);
 	float b = vecy[1] * (img(y_f, x_f - 1) * vecx[0] + img(y_f, x_f) * vecx[1] + img(y_f, x_f + 1) * vecx[2] + img(y_f, x_f + 2) * vecx[3]);

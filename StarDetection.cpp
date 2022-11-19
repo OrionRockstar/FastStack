@@ -10,10 +10,9 @@ void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold
     if (blur)
         ImageOP::MedianBlur3x3(temp);
 
-    for (int el = 0; el < temp.Total(); ++el) 
-        (input[el] >= threshold) ? output[el] = 1 : output[el] = 0;
+    for (int el = 0; el < temp.Total(); ++el)
+        output[el] = (input[el] >= threshold) ? 1 : 0;
     
-
     for (int y = 1; y < output.Rows() - 1; ++y) {
         for (int x = 1; x < output.Cols() - 1; ++x) {
             if (output(y, x) == 1)
