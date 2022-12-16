@@ -104,11 +104,11 @@ public:
 		return data[el];
 	}
 
-	T& operator()(int y, int x) {
+	T& operator()(int x, int y) {
 		return data[y * cols + x];
 	}
 
-	T& operator()(int y, int x) const {
+	T& operator()(int x, int y) const {
 		return data[y * cols + x];
 	}
 

@@ -105,6 +105,7 @@ void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& fi
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
+        pixelstack.resize(imgvec.size());
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 

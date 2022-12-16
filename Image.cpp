@@ -180,7 +180,7 @@ void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function
 			double x_s = x * homography(0, 0) + yx + homography(0, 2);
 			double y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-			pixels(y, x) = ClipPixel(interp_type(img, x_s, y_s));
+			pixels(x, y) = ClipPixel(interp_type(img, x_s, y_s));
 
 		}
 	}
@@ -376,7 +376,7 @@ void ImageOP::Resize2x_Bicubic(Image32& img) {
 		for (int x = 0; x < temp.Cols(); ++x) {
 			double x_s = 0.5 * x;
 
-			float val = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
+			temp(x, y) = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
 
 		}
 	}
@@ -396,7 +396,7 @@ void ImageOP::ImageResize_Bicubic(Image32& img, int new_rows, int new_cols) {
 		for (int x = 0; x < temp.Cols(); ++x) {
 			double x_s = x * rx;
 
-			float val = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
+			temp(x, y) = ClipPixel(Interpolation::Bicubic_Spline(img, x_s, y_s));
 
 		}
 	}
@@ -415,7 +415,7 @@ void ImageOP::Bin2x(Image32& img) {
 		for (int x = 0; x < temp.Cols(); ++x) {
 			int x_s = 2 * x;
 
-			temp(y, x) = (img(y_s, x_s) + img(y_s, x_s + 1) + img(y_s + 1, x_s) + img(y_s + 1, x_s + 1)) / 4;
+			temp(x, y) = (img(x_s, y_s) + img(x_s + 1, y_s) + img(x_s, y_s + 1) + img(x_s + 1, y_s + 1)) / 4;
 
 		}
 	}
@@ -456,11 +456,12 @@ void ImageOP::MedianBlur3x3(Image32& img) {
 #pragma omp parallel for firstprivate(kernel)
 	for (int y = 1; y < img.Rows() - 1; ++y) {
 		for (int x = 1; x < img.Cols() - 1; ++x) {
-			kernel = { img(y - 1, x - 1), img(y - 1, x), img(y - 1, x + 1),
-					   img(y , x - 1), img(y, x), img(y, x + 1),
-					   img(y - 1, x - 1), img(y + 1, x), img(y + 1, x + 1) };
 
-			imgbuf(y, x) = kernelmedian(kernel);
+			kernel = { img(x - 1, y - 1), img(x, y - 1), img(x + 1, y - 1),
+					   img(x - 1, y), img(x, y), img(x + 1, y),
+					   img(x - 1, y + 1), img(x, y + 1), img(x + 1, y + 1) };
+
+			imgbuf(x, y) = kernelmedian(kernel);
 		}
 	}
 	img.data = std::move(imgbuf.data);

@@ -15,15 +15,15 @@ void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold
     
     for (int y = 1; y < output.Rows() - 1; ++y) {
         for (int x = 1; x < output.Cols() - 1; ++x) {
-            if (output(y, x) == 1)
-                if (output(y, x - 1) != 0 && output(y, x + 1) != 0 && output(y - 1, x) != 0 && output(y + 1, x) != 0) output(y, x) = 2;
+            if (output(x, y) == 1)
+                if (output(x - 1, y) != 0 && output(x + 1, y) != 0 && output(x, y - 1) != 0 && output(x, y + 1) != 0) output(x, y) = 2;
         }
     }
 }
 
 void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvector) {
 
-    std::vector<float> skyvec;
+    std::vector<float> local_background;
 
     for (auto& star : starvector) {
         int xc = int(round(star.xc)),
@@ -36,32 +36,32 @@ void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvecto
                intensity_y = 0,
                intensity2 = 0,
                intensity_sum = 0;
-        skyvec.clear();
+        local_background.clear();
 
         for (int y = yc - r6; y <= yc + r6; y++) {
             for (int x = xc - r6; x <= xc + r6; x++) {
                 if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && (r4 <= Distance(x, y, xc, yc) && Distance(x, y, xc, yc) <= r6))
-                    skyvec.push_back(img(y, x));
+                    local_background.push_back(img(x, y));
             }
         }
-        auto sky = skyvec.begin() + skyvec.size()/2;
-        std::nth_element(skyvec.begin(), sky, skyvec.end());
+        auto background = local_background.begin() + local_background.size()/2;
+        std::nth_element(local_background.begin(), background, local_background.end());
 
         for (int y = yc - r; y <= yc + r; y++) {
             for (int x = xc - r; x <= xc + r; x++) {
                 if ((0 <= y && y < img.Rows()) && (0 <= x && x < img.Cols()) && Distance(x, y, xc, yc) <= r) {
-                    double i2 = (double)img(y, x) * img(y, x);
+                    double i2 = (double)img(x, y) * img(x, y);
                     intensity_x += i2 * x;
                     intensity_y += i2 * y;
                     intensity2 += i2;
-                    intensity_sum += img(y, x);
+                    intensity_sum += img(x, y);
                     num++;
                 }
             }
         }
         star.xc = intensity_x / intensity2;
         star.yc = intensity_y / intensity2;
-        star.luminance = -2.5 * log10(intensity_sum - (*sky) * num);
+        star.luminance = -2.5 * log10(intensity_sum - (*background) * num);
     }
 }
 
@@ -84,7 +84,7 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
     for (int y = 0; y < img.Rows(); ++y) {
         for (int x = 0; x < img.Cols(); ++x) {
             newstar:
-            if (tri(y,x) == 2) {
+            if (tri(x, y) == 2) {
 
                 for (int r = 2; r <= max_radius; r++) {
 
@@ -96,13 +96,13 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
                         int b = int(round(y + r * tf.sintheta)); //y
 
                         if (0 <= a && a < img.Cols() && 0 <= b && b < img.Rows()) {
-                            if (tri(b,a) == 2)  istarv++;
-                            else if ((tri(b,a) == 1) && (img(y,x) > 1.5 * img(b,a)))  vote++;
+                            if (tri(a,b) == 2)  istarv++;
+                            else if ((tri(a,b) == 1) && (img(x,y) > 1.5 * img(a,b)))  vote++;
                             else  spacev++;
                         }
                         else {
                             x++;
-                            if (x == img.Cols()) { y++; x = 0; }
+                            if (x >= img.Cols()) { y++; x = 0; }
                             goto newstar;
                         }
                     }
@@ -114,7 +114,7 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
                                 star.yc = .5 * (star.yc + y);
                                 star.radius = .5 * (star.radius + r);
                                 x++;
-                                if (x == img.Cols()) { y++; x = 0; }
+                                if (x >= img.Cols()) { y++; x = 0; }
                                 goto newstar;
                             }
                         }
