@@ -26,9 +26,11 @@ typedef std::vector<Star>StarVector;
 
 namespace stardetection {
 
-void TrinerizeImage(Image32& input, Image8& output, int threshold, bool blur);
+//static void TrinerizeImage(Image32& input, Image8& output, float threshold, bool blur);
 
-void AperturePhotometry(const Image32& img, StarVector& starvector);
+//static void AperturePhotometry(const Image32& img, StarVector& starvector);
 
-StarVector DetectStars(Image32& img, const double thresh_mult1, const double thresh_mult2, const int max_radius, const bool medianblur);
+StarVector DetectStars(Image32& img, const float thresh_mult1, const float thresh_mult2, const int max_radius, const bool medianblur);
+
+StarVector DetectStars_WaveletBased(Image32& img, const float thresh_mult, const int max_radius, const int scale);
 }

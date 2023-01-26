@@ -2,7 +2,7 @@
 
 static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold, bool blur) {
+static void TrinerizeImage(Image32 &input, Image8 &output, float threshold, bool blur) {
     
     Image32 temp(input.Rows(), input.Cols());
     input.CopyTo(temp);
@@ -21,14 +21,14 @@ void stardetection::TrinerizeImage(Image32 &input, Image8 &output, int threshold
     }
 }
 
-void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvector) {
+static void AperturePhotometry(const Image32 &img, StarVector &starvector) {
 
     std::vector<float> local_background;
 
     for (auto& star : starvector) {
         int xc = int(round(star.xc)),
             yc = int(round(star.yc)),
-            r = int(ceil(star.radius + .5)),
+            r = int(ceil(star.radius)),
             r6 = r * 6,
             r4 = r * 4,
             num = 0;
@@ -65,7 +65,7 @@ void stardetection::AperturePhotometry(const Image32 &img, StarVector &starvecto
     }
 }
 
-StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,const double thresh_mult2, const int max_radius, const bool blur) {
+StarVector stardetection::DetectStars(Image32 &img,const float thresh_mult1 ,const float thresh_mult2, const int max_radius, const bool blur) {
 
     double threshold = (thresh_mult1 * img.median) + (thresh_mult2 * img.stdev);
 
@@ -76,7 +76,7 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
         trigang.push_back({ cos(theta),sin(theta) });
 
     Image8 tri(img.Rows(),img.Cols());
-    stardetection::TrinerizeImage(img, tri, threshold, blur);
+    TrinerizeImage(img, tri, threshold, blur);
 
     StarVector starvector;
     starvector.reserve(2000);
@@ -126,7 +126,91 @@ StarVector stardetection::DetectStars(Image32 &img,const double thresh_mult1 ,co
         }
     }
 
-    stardetection::AperturePhotometry(img, starvector);
+    AperturePhotometry(img, starvector);
+
+    std::sort(starvector.begin(), starvector.end(), Star());
+
+    if (starvector.size() > 200)
+        starvector.resize(200);
+
+    return starvector;
+}
+
+StarVector stardetection::DetectStars_WaveletBased(Image32& img, const float thresh_mult, const int max_radius, const int scale) {
+
+    const int vote_thresh = 6, total_votes = 12;
+
+    TrigVector trigang;
+    for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
+        trigang.push_back({ cos(theta),sin(theta) });
+
+    ImageVector wavelet_vector;
+    ImageOP::B3WaveletTransform(img, wavelet_vector, scale);
+
+    Image8 tri(img.Rows(), img.Cols());
+
+    StarVector starvector;
+    starvector.reserve(2000);
+
+    int min_radius = 1;
+    for (auto& wavelet : wavelet_vector) {
+
+        double ix2min_radius = 1.0 / (2 * min_radius);
+
+        TrinerizeImage(wavelet, tri, wavelet.median + thresh_mult * (wavelet.avgDev / 0.6745), false);
+
+        for (int y = 0; y < img.Rows(); ++y) {
+            for (int x = 0; x < img.Cols(); ++x) {
+            newstar:
+                if (tri(x, y) == 2) {
+                    for (int r = min_radius; r <= max_radius; ++r) {
+
+                        int vote = 0, spacev = 0, istarv = 0;
+
+                        for (auto& tf : trigang) {
+
+                            if (istarv == vote_thresh)  break;
+
+                            int a = int(round(x + r * tf.costheta)); //x
+                            int b = int(round(y + r * tf.sintheta)); //y 
+
+                            if (img.IsInBounds(a, b)) {
+
+                                if (tri(a, b) == 2)  istarv++;
+
+                                else if ((tri(a, b) == 1) && (img(x, y) > 1.85f * img(a, b))) vote++;
+
+                                else  spacev++;
+                            }
+                            else {
+                                x++;
+                                if (x >= img.Cols()) { y++; x = 0; }
+                                goto newstar;
+                            }
+                        }
+
+                        if (vote >= vote_thresh) {
+                            for (struct Star& star : starvector) {
+                                if (Distance(double(x), double(y), star.xc, star.yc) <= star.radius + min_radius) { //adjust star.rad + r whch gives best radius
+                                    star.xc = .5 * (star.xc + x);
+                                    star.yc = .5 * (star.yc + y);
+                                    star.radius = (star.radius + (r * ix2min_radius));//adjust
+                                    x++;
+                                    if (x >= img.Cols()) { y++; x = 0; }
+                                    goto newstar;
+                                }
+                            }
+                            starvector.emplace_back(x, y, r);
+                        }
+                        else if (spacev >= vote_thresh)  break;
+                    }
+                }
+            }
+        }
+        min_radius *= 2;
+    }
+
+    AperturePhotometry(img, starvector);
 
     std::sort(starvector.begin(), starvector.end(), Star());
 

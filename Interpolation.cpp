@@ -1,47 +1,46 @@
 #include "Interpolation.h"
 #include <array>
 
-static std::array<float,4> getKernelRow(Image32& img, int x, int y) {
+static std::array<float, 4> getKernelRow(Image32& img, int x, int y, int channel) {
 	std::array<float, 4> pixrow;
-	pixrow[0] = img(x - 1, y);
-	pixrow[1] = img(x    , y);
-	pixrow[2] = img(x + 1, y);
-	pixrow[3] = img(x + 2, y);
+	pixrow[0] = img(x - 1, y, channel);
+	pixrow[1] = img(x, y, channel);
+	pixrow[2] = img(x + 1, y, channel);
+	pixrow[3] = img(x + 2, y, channel);
 	return pixrow;
 }
 
-static float Interpolate(std::array<float,4> pixrow, std::array<float,4>& vec) {
+static float Interpolate(std::array<float, 4> pixrow, std::array<float, 4>& vec) {
 	float f03 = pixrow[0] * vec[0] + pixrow[3] * vec[3];
 	float f12 = pixrow[1] * vec[1] + pixrow[2] * vec[2];
 
 	return (-f03 < .3 * f12) ? f03 + f12 : f12 / (vec[1] + vec[2]);
 }
 
-float Interpolation::Bilinear(Image32& img, double& x_s, double& y_s) {
+float Interpolation::Bilinear(Image32& img, double& x_s, double& y_s, int& ch) {
 
 	if (x_s < 1 || x_s >= img.Cols() - 1 || y_s < 1 || y_s >= img.Rows() - 1) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
 
-		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(xs, ys) : 0;
+		return img.IsInBounds(xs, ys) ? img(ys, xs, ch) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
 	int y_f = (int)floor(y_s);
-
-	double r1 = img(x_f, y_f) * (x_f + 1 - x_s) + img(x_f + 1, y_f) * (x_s - x_f);
-	double r2 = img(x_f, y_f + 1) * (x_f + 1 - x_s) + img(x_f + 1, y_f + 1) * (x_s - x_f);
+	double r1 = img(x_f, y_f, ch) * (x_f + 1 - x_s) + img(x_f + 1, y_f, ch) * (x_s - x_f);
+	double r2 = img(x_f, y_f + 1, ch) * (x_f + 1 - x_s) + img(x_f + 1, y_f + 1, ch) * (x_s - x_f);
 
 	return float(r1 * (y_f + 1 - y_s) + r2 * (y_s - y_f));
 }
 
-float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s) {
+float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s, int& ch) {
 
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
 
-		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(xs, ys) : 0;
+		return img.IsInBounds(xs, ys) ? img(xs, ys, ch) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -72,21 +71,21 @@ float Interpolation::Catmull_Rom(Image32& img, double& x_s, double& y_s) {
 
 	std::array<float, 4> resxv;
 
-	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1), vecx);
-	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f), vecx);
-	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1), vecx);
-	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2), vecx);
+	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1, ch), vecx);
+	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f, ch), vecx);
+	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1, ch), vecx);
+	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2, ch), vecx);
 
 	return Interpolate(resxv, vecy);
 }
 
-float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s) {
+float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s, int& ch) {
 
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
 
-		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(xs, ys) : 0;
+		return img.IsInBounds(xs, ys) ? img(xs, ys, ch) : 0;
 	}
 
 	int x_f = (int)floor(x_s);
@@ -116,22 +115,21 @@ float Interpolation::Bicubic_Spline(Image32& img, double& x_s, double& y_s) {
 	vecy[3] = float(-.5 * (dy * dy * dy) + 2.5 * (dy * dy) - 4 * dy + 2);
 
 	std::array<float, 4> resxv;
-
-	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1), vecx);
-	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f), vecx);
-	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1), vecx);
-	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2), vecx);
+	//std::array<float, 4> kernal;
+	resxv[0] = Interpolate(getKernelRow(img, x_f, y_f - 1, ch), vecx);
+	resxv[1] = Interpolate(getKernelRow(img, x_f, y_f, ch), vecx);
+	resxv[2] = Interpolate(getKernelRow(img, x_f, y_f + 1, ch), vecx);
+	resxv[3] = Interpolate(getKernelRow(img, x_f, y_f + 2, ch), vecx);
 
 	return Interpolate(resxv, vecy);
 }
 
-float Interpolation::Bicubic_B_Spline(Image32& img, double& x_s, double& y_s) {
-
+float Interpolation::Bicubic_B_Spline(Image32& img, double& x_s, double& y_s, int& ch) {
 	if (x_s < 1 || x_s >= img.Cols() - 2 || y_s < 1 || y_s >= img.Rows() - 2) {
 		int xs = (int)round(x_s);
 		int ys = (int)round(y_s);
 
-		return (xs >= 0 && xs < img.Cols() && ys >= 0 && ys < img.Rows()) ? img(xs, ys) : 0;
+		return img.IsInBounds(xs, ys) ? img(xs, ys, ch) : 0;
 	}
 
 	int x_f = (int)floor(x_s);

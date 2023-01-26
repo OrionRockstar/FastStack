@@ -11,39 +11,44 @@ static void RemoveOutliers(std::vector<float>& pixstack, float l_limit, float u_
 
 static float Mean(std::vector<float>& pixelstack) {
     float mean = 0;
-    for (size_t el = 0; el < pixelstack.size(); ++el)
-        mean += pixelstack[el];
-    return mean /pixelstack.size();
+
+    for (float& pixel : pixelstack)
+        mean += pixel;
+
+    return mean / pixelstack.size();
 }
 
 static float Median(std::vector<float>& pixelstack){}
 
 static float StandardDeviation(std::vector<float>& pixelstack) {
     float mean = 0;
-    for (size_t el = 0; el < pixelstack.size(); ++el)
-        mean += pixelstack[el];
+    for (float& pixel : pixelstack)
+        mean += pixel;
     mean /= pixelstack.size();
-    float d;
+
+    double d;
     double var = 0;
-    for (size_t el = 0; el < pixelstack.size(); ++el){
-        d = pixelstack[el] - mean;
+    for (float& pixel : pixelstack) {
+        d = pixel - mean;
         var += d * d;
     }
+
     return (float)sqrt(var / pixelstack.size());
 }
 
 static void MeanStandardDeviation(std::vector<float>& pixelstack,float& mean,float& stddev) {
     mean = 0;
-    for (size_t el = 0; el < pixelstack.size(); ++el)
-        mean += pixelstack[el];
+    for (float& pixel : pixelstack)
+        mean += pixel;
     mean /= pixelstack.size();
-    float d;
+
+    double d;
     double var = 0;
-    for (size_t el = 0; el < pixelstack.size(); ++el) {
-        d = pixelstack[el] - mean;
+    for (float& pixel : pixelstack) {
+        d = pixel - mean;
         var += d * d;
     }
-    stddev=(float)sqrt(var / pixelstack.size());
+    stddev = (float)sqrt(var / pixelstack.size());
 }
 
 void ImageStacking::Average(std::vector<Image32>& imgvec,Image32& final_image){
@@ -62,14 +67,14 @@ void ImageStacking::Average(std::vector<Image32>& imgvec,Image32& final_image){
 void ImageStacking::Median(std::vector<Image32>& imgvec, Image32& final_image) {
 
     std::vector<float> pixelstack(imgvec.size());
-
+    int mid_point = pixelstack.size() / 2;
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
-        std::nth_element(pixelstack.begin(), pixelstack.begin() + pixelstack.size() / 2, pixelstack.end());
-        final_image[el] = pixelstack[pixelstack.size() / 2];
+        std::nth_element(pixelstack.begin(), pixelstack.begin() + mid_point, pixelstack.end());
+        final_image[el] = pixelstack[mid_point];
     }
 }
 
@@ -127,6 +132,7 @@ void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& fi
 void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image32& final_image, float l_sigma, float u_sigma) {
 
     std::vector<float> pixelstack(imgvec.size());
+    int mid_point = pixelstack.size() / 2;
 
 #pragma omp parallel for firstprivate(pixelstack)
     for (int el = 0; el < final_image.Total(); ++el) {
@@ -136,18 +142,18 @@ void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image3
         std::sort(pixelstack.begin(), pixelstack.end());
         float old_stddev = 0;
         for (int iter = 0; iter < 5; iter++) {
-            float median = pixelstack[pixelstack.size() / 2];
+            float median = pixelstack[mid_point];
             float stddev = StandardDeviation(pixelstack);
 
             if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
             float u_thresh = median + u_sigma * stddev;
-            for (int upper = (int)pixelstack.size() / 2; upper < (int)pixelstack.size(); ++upper) 
+            for (int upper = mid_point; upper < (int)pixelstack.size(); ++upper) 
                 if (pixelstack[upper] > u_thresh) pixelstack[upper] = pixelstack[upper - 1];
                 
             
             float l_thresh = median - l_sigma * stddev;
-            for (int lower = (int)pixelstack.size() / 2; lower >= 0; lower--) 
+            for (int lower = mid_point; lower >= 0; lower--) 
                 if (pixelstack[lower] < l_thresh) pixelstack[lower] = pixelstack[lower + 1];
             
             old_stddev = stddev;
@@ -156,21 +162,21 @@ void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image3
     }
 }
 
-void ImageStacking::StackImages(std::vector<Image32>& imgvec, Image32& final_image, int stack_type, float l_sigma, float u_sigma) {
+void ImageStacking::StackImages(std::vector<Image32>& imgvec, Image32& final_image, StackType stack_type, float l_sigma, float u_sigma) {
     switch (stack_type) {
-    case 0:
+    case StackType::average:
         ImageStacking::Average(imgvec, final_image);
         break;
-    case 1:
+    case StackType::median:
         ImageStacking::Median(imgvec, final_image);
         break;
-    case 2:
+    case StackType::sigma_clip:
         ImageStacking::SigmaClipping(imgvec, final_image, l_sigma, u_sigma);
         break;
-    case 3:
+    case StackType::kappa_sigma_clip:
         ImageStacking::KappaSigmaClipping(imgvec, final_image, l_sigma, u_sigma);
         break;
-    case 4:
+    case StackType::winsorized_sigma_clip:
         ImageStacking::WinsorizedSigmaClipping(imgvec, final_image, l_sigma, u_sigma);
         break;
     }
