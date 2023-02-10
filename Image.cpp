@@ -28,15 +28,17 @@ void CreateStatsText(const std::filesystem::path& file_path, Image32& img) {
 	std::filesystem::path temp = file_path;
 	myfile.open(temp.replace_extension(".txt"));
 	myfile << file_path << "\n";
-	if (img.Channels() == 1) {
-		myfile << "Max: " << std::fixed << std::setprecision(7) << img.max << "\n";
-		myfile << "Min: " << img.min << "\n";
-		myfile << "Median: " << img.median << "\n";
-		myfile << "Mean: " << img.mean << "\n";
-		myfile << "Standard Deviation: " << img.stdev << "\n";
-		myfile << "MAD: " << img.mad << "\n";
-		myfile << "AvgDev: " << img.avgDev << "\n";
-		myfile << "BWMV: " << img.bwmv << "\n";
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+		myfile << "Channel Number: " << ch << "\n";
+		myfile << "Max: " << std::fixed << std::setprecision(7) << img.Max(ch) << "\n";
+		myfile << "Min: " << img.Min(ch) << "\n";
+		myfile << "Median: " << img.Median(ch) << "\n";
+		myfile << "Mean: " << img.Mean(ch) << "\n";
+		myfile << "Standard Deviation: " << img.StdDev(ch) << "\n";
+		myfile << "MAD: " << img.MAD(ch) << "\n";
+		myfile << "AvgDev: " << img.AvgDev(ch) << "\n";
+		myfile << "BWMV: " << img.BWMV(ch) << "\n";
 	}
 	myfile << "Homography: " << img.homography(0, 0) << "," << img.homography(0, 1) << "," << img.homography(0, 2)
 		<< "," << img.homography(1, 0) << "," << img.homography(1, 1) << "," << img.homography(1, 2) << ",\n";
@@ -45,60 +47,53 @@ void CreateStatsText(const std::filesystem::path& file_path, Image32& img) {
 
 bool ReadStatsText(const std::filesystem::path& file_path, Image32& img) {
 
-	std::vector<std::string> stats = { "std::string::npos","Max: ","Min: ", "Median: ","Mean: ","Standard Deviation: ","MAD: ","AvgDev: ","BWMV: ","Homography: " };
 	std::filesystem::path temp = file_path;
 	std::string line;
 	std::ifstream myfile(temp.replace_extension(".txt"));
-	int line_counter = 0;
+	int ch;
+
 	if (myfile.is_open()) {
 
 		while (std::getline(myfile, line)) {
 
-			if (line.find(stats[line_counter]) != std::string::npos) {
+			if (line.substr(0, 14) == "Channel Number")
+				ch = std::stoi(line.substr(16, 17));
 
-				size_t start = stats[line_counter].length();
-				float val = std::stof(line.substr(start, std::string::npos));
+			if (line.substr(0, 3) == "Max")
+				img.statistics[ch].max = std::stof(line.substr(5, std::string::npos));
 
-				switch (line_counter) {
-				case 1:
-					img.max = val;
-					break;
-				case 2:
-					img.min = val;
-					break;
-				case 3:
-					img.median = val;
-					break;
-				case 4:
-					img.mean = val;
-					break;
-				case 5:
-					img.stdev = val;
-					break;
-				case 6:
-					img.mad = val;
-					break;
-				case 7:
-					img.avgDev = val;
-					break;
-				case 8:
-					img.bwmv = val;
-					break;
-				case 9:
+			if (line.substr(0, 3) == "Min")
+				img.statistics[ch].min = std::stof(line.substr(5, std::string::npos));
 
-					size_t comma = start;
-					int i = 0, j = 0;
-					while ((comma = line.find(",", comma)) != std::string::npos) {
-						img.homography(i, j) = std::stod(line.substr(start, comma - start));
-						start = (comma += 1);
-						j += 1;
-						if (j == 3) { i++, j = 0; }
-					}
-					break;
+			if (line.substr(0, 6) == "Median")
+				img.statistics[ch].median = std::stof(line.substr(8, std::string::npos));
+
+			if (line.substr(0, 4) == "Mean")
+				img.statistics[ch].mean = std::stof(line.substr(6, std::string::npos));
+
+			if (line.substr(0, 19) == "Standard Deviation")
+				img.statistics[ch].stdev = std::stof(line.substr(21, std::string::npos));
+
+			if (line.substr(0, 3) == "MAD")
+				img.statistics[ch].mad = std::stof(line.substr(5, std::string::npos));
+
+			if (line.substr(0, 6) == "AvgDev")
+				img.statistics[ch].avgDev = std::stof(line.substr(7, std::string::npos));
+
+			if (line.substr(0, 4) == "BWMV")
+				img.statistics[ch].bwmv = std::stof(line.substr(6, std::string::npos));
+
+			if (line.substr(0, 10) == "Homography") {
+				size_t start = 12;
+				size_t comma = 12;
+				int i = 0, j = 0;
+				while ((comma = line.find(",", comma)) != std::string::npos) {
+					img.homography(i, j) = std::stod(line.substr(start, comma - start));
+					start = (comma += 1);
+					j += 1;
+					if (j == 3) { i++, j = 0; }
 				}
 			}
-
-			line_counter++;
 		}
 
 		myfile.close();
@@ -293,8 +288,44 @@ void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function
 		}
 	}
 
-	temp.ComputeStats();
+	temp.ComputeStatistics(true);
 	img = std::move(temp);
+}
+
+void ImageOP::AlignedStats(Image32& img, Eigen::Matrix3d& homography, Interp_func interp_type) {
+
+	Image32 temp(img.Rows(), img.Cols(), img.Channels());
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+
+			double yx = y * homography(0, 1);
+			double yy = y * homography(1, 1);
+
+			for (int x = 0; x < img.Cols(); ++x) {
+				double x_s = x * homography(0, 0) + yx + homography(0, 2);
+				double y_s = x * homography(1, 0) + yy + homography(1, 2);
+
+				temp(x, y, ch) = ClipPixel(interp_type(img, x_s, y_s, ch));
+
+			}
+		}
+	}
+	temp.ComputeStatistics(true);
+	img.MoveStatsFrom(temp);
+	//img.CopyStatsFrom(temp);
+
+}
+
+void ImageOP::AlignImageStack(ImageVector& img_stack, Interp_func interp_type) {
+
+	for (auto im = img_stack.begin(); im != img_stack.end(); im++) {
+		if (im == img_stack.begin())
+			im->ComputeStatistics();
+		else
+			ImageOP::AlignFrame(*im, im->homography, interp_type);
+	}
 }
 
 static float DrizzlePix(float& inp, float& out, float& area, const float& s2, int& pix_weight, int& out_weight) {
@@ -411,7 +442,7 @@ void ImageOP::DrizzleImageStack(std::vector<std::filesystem::path> light_files, 
 	for (auto& img : img_stack)
 		DrizzleFrame(img, output, drop_size);
 
-	output.ComputeStats();
+	output.ComputeStatistics();
 }
 
 void ImageOP::RotateImage(Image32& img, float theta, Interp_func interp_type) {
@@ -445,13 +476,12 @@ void ImageOP::RotateImage(Image32& img, float theta, Interp_func interp_type) {
 	}
 
 	img = std::move(temp);
-	img.ComputeStats(true);
 
 }
 
 static void FastRotate_90CW(Image32& img) {
 	Image32 temp(img.Cols(), img.Rows());
-	temp.CopyStatsFrom(img);
+	temp.MoveStatsFrom(img);
 
 	int hc = temp.Cols() / 2;
 	int hr = temp.Rows() / 2;
@@ -473,7 +503,7 @@ static void FastRotate_90CW(Image32& img) {
 
 static void FastRotate_90CCW(Image32& img) {
 	Image32 temp(img.Cols(), img.Rows());
-	temp.CopyStatsFrom(img);
+	temp.MoveStatsFrom(img);
 
 	int hr = temp.Rows() / 2;
 	int hc = temp.Cols() / 2;
@@ -562,7 +592,6 @@ void ImageOP::Crop(Image32& img, int top, int bottom, int left, int right) {
 				temp(x, y, ch) = img(x + left, y + top, ch);
 
 	img = std::move(temp);
-	img.ComputeStats();
 }
 
 void ImageOP::Resize2x_Bicubic(Image32& img) {
@@ -605,10 +634,6 @@ void ImageOP::ImageResize_Bicubic(Image32& img, int new_rows, int new_cols) {
 		}
 	}
 	img = std::move(temp);
-	if (img.Channels() == 3)
-		img.AverageRGBStats();
-	else
-		img.ComputeStats();
 }
 
 void ImageOP::Bin2x(Image32& img) {
@@ -626,7 +651,141 @@ void ImageOP::Bin2x(Image32& img) {
 		}
 	}
 	img = std::move(temp);
-	img.ComputeStats();
+}
+
+static void BinIntegerAverage(Image32& img, int factor) {
+	if (factor > 250) return;
+
+	Image32 temp(img.Rows() / factor, img.Cols() / factor, img.Channels());
+	int factor2 = factor * factor;
+
+	for (int ch = 0; ch < temp.Channels(); ++ch) {
+
+		for (int y = 0; y < temp.Rows(); ++y) {
+			int y_s = factor * y;
+
+			for (int x = 0; x < temp.Cols(); ++x) {
+				int x_s = factor * x;
+
+				float pix = 0;
+				for (int j = 0; j < factor; ++j)
+					for (int i = 0; i < factor; ++i)
+						pix += img(x_s + i, y_s + j, ch);
+
+				temp(x, y, ch) = pix / factor2;
+
+			}
+		}
+	}
+
+	img = std::move(temp);
+	//img.ComputeStats();
+}
+
+static void BinIntegerMedian(Image32& img, int factor) {
+	if (factor > 250) return;
+
+	Image32 temp(img.Rows() / factor, img.Cols() / factor, img.Channels());
+	std::vector<float> kernel(factor * factor);
+	auto mp = kernel.begin() + factor / 2;
+
+	for (int ch = 0; ch < temp.Channels(); ++ch) {
+
+		for (int y = 0; y < temp.Rows(); ++y) {
+			int y_s = factor * y;
+
+			for (int x = 0; x < temp.Cols(); ++x) {
+				int x_s = factor * x;
+
+
+				for (int j = 0; j < factor; ++j)
+					for (int i = 0; i < factor; ++i)
+						kernel[j * factor + i] = img(x_s + i, y_s + j, ch);
+
+				std::nth_element(kernel.begin(), mp, kernel.end());
+				temp(x, y, ch) = *mp;
+
+			}
+		}
+	}
+
+	img = std::move(temp);
+	//img.ComputeStats();
+}
+
+static void BinIntegerMax(Image32& img, int factor) {
+	if (factor > 250) return;
+
+	Image32 temp(img.Rows() / factor, img.Cols() / factor, img.Channels());
+
+	for (int ch = 0; ch < temp.Channels(); ++ch) {
+
+		for (int y = 0; y < temp.Rows(); ++y) {
+			int y_s = factor * y;
+
+			for (int x = 0; x < temp.Cols(); ++x) {
+				int x_s = factor * x;
+
+				float max = 0;
+				for (int j = 0; j < factor; ++j)
+					for (int i = 0; i < factor; ++i)
+
+						max = (img(x_s + i, y_s + j, ch) > max) ? img(x_s + i, y_s + j, ch) : max;
+
+				temp(x, y, ch) = max;
+
+			}
+		}
+	}
+
+	img = std::move(temp);
+	//img.ComputeStats();
+}
+
+static void BinIntegerMin(Image32& img, int factor) {
+	if (factor > 250) return;
+
+	Image32 temp(img.Rows() / factor, img.Cols() / factor, img.Channels());
+
+	for (int ch = 0; ch < temp.Channels(); ++ch) {
+
+		for (int y = 0; y < temp.Rows(); ++y) {
+			int y_s = factor * y;
+
+			for (int x = 0; x < temp.Cols(); ++x) {
+				int x_s = factor * x;
+
+				float min = 1;
+				for (int j = 0; j < factor; ++j)
+					for (int i = 0; i < factor; ++i)
+
+						min = (img(x_s + i, y_s + j, ch) < min) ? img(x_s + i, y_s + j, ch) : min;
+
+				temp(x, y, ch) = min;
+
+			}
+		}
+	}
+
+	img = std::move(temp);
+	//img.ComputeStats();
+}
+
+void ImageOP::BinImage(Image32& img, int factor, int method) {
+	switch (method) {
+	case 0:
+		BinIntegerAverage(img, factor);
+		return;
+	case 1:
+		BinIntegerMedian(img, factor);
+		return;
+	case 2:
+		BinIntegerMax(img, factor);
+		return;
+	case 3:
+		BinIntegerMin(img, factor);
+		return;
+	}
 }
 
 inline static float kernelmedian(std::array<float, 9>& kernel) {
@@ -673,60 +832,156 @@ void ImageOP::MedianBlur3x3(Image32& img) {
 	img.data = std::move(imgbuf.data);
 }
 
+void ImageOP::GaussianBlur(Image32& img, int kernel_radius, float std_dev) {
+
+	if (std_dev == 0.0f)
+		std_dev = kernel_radius / 2.0;
+
+	int kernel_dim = kernel_radius + kernel_radius + 1;
+
+	Image32 temp(img.Rows(), img.Cols(), img.Channels());
+	img.CopyTo(temp);
+
+	std::vector<float> gaussian_kernel(kernel_dim);
+
+
+	float k1 = 1 / sqrtf(2 * M_PI * std_dev * std_dev), k2 = 1 / (2 * std_dev * std_dev);
+
+	float sum = 0;
+
+	for (int j = -kernel_radius, el = 0; j <= kernel_radius; ++j, ++el) {
+		gaussian_kernel[el] = k1 * expf(-k2 * (j * j));
+		sum += gaussian_kernel[el];
+		el++;
+	}
+
+	for (auto& val : gaussian_kernel)
+		val /= sum;
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for schedule(static)
+		for (int y = kernel_radius; y < img.Rows() - kernel_radius; ++y)
+			for (int x = kernel_radius; x < img.Cols() - kernel_radius; ++x) {
+				float sum = 0;
+				for (int j = -kernel_radius; j <= kernel_radius; ++j)
+					sum += img(x + j, y, ch) * gaussian_kernel[j + kernel_radius];
+
+				temp(x, y, ch) = sum;
+			}
+
+
+#pragma omp parallel for schedule(static)
+		for (int y = kernel_radius; y < img.Rows() - kernel_radius; ++y)
+			for (int x = kernel_radius; x < img.Cols() - kernel_radius; ++x) {
+				float sum = 0;
+				for (int j = -kernel_radius; j <= kernel_radius; ++j)
+					sum += temp(x, y + j, ch) * gaussian_kernel[j + kernel_radius];
+
+				img(x, y, ch) = sum;
+			}
+	}
+}
+
+static void LinearInterpolation3x3(Image32& source, Image32& convolved, Image32& wavelet, int scale_num) {
+
+	int _2i = pow(2, scale_num);
+	int _x2i = 2 * _2i;
+
+	for (int ch = 0; ch < source.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < source.Rows(); ++y)
+			for (int x = 0; x < source.Cols(); ++x) {
+
+				float sum = 0;
+
+				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y, ch) * 0.25f : 0;
+				sum += source(x, y, ch) * 0.5f;
+				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y, ch) * 0.25f : 0;
+
+				wavelet(x, y, ch) = sum;
+			}
+
+#pragma omp parallel for
+		for (int y = 0; y < source.Rows(); ++y)
+			for (int x = 0; x < source.Cols(); ++x) {
+
+				float sum = 0;
+
+				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i, ch) * 0.25f : 0;
+				sum += wavelet(x, y, ch) * 0.5f;
+				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i, ch) * 0.25f : 0;
+
+				convolved(x, y, ch) = sum;
+			}
+	}
+
+	for (auto s = source.begin(), c = convolved.begin(), w = wavelet.begin(); s != source.end(); ++s, ++c, ++w)
+		*w = *s - *c;
+
+	convolved.CopyTo(source);
+}
+
+static void B3Spline5x5(Image32& source, Image32& convolved, Image32& wavelet, int scale_num) {
+
+	int _2i = pow(2, scale_num);
+	int _x2i = 2 * _2i;
+
+	for (int ch = 0; ch < source.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < source.Rows(); ++y)
+			for (int x = 0; x < source.Cols(); ++x) {
+
+				float sum = 0;
+
+				sum += source.IsInBounds(x - _x2i, y) ? source(x - _x2i, y, ch) * 0.0625f : 0;
+				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y, ch) * 0.25f : 0;
+				sum += source(x, y, ch) * 0.375f;
+				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y, ch) * 0.25f : 0;
+				sum += source.IsInBounds(x + _x2i, y) ? source(x + _x2i, y, ch) * 0.0625f : 0;
+
+				wavelet(x, y, ch) = sum;
+			}
+
+#pragma omp parallel for
+		for (int y = 0; y < source.Rows(); ++y)
+			for (int x = 0; x < source.Cols(); ++x) {
+
+				float sum = 0;
+
+				sum += wavelet.IsInBounds(x, y - _x2i) ? wavelet(x, y - _x2i, ch) * 0.0625 : 0;
+				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i, ch) * 0.25f : 0;
+				sum += wavelet(x, y, ch) * 0.375f;
+				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i, ch) * 0.25f : 0;
+				sum += wavelet.IsInBounds(x, y + _x2i) ? wavelet(x, y + _x2i, ch) * 0.0625f : 0;
+
+				convolved(x, y, ch) = sum;
+			}
+	}
+
+	for (auto s = source.begin(), c = convolved.begin(), w = wavelet.begin(); s != source.end(); ++s, ++c, ++w)
+		*w = *s - *c;
+
+	convolved.CopyTo(source);
+}
+
 void ImageOP::B3WaveletTransform(Image32& img, ImageVector& wavelet_vector, int scale_num) {
 
 	wavelet_vector.reserve(scale_num);
 
-	Image32 source(img.Rows(), img.Cols());
+	Image32 source(img.Rows(), img.Cols(), img.Channels());
 	img.CopyTo(source);
 	ImageOP::MedianBlur3x3(source);
 
-	Image32 convolved(img.Rows(), img.Cols());
-
-	std::array<float, 5> kernel = { 0.0625f, 0.25f, 0.375f, 0.25f, 0.0625f }; // use actual values instead of array
+	Image32 convolved(img.Rows(), img.Cols(), img.Channels());
 
 	for (int i = 0; i < scale_num; ++i) {
 
 		int _2i = pow(2, i);
 		int _x2i = 2 * _2i;
-		Image32 wavelet(img.Rows(), img.Cols());
+		Image32 wavelet(img.Rows(), img.Cols(), img.Channels());
 
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y)
-			for (int x = 0; x < img.Cols(); ++x) {
+		B3Spline5x5(source, convolved, wavelet, i);
 
-				float sum = 0;
-
-				sum += source.IsInBounds(x - _x2i, y) ? source(x - _x2i, y) * kernel[0] : 0;
-				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y) * kernel[1] : 0;
-				sum += source(x, y) * kernel[2];
-				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y) * kernel[3] : 0;
-				sum += source.IsInBounds(x + _x2i, y) ? source(x + _x2i, y) * kernel[4] : 0;
-
-				wavelet(x, y) = sum;
-			}
-
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y)
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += wavelet.IsInBounds(x, y - _x2i) ? wavelet(x, y - _x2i) * kernel[0] : 0;
-				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i) * kernel[1] : 0;
-				sum += wavelet(x, y) * kernel[2];
-				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i) * kernel[3] : 0;
-				sum += wavelet.IsInBounds(x, y + _x2i) ? wavelet(x, y + _x2i) * kernel[4] : 0;
-
-				convolved(x, y) = sum;
-			}
-
-		for (int el = 0; el < img.Total(); ++el) {
-			wavelet[el] = (source[el] - convolved[el]);
-			source[el] = convolved[el];
-		}
-
-		//wavelet.AvgDev_clipped();
 		wavelet.AvgDev(true);
 		wavelet_vector.emplace_back(std::move(wavelet));
 	}
@@ -751,8 +1006,12 @@ void ImageOP::B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_v
 
 	wavelet_vector.reserve(scale_num);
 
-	Image32 source(img.Rows(), img.Cols());
+	Image32 source(img.Rows(), img.Cols(), img.Channels());
 	img.CopyTo(source);
+
+	if (source.Channels() == 3)
+		img.RGBtoGray();
+
 	ImageOP::MedianBlur3x3(source);
 
 	Image32 convolved(img.Rows(), img.Cols());
@@ -760,79 +1019,89 @@ void ImageOP::B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_v
 
 	for (int i = 0; i < scale_num; ++i) {
 
-		int _2i = pow(2, i);
-		int _x2i = 2 * _2i;
+		B3Spline5x5(source, convolved, wavelet, i);
 
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y)
-			for (int x = 0; x < img.Cols(); ++x) {
+		wavelet.ComputeAvgDev(true);
 
-				float sum = 0;
-
-				sum += source.IsInBounds(x - _x2i, y) ? source(x - _x2i, y) * 0.0625f : 0;
-				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y) * 0.25f : 0;
-				sum += source(x, y) * 0.375f;
-				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y) * 0.25f : 0;
-				sum += source.IsInBounds(x + _x2i, y) ? source(x + _x2i, y) * 0.0625f : 0;
-
-				wavelet(x, y) = sum;
-			}
-
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y)
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += wavelet.IsInBounds(x, y - _x2i) ? wavelet(x, y - _x2i) * 0.0625 : 0;
-				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i) * 0.25f : 0;
-				sum += wavelet(x, y) * 0.375f;
-				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i) * 0.25f : 0;
-				sum += wavelet.IsInBounds(x, y + _x2i) ? wavelet(x, y + _x2i) * 0.0625f : 0;
-
-				convolved(x, y) = sum;
-			}
-
-		for (int el = 0; el < img.Total(); ++el) {
-			wavelet[el] = (source[el] - convolved[el]);
-			source[el] = convolved[el];
-		}
-
-		wavelet.AvgDev(true);
 		Image8 tri_wavelet(img.Rows(), img.Cols());
-		TrinerizeImage(wavelet, tri_wavelet, wavelet.median + thresh * (wavelet.avgDev / 0.6745));
+		TrinerizeImage(wavelet, tri_wavelet, wavelet.Median() + thresh * (wavelet.AvgDev() / 0.6745));
 		wavelet_vector.emplace_back(std::move(tri_wavelet));
 	}
+
+}
+
+static int GetSign(float& val) {
+	return (val < 0) ? -1 : 1;
+}
+
+static void LinearNoiseReduction(Image32& wavelet, int threshold = 3, float amount = 1) {
+	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
+
+		float thresh = 3 * (wavelet.ComputeMedianABS(ch) / 0.6745);
+		float amount = 1;
+		amount = fabsf(amount - 1);
+
+		for (auto w = wavelet.begin(ch); w != wavelet.end(ch); ++w) {
+			float val = fabsf(*w);
+			*w = (val < threshold) ? *w * amount : GetSign(*w) * (val - threshold);
+		}
+	}
+}
+
+void ImageOP::B3WaveletLayerNoiseReduction(Image32& img, int scale_num) {
+	assert(scale_num <= 4);
+
+	Image32 source(img.Rows(), img.Cols(), img.Channels());
+	img.CopyTo(source);
+	img.FillZero();
+	Image32 wavelet(img.Rows(), img.Cols(), img.Channels());
+	Image32 convolved(img.Rows(), img.Cols(), img.Channels());
+
+	for (int i = 0; i < scale_num; ++i) {
+
+		B3Spline5x5(source, convolved, wavelet, i);
+		if (i == 0)
+			LinearNoiseReduction(wavelet, 3, 1);
+
+		for (int el = 0; el < img.Total() * img.Channels(); ++el)
+			img[el] += wavelet[el];
+
+	}
+
+	for (int el = 0; el < img.Total() * img.Channels(); ++el)
+		img[el] += convolved[el];
 
 }
 
 void ImageOP::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type) {
 
 	float rse, cse;
-	switch (type) {
-	case ScaleEstimator::median:
-		rse = ref.median;
-		cse = tgt.median;
-		break;
-	case ScaleEstimator::avgdev:
-		rse = ref.avgDev;
-		cse = ref.avgDev;
-		break;
-	case ScaleEstimator::mad:
-		rse = ref.mad;
-		cse = tgt.mad;
-		break;
-	case ScaleEstimator::bwmv:
-		rse = ref.bwmv;
-		cse = tgt.bwmv;
-		break;
-	case ScaleEstimator::none:
-		return;
-	}
+	for (int ch = 0; ch < ref.Channels(); ++ch) {
+		switch (type) {
+		case ScaleEstimator::median:
+			rse = ref.Median(ch);
+			cse = tgt.Median(ch);
+			break;
+		case ScaleEstimator::avgdev:
+			rse = ref.AvgDev(ch);
+			cse = ref.AvgDev(ch);
+			break;
+		case ScaleEstimator::mad:
+			rse = ref.MAD(ch);
+			cse = tgt.MAD(ch);
+			break;
+		case ScaleEstimator::bwmv:
+			rse = ref.BWMV(ch);
+			cse = tgt.BWMV(ch);
+			break;
+		case ScaleEstimator::none:
+			return;
+		}
 
-	float k = rse / cse;
-	for (auto& pixel : tgt)
-		pixel = ClipPixel(k * (pixel - tgt.median) + ref.median);
+		float k = rse / cse;
+		for (auto pixel = tgt.begin(ch); pixel != tgt.end(ch); ++pixel)
+			*pixel = ClipPixel(k * (*pixel - tgt.Median(ch)) + ref.Median(ch));
+	}
 
 }
 
@@ -852,9 +1121,10 @@ void ImageOP::MaxMin_Normalization(Image32& img, float max, float min) {
 
 void ImageOP::STFImageStretch(Image32& img) {
 
-	float nMAD = 1.4826f * img.mad;
+	float nMAD = 1.4826f * img.ComputeAverageMAD();
+	float median = img.ComputeAverageMedian();
 
-	float shadow = img.median - 2.8f * nMAD, midtone = 4.5 * (img.median - shadow);
+	float shadow = median - 2.8f * nMAD, midtone = 4.5 * (median - shadow); // correct val is 3, not 6
 
 	float m1 = midtone - 1, m2 = (2 * midtone) - 1;
 

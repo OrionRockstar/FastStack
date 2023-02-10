@@ -67,7 +67,7 @@ static void AperturePhotometry(const Image32 &img, StarVector &starvector) {
 
 StarVector stardetection::DetectStars(Image32 &img,const float thresh_mult1 ,const float thresh_mult2, const int max_radius, const bool blur) {
 
-    double threshold = (thresh_mult1 * img.median) + (thresh_mult2 * img.stdev);
+    double threshold;// = (thresh_mult1 * img.median) + (thresh_mult2 * img.stdev);
 
     const int vote_thresh = 6;
 
@@ -144,10 +144,8 @@ StarVector stardetection::DetectStars_WaveletBased(Image32& img, const float thr
     for (double theta = 0; theta < 2 * M_PI; theta += 2 * M_PI / total_votes)
         trigang.push_back({ cos(theta),sin(theta) });
 
-    ImageVector wavelet_vector;
-    ImageOP::B3WaveletTransform(img, wavelet_vector, scale);
-
-    Image8 tri(img.Rows(), img.Cols());
+    Image8Vector wavelet_vector;
+    ImageOP::B3WaveletTransformTrinerized(img, wavelet_vector, thresh_mult, scale);
 
     StarVector starvector;
     starvector.reserve(2000);
@@ -157,12 +155,10 @@ StarVector stardetection::DetectStars_WaveletBased(Image32& img, const float thr
 
         double ix2min_radius = 1.0 / (2 * min_radius);
 
-        TrinerizeImage(wavelet, tri, wavelet.median + thresh_mult * (wavelet.avgDev / 0.6745), false);
-
         for (int y = 0; y < img.Rows(); ++y) {
             for (int x = 0; x < img.Cols(); ++x) {
             newstar:
-                if (tri(x, y) == 2) {
+                if (wavelet(x, y) == 2) {
                     for (int r = min_radius; r <= max_radius; ++r) {
 
                         int vote = 0, spacev = 0, istarv = 0;
@@ -176,9 +172,9 @@ StarVector stardetection::DetectStars_WaveletBased(Image32& img, const float thr
 
                             if (img.IsInBounds(a, b)) {
 
-                                if (tri(a, b) == 2)  istarv++;
+                                if (wavelet(a, b) == 2)  istarv++;
 
-                                else if ((tri(a, b) == 1) && (img(x, y) > 1.85f * img(a, b))) vote++;
+                                else if ((wavelet(a, b) == 1) && (img(x, y) > 1.85f * img(a, b))) vote++;
 
                                 else  spacev++;
                             }

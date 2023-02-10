@@ -56,7 +56,7 @@ void ImageStacking::Average(std::vector<Image32>& imgvec,Image32& final_image){
     std::vector<float> pixelstack(imgvec.size());
 
 #pragma omp parallel for firstprivate(pixelstack)
-    for (int el = 0; el < final_image.Total(); ++el) {
+    for (int el = 0; el < final_image.TotalImage(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
         final_image[el] = Mean(pixelstack);
@@ -69,7 +69,7 @@ void ImageStacking::Median(std::vector<Image32>& imgvec, Image32& final_image) {
     std::vector<float> pixelstack(imgvec.size());
     int mid_point = pixelstack.size() / 2;
 #pragma omp parallel for firstprivate(pixelstack)
-    for (int el = 0; el < final_image.Total(); ++el) {
+    for (int el = 0; el < final_image.TotalImage(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
@@ -83,7 +83,7 @@ void ImageStacking::SigmaClipping(std::vector<Image32>& imgvec, Image32& final_i
     std::vector<float> pixelstack(imgvec.size());
 
 #pragma omp parallel for firstprivate(pixelstack)
-    for (int el = 0; el < final_image.Total(); ++el) {
+    for (int el = 0; el < final_image.TotalImage(); ++el) {
         pixelstack.resize(imgvec.size());
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
@@ -109,7 +109,7 @@ void ImageStacking::KappaSigmaClipping(std::vector<Image32>& imgvec, Image32& fi
     std::vector<float> pixelstack(imgvec.size());
 
 #pragma omp parallel for firstprivate(pixelstack)
-    for (int el = 0; el < final_image.Total(); ++el) {
+    for (int el = 0; el < final_image.TotalImage(); ++el) {
         pixelstack.resize(imgvec.size());
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
@@ -135,7 +135,7 @@ void ImageStacking::WinsorizedSigmaClipping(std::vector<Image32>& imgvec, Image3
     int mid_point = pixelstack.size() / 2;
 
 #pragma omp parallel for firstprivate(pixelstack)
-    for (int el = 0; el < final_image.Total(); ++el) {
+    for (int el = 0; el < final_image.TotalImage(); ++el) {
         for (size_t i = 0; i < pixelstack.size(); ++i)
             pixelstack[i] = imgvec[i][el];
 
@@ -181,5 +181,5 @@ void ImageStacking::StackImages(std::vector<Image32>& imgvec, Image32& final_ima
         break;
     }
 
-    final_image.ComputeStats();
+    final_image.ComputeStatistics();
 }

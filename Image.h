@@ -21,7 +21,10 @@ private:
 	int m_cols = 0;
 	int m_channels = 0;
 	int m_total = m_rows * m_cols;
+	int m_total_image = m_total * m_channels;
 	uint16_t m_bitdepth = 0;
+
+	std::vector<Stats> statistics;
 
 	inline static int m_max_val = 0;
 	inline static int m_multiplier = 0;
@@ -32,19 +35,8 @@ private:
 
 public:
 	std::unique_ptr<T[]> data;
-	float max = std::numeric_limits<float>::min();
-	float min = std::numeric_limits<float>::max();
-	float median = 0;
-	float mean = 0;
-	float stdev = 0;
-	float mad = 0;
-	float avgDev = 0;
-	float bwmv = 0;
-	Eigen::Matrix3d homography = Eigen::Matrix3d::Identity();
 
-	Stats red;
-	Stats green;
-	Stats blue;
+	Eigen::Matrix3d homography = Eigen::Matrix3d::Identity();
 
 	Image(int r, int c, int ch = 1) :m_rows(r), m_cols(c), m_channels(ch) {
 		assert(ch == 1 || ch == 3);
@@ -52,10 +44,13 @@ public:
 		data = std::make_unique<T[]>(r * c * ch);
 
 		if (m_channels == 3) {
+			statistics.resize(3, Stats());
 			m_red = data.get();
 			m_green = data.get() + m_total;
 			m_blue = data.get() + 2 * m_total;
 		}
+		else
+			statistics.resize(1, Stats());
 
 		switch (m_bitdepth) {
 		case 32:
@@ -89,21 +84,15 @@ public:
 
 		m_bitdepth = other.m_bitdepth;
 		m_total = other.m_total;
+		m_total_image = other.m_total_image;
+		statistics = std::move(other.statistics);
+
 		m_max_val = other.m_max_val;
 		m_multiplier = other.m_multiplier;
 
 		m_red = other.m_red;
 		m_green = other.m_green;
 		m_blue = other.m_blue;
-		
-		max = other.max;
-		min = other.min;
-		median = other.median;
-		mean = other.mean;
-		stdev = other.stdev;
-		mad = other.mad;
-		avgDev = other.avgDev;
-		bwmv = other.bwmv;
 
 		homography = other.homography;
 		data = std::move(other.data);
@@ -116,6 +105,8 @@ public:
 		using ValueType = T;
 		using PointerType = ValueType*;
 		using ReferenceType = ValueType&;
+		using difference_type = ptrdiff_t;
+
 
 		Iterator(PointerType ptr) : m_ptr(ptr) {};
 
@@ -135,6 +126,28 @@ public:
 			return iterator;
 		}
 
+		Iterator& operator+=(difference_type offset) noexcept {
+			m_ptr += offset;
+			return *this;
+		}
+
+		Iterator operator+(difference_type offset) noexcept {
+			Iterator t = *this;
+			t += offset;
+			return t;
+		}
+
+		Iterator& operator-=(difference_type offset) noexcept {
+			m_ptr -= offset;
+			return *this;
+		}
+
+		Iterator operator-(difference_type offset) noexcept {
+			Iterator t = *this;
+			t -= offset;
+			return t;
+		}
+
 		ReferenceType operator*() { return *m_ptr; }
 
 		PointerType operator->() { return m_ptr; }
@@ -147,12 +160,13 @@ public:
 			return m_ptr != other.m_ptr;
 		}
 
+
 	private:
 		PointerType m_ptr;
+
 	};
 
 	Image& operator=(Image&& other) {
-		assert(m_channels == other.m_channels);
 
 		if (this != &other) {
 			m_rows = other.m_rows;
@@ -161,21 +175,16 @@ public:
 
 			m_bitdepth = other.m_bitdepth;
 			m_total = other.m_total;
+			m_total_image = other.m_total_image;
+
+			statistics = std::move(other.statistics);
+
 			m_max_val = other.m_max_val;
 			m_multiplier = other.m_multiplier;
 
 			m_red = other.m_red;
 			m_green = other.m_green;
 			m_blue = other.m_blue;
-
-			max = other.max;
-			min = other.min;
-			median = other.median;
-			mean = other.mean;
-			stdev = other.stdev;
-			mad = other.mad;
-			avgDev = other.avgDev;
-			bwmv = other.bwmv;
 
 			homography = other.homography;
 			data = std::move(other.data);
@@ -211,43 +220,55 @@ public:
 		return Iterator(this->data.get());
 	}
 
+	Iterator cbegin() const {
+		return ConstIterator(this->data.get());
+	}
+
 	Iterator end() {
-		return Iterator(this->data.get() + this->m_total);
+		return Iterator(this->data.get() + m_total * m_channels);
 	}
 
-	Iterator begin_red() {
-		return Iterator(m_red);
+	Iterator cend() const {
+		return ConstIterator(this->data.get() + m_total * m_channels);
 	}
 
-	Iterator end_red() {
-		return Iterator(m_red + m_total);
+	Iterator begin(int channel) {
+		return Iterator(this->data.get() + channel * m_total);
 	}
 
-	Iterator begin_green() {
-		return Iterator(m_green);
+	Iterator end(int channel) {
+		return Iterator(this->data.get() + (channel + 1) * m_total);
 	}
 
-	Iterator end_green() {
-		return Iterator(m_green + m_total);
-	}
+	int Rows()const { return m_rows; }
 
-	Iterator begin_blue() {
-		return Iterator(m_blue);
-	}
+	int Cols()const { return m_cols; }
 
-	Iterator end_blue() {
-		return Iterator(m_blue + m_total);
-	}
+	int Total()const { return m_total; }
 
-	int Rows() const { return m_rows; }
+	int TotalImage()const { return m_total_image; }
 
-	int Cols() const { return m_cols; }
+	int Channels()const { return m_channels; }
 
-	int Total() const { return m_total; }
+	float Max(int channel_num = 0)const { return statistics[channel_num].max; }
 
-	int Channels() const { return m_channels; }
+	float Min(int channel_num = 0)const { return statistics[channel_num].min; }
 
-	uint16_t Bitdepth() const { return m_bitdepth; }
+	float Median(int channel_num = 0)const { return statistics[channel_num].median; }
+
+	float Mean(int channel_num = 0)const { return statistics[channel_num].mean; }
+
+	float StdDev(int channel_num = 0)const { return statistics[channel_num].stdev; }
+
+	float AvgDev(int channel_num = 0)const { return statistics[channel_num].avgDev; }
+
+	float MAD(int channel_num = 0)const { return statistics[channel_num].mad; }
+
+	float nMAD(int channel_num = 0)const { return 1.4826f * statistics[channel_num].mad; }
+
+	float BWMV(int channel_num = 0)const { return statistics[channel_num].bwmv; }
+
+	uint16_t Bitdepth()const { return m_bitdepth; }
 
 	T& RedPixel(int x, int y) { return m_red[y * m_cols + x]; }
 
@@ -259,8 +280,12 @@ public:
 		return (pixel > 0.04045) ? powf((pixel + 0.055f) / 1.055, 2.4f) : (pixel / 12.92);
 	}
 
-	static float GetL(float Y) {
+	static float GetLightness(float Y) {
 		return (Y <= 0.008856f) ? Y * 9.033f : (1.16f * powf(Y, 0.333333f)) - 0.16f;
+	}
+
+	bool IsSameDim(Image<T>& other) {
+		return (m_rows == other.m_rows && m_cols == other.m_cols && m_channels == other.m_channels);
 	}
 
 	void RGBtoGray() {
@@ -270,16 +295,22 @@ public:
 		//#pragma omp parallel for
 		for (int el = 0; el < m_total; ++el) {
 			float pix = 0.2126f * GetLinearVal(m_red[el]) + 0.7152f * GetLinearVal(m_green[el]) + 0.0722f * GetLinearVal(m_blue[el]);
-			data[el] = GetL(pix);
+			data[el] = GetLightness(pix);
 		}
 		realloc(data.get(), m_total * sizeof(T));
 		m_channels = 1;
 	}
 
+	//int Weight_At(int x, int y) { return weight_map[y * m_cols + x]; }
+
 	void CopyTo(Image& dest) const {
-		if (dest.m_rows != m_rows || dest.m_cols != m_cols || dest.m_bitdepth != m_bitdepth)
-			dest = Image<T>(m_rows, m_cols);
-		memcpy(dest.data.get(), data.get(), m_total * sizeof(T));
+		if (dest.m_rows != m_rows || dest.m_bitdepth != m_bitdepth)
+			dest = Image<T>(m_rows, m_cols, m_channels);
+		memcpy(dest.data.get(), data.get(), m_total * m_channels * sizeof(T));
+	}
+
+	void MoveStatsFrom(Image& src) {
+		statistics = std::move(src.statistics);
 	}
 
 	bool IsInBounds(int x, int y) {
@@ -294,6 +325,30 @@ public:
 	void FillValue(T val) {
 		for (auto& pixel : *this)
 			pixel = val;
+	}
+
+	void Normalize() {
+		float max = std::numeric_limits<T>::min();
+		float min = std::numeric_limits<T>::max();
+		for (auto& pixel : *this) {
+			if (pixel > max) max = pixel;
+			if (pixel < min) min = pixel;
+		}
+
+		float dm = 1.0f / (max - min);
+
+		for (float& pixel : *this)
+			pixel = (pixel - min) * dm;
+	}
+
+	std::vector<int> GetHistogram() {
+
+		std::vector<int> histogram(65536);
+
+		for (auto& pixel : *this)
+			histogram[pixel * m_multiplier]++;
+
+		return histogram;
 	}
 
 	static float HistogramMedian(std::vector<int>& histogram, int sum_count, uint16_t bit_depth) {
@@ -332,476 +387,300 @@ public:
 		return (pixel <= 0.0 || m_max_val <= pixel);
 	}
 
-	void ComputeStats(bool clip = false) {
-		if (m_channels == 3) { AverageRGBStats(clip); return; }
+	void ComputeStatistics(bool clip = false) {
 
-		max = std::numeric_limits<float>::min();
-		min = std::numeric_limits<float>::max();
+		for (int ch = 0; ch < m_channels; ++ch) {
+			float max = std::numeric_limits<float>::min();
+			float min = std::numeric_limits<float>::max();
 
-		std::vector<int> hist(65536);
+			std::vector<int> hist(65536);
 
-		int count = 0;
-		double meansum = 0;
-
-		for (auto& pixel : *this) {
-
-			if (clip && IsClippedVal(pixel)) continue;
-
-			if (pixel > max)
-				max = pixel;
-			if (pixel < min)
-				min = pixel;
-			meansum += pixel;
-			hist[pixel * m_multiplier]++;
-			count++;
-
-		}
-
-		median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-		mean = meansum / count;
-
-		std::fill(hist.begin(), hist.end(), 0);
-
-		double avgDevsum = 0;
-
-		for (auto& pixel : *this) {
-
-			if (clip && IsClippedVal(pixel)) continue;
-
-			float t = fabs(pixel - median);
-			hist[t * m_multiplier]++;
-			avgDevsum += t;
-
-		}
-
-		avgDev = avgDevsum / count;
-
-		mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-
-		double x9mad = 1 / (9 * mad);
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		double d, var = 0;
-
-		for (auto& pixel : *this) {
-
-			if (clip && IsClippedVal(pixel)) continue;
-
-			d = pixel - mean;
-			var += d * d;
-
-			Y = (pixel - median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(pixel - median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
-
-		}
-
-		stdev = sqrt(var / count);
-		bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
-	}
-
-	void ComputeStatsRed(bool clip = false) {
-		assert(m_channels == 3);
-
-		red.max = std::numeric_limits<float>::min();
-		red.min = std::numeric_limits<float>::max();
-
-		std::vector<int> hist(65536);
-
-		int count = 0;
-		double meansum = 0;
-
-		for (auto rpix = begin_red(); rpix != end_red(); ++rpix) {
-			if (clip && IsClippedVal(*rpix)) continue;
-
-			if (*rpix > red.max)
-				red.max = *rpix;
-			if (*rpix < red.min)
-				red.min = *rpix;
-			meansum += *rpix;
-			hist[*rpix * m_multiplier]++;
-			count++;
-		}
-
-		red.median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-		red.mean = meansum / count;
-
-		std::fill(hist.begin(), hist.end(), 0);
-
-		double avgDevsum = 0;
-
-		for (auto rpix = begin_red(); rpix != end_red(); ++rpix) {
-
-			if (clip && IsClippedVal(*rpix)) continue;
-
-			float t = fabs(*rpix - red.median);
-			hist[t * m_multiplier]++;
-			avgDevsum += t;
-
-		}
-
-		red.avgDev = avgDevsum / count;
-
-		red.mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-
-		double x9mad = 1 / (9 * red.mad);
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		double d, var = 0;
-
-		for (auto rpix = begin_red(); rpix != end_red(); ++rpix) {
-
-			if (clip && IsClippedVal(*rpix)) continue;
-
-			d = *rpix - red.mean;
-			var += d * d;
-
-			Y = (*rpix - red.median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(*rpix - red.median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
-
-		}
-
-		red.stdev = sqrt(var / count);
-		red.bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
-	}
-
-	void ComputeStatsGreen(bool clip = false) {
-		assert(m_channels == 3);
-
-		green.max = std::numeric_limits<float>::min();
-		green.min = std::numeric_limits<float>::max();
-
-		std::vector<int> hist(65536);
-
-		int count = 0;
-		double meansum = 0;
-
-		for (auto gpix = begin_green(); gpix != end_green(); ++gpix) {
-			if (clip && IsClippedVal(*gpix)) continue;
-
-			if (*gpix > green.max)
-				green.max = *gpix;
-			if (*gpix < green.min)
-				green.min = *gpix;
-			meansum += *gpix;
-			hist[*gpix * m_multiplier]++;
-			count++;
-		}
-
-		green.median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-		green.mean = meansum / count;
-
-		std::fill(hist.begin(), hist.end(), 0);
-
-		double avgDevsum = 0;
-
-		for (auto gpix = begin_green(); gpix != end_green(); ++gpix) {
-
-			if (clip && IsClippedVal(*gpix)) continue;
-
-			float t = fabs(*gpix - green.median);
-			hist[t * m_multiplier]++;
-			avgDevsum += t;
-
-		}
-
-		green.avgDev = avgDevsum / count;
-
-		green.mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-
-		double x9mad = 1 / (9 * green.mad);
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		double d, var = 0;
-
-		for (auto gpix = begin_green(); gpix != end_green(); ++gpix) {
-
-			if (clip && IsClippedVal(*gpix)) continue;
-
-			d = *gpix - green.mean;
-			var += d * d;
-
-			Y = (*gpix - green.median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(*gpix - green.median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
-
-		}
-
-		green.stdev = sqrt(var / count);
-		green.bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
-	}
-
-	void ComputeStatsBlue(bool clip = false) {
-		assert(m_channels == 3);
-
-		blue.max = std::numeric_limits<float>::min();
-		blue.min = std::numeric_limits<float>::max();
-
-		std::vector<int> hist(65536);
-
-		int count = 0;
-		double meansum = 0;
-
-		for (auto bpix = begin_blue(); bpix != end_blue(); ++bpix) {
-			if (clip && IsClippedVal(*bpix)) continue;
-
-			if (*bpix > blue.max)
-				blue.max = *bpix;
-			if (*bpix < blue.min)
-				blue.min = *bpix;
-			meansum += *bpix;
-			hist[*bpix * m_multiplier]++;
-			count++;
-		}
-
-		blue.median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-		blue.mean = meansum / count;
-
-		std::fill(hist.begin(), hist.end(), 0);
-
-		double avgDevsum = 0;
-
-		for (auto bpix = begin_blue(); bpix != end_blue(); ++bpix) {
-
-			if (clip && IsClippedVal(*bpix)) continue;
-
-			float t = fabs(*bpix - blue.median);
-			hist[t * m_multiplier]++;
-			avgDevsum += t;
-
-		}
-
-		blue.avgDev = avgDevsum / count;
-
-		blue.mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
-
-		double x9mad = 1 / (9 * blue.mad);
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		double d, var = 0;
-
-		for (auto bpix = begin_blue(); bpix != end_blue(); ++bpix) {
-
-			if (clip && IsClippedVal(*bpix)) continue;
-
-			d = *bpix - blue.mean;
-			var += d * d;
-
-			Y = (*bpix - blue.median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(*bpix - blue.median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
-
-		}
-
-		blue.stdev = sqrt(var / count);
-		blue.bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
-	}
-
-	void ComputeStatsRGB(bool clip = false) {
-		assert(m_channels = 3);
-
-		ComputeStatsRed(clip);
-		ComputeStatsGreen(clip);
-		ComputeStatsBlue(clip);
-	}
-
-	void AverageRGBStats(bool clip = false) {
-		ComputeStatsRGB();
-		max = (red.max + green.max + blue.max) / 3.0f;
-		min = (red.min + green.min + blue.min) / 3.0f;
-		median = (red.median + green.median + blue.median) / 3.0f;
-		mean = (red.mean + green.mean + blue.mean) / 3.0f;
-		stdev = (red.stdev + green.stdev + blue.stdev) / 3.0f;
-		mad = (red.mad + green.mad + blue.mad) / 3.0f;
-		avgDev = (red.avgDev + green.avgDev + blue.avgDev) / 3.0f;
-		bwmv = (red.bwmv + green.bwmv + blue.bwmv) / 3.0f;
-	}
-
-	void CopyStatsFrom(Image& src) {
-		max = src.max;
-		min = src.min;
-		median = src.median;
-		mean = src.mean;
-		stdev = src.stdev;
-		mad = src.mad;
-		avgDev = src.avgDev;
-		bwmv = src.bwmv;
-	}
-
-	T Median(bool clip = false) {
-		std::vector<int> histogram(65536);
-
-		if (clip) {
 			int count = 0;
-			for (auto& pixel : *this) {
-				if (IsClippedVal(pixel)) continue;
-				histogram[pixel * m_multiplier]++;
+			double meansum = 0;
+
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+
+				if (clip && IsClippedVal(*pixel)) continue;
+
+				if (*pixel > max)
+					max = *pixel;
+				if (*pixel < min)
+					min = *pixel;
+				meansum += *pixel;
+				hist[*pixel * m_multiplier]++;
 				count++;
+
 			}
-			return median = HistogramMedian(histogram, count, m_bitdepth) / m_multiplier;
+			statistics[ch].max = max;
+			statistics[ch].min = min;
+			float median = statistics[ch].median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
+			float mean = statistics[ch].mean = meansum / count;
 
+			std::fill(hist.begin(), hist.end(), 0);
+
+			double avgDevsum = 0;
+
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+
+				if (clip && IsClippedVal(*pixel)) continue;
+
+				float t = fabsf(*pixel - median);
+				hist[t * m_multiplier]++;
+				avgDevsum += t;
+
+			}
+
+			statistics[ch].avgDev = avgDevsum / count;
+
+			statistics[ch].mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
+
+			double x9mad = 1 / (9 * statistics[ch].mad);
+			double sum1 = 0, sum2 = 0;
+			double Y, a;
+			double d, var = 0;
+
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+
+				if (clip && IsClippedVal(*pixel)) continue;
+
+				d = *pixel - mean;
+				var += d * d;
+
+				Y = (*pixel - median) * x9mad;
+
+				(abs(Y) < 1) ? a = 1 : a = 0;
+
+				Y *= Y;
+
+				sum1 += (a * pow(*pixel - median, 2) * pow(1 - Y, 4));
+				sum2 += (a * (1 - Y) * (1 - 5 * Y));
+
+			}
+
+			statistics[ch].stdev = sqrt(var / count);
+			statistics[ch].bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
 		}
-
-		for (auto& pixel : *this)
-			histogram[pixel * m_multiplier]++;
-
-		return median = HistogramMedian(histogram, m_total * m_channels, m_bitdepth) / m_multiplier;
-		
 	}
 
-	float Mean(bool clip = false) {
-		mean = 0;
+	void ComputeMean(bool clip = false) {
 
 		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				int count = 0;
+				double sum = 0;
+				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
 
+					sum += *pixel;
+					count++;
+				}
+				statistics[ch].mean = sum / count;
+			}
+			return;
+		}
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			double sum = 0;
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
+				sum += *pixel;
+
+			statistics[ch].mean = sum / m_total;
+		}
+	}
+
+	float ComputeMean(int channel_num, bool clip = false) {
+
+		if (clip) {
 			int count = 0;
 			double sum = 0;
-			for (auto& pixel : *this) {
-				if (IsClippedVal(pixel)) continue;
+			for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel) {
+				if (IsClippedVal(*pixel)) continue;
 
-				sum += pixel;
+				sum += *pixel;
 				count++;
 			}
-			return mean = sum / (m_channels * count);
+			return statistics[channel_num].mean = sum / count;
+
 		}
 
 		double sum = 0;
-		for (auto& pixel : *this)
-			sum += pixel;
-		return mean = sum / (m_channels * m_total);
+		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
+			sum += *pixel;
 
+		return statistics[channel_num].mean = sum / m_total;
 	}
 
-	float Standard_Deviation() {
+	void ComputeMedian(bool clip = false) {
 
-		if (this->mean == 0)
-			this->mean = this->Mean();
+		std::vector<int> histogram(65536);
 
-		float d, var = 0;
-		for (int el = 0; el < this->Total(); ++el) {
-			d = data[el] - mean;
-			var += d * d;
-		}
-		return (float)sqrt(var / Total());
-	}
-
-	float MAD() {
-
-		std::vector<T> imgbuf(Total());
-
-		memcpy(&imgbuf[0], this->data.get(), Total() * 4);
-
-		if (this->median == 0) {
-			std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-			this->median = imgbuf[imgbuf.size() / 2];
-		}
-		for (auto& pixel : imgbuf)
-			pixel = fabs(pixel - this->median);
-
-		std::nth_element(imgbuf.begin(), imgbuf.begin() + imgbuf.size() / 2, imgbuf.end());
-		return imgbuf[imgbuf.size() / 2];
-	}
-
-	float nMAD() {
-		return (float)1.4826 * MAD();
-	}
-
-	float BWMV() {
-		//returns sqrt of biwweight midvariance
-		double x9mad = 1 / (9 * this->MAD());
-
-		if (this->median == 0)
-			this->median = this->Median();
-
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-
-		for (auto& pixel : *this) {
-			Y = (pixel - this->median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(pixel - this->median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
+		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				int count = 0;
+				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+					histogram[*pixel * m_multiplier]++;
+					count++;
+				}
+				statistics[ch].median = HistogramMedian(histogram, count, m_bitdepth) / m_multiplier;
+			}
+			return;
 		}
 
-		return (float)sqrt((this->Total() * sum1) / (abs(sum2) * abs(sum2)));
+		for (int ch = 0; ch < m_channels; ++ch) {
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
+				histogram[*pixel * m_multiplier]++;
+
+			statistics[ch].median = HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
+		}
 	}
 
-	float AvgDev(bool clip = false) {
+	float ComputeAverageMedian() {
+		float val = 0;
+		for (auto& stat : statistics)
+			val += stat.median;
+		return val / m_channels;
+	}
 
-		avgDev = 0;
-		//double sum = 0;
-		//int count = 0;
+	void ComputeStdDev(bool clip = false) {
+		ComputeMean(clip);
 
-		Median(clip);
+		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				double d, var = 0;
+				int count = 0;
+				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+					d = *pixel - Mean(ch);
+					var += d * d;
+					count++;
+				}
+				statistics[ch].stdev = sqrt(var / count);
+			}
+			return;
+		}
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			double d, var = 0;
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+				d = *pixel - Mean(ch);
+				var += d * d;
+			}
+			statistics[ch].stdev = sqrt(var / m_total);
+		}
+	}
+
+	void ComputeAvgDev(bool clip = false) {
+
+		ComputeMedian(clip);
 
 		if (clip) {
 			for (int ch = 0; ch < m_channels; ++ch) {
 				double sum = 0;
 				int count = 0;
-				for (auto& pixel : *this) {
+				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
 
-					if (IsClippedVal(pixel)) continue;
+					if (IsClippedVal(*pixel)) continue;
 
-					sum += fabs(pixel - median);
+					sum += fabs(*pixel - Median(ch));
 					count++;
 				}
-				avgDev += (sum / count);
+				statistics[ch].avgDev = (sum / count);
 			}
-			return avgDev /= Channels();
+			return;
 		}
 
 		for (int ch = 0; ch < m_channels; ++ch) {
 			double sum = 0;
-			int count = 0;
-			for (auto& pixel : *this) {
 
-				sum += fabs(pixel - median);
-				count++;
-			}
-			avgDev += (sum / count);
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
+				sum += fabs(*pixel - Median(ch));
+
+			statistics[ch].avgDev = (sum / m_total);
 		}
-		return avgDev /= Channels();
+	}
+
+	void ComputeMAD(bool clip = false) {
+
+		ComputeMedian(clip);
+
+		std::vector<int> histogram(65536);
+
+		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				int count = 0;
+				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+					histogram[fabsf(*pixel - Median(ch)) * m_multiplier]++;
+					count++;
+				}
+
+				statistics[ch].mad = HistogramMedian(histogram, count, m_bitdepth) / m_multiplier;
+			}
+			return;
+		}
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
+				histogram[fabsf(*pixel - Median(ch)) * m_multiplier]++;
+
+			statistics[ch].mad = HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
+		}
+	}
+
+	float ComputeAverageMAD() {
+		float val = 0;
+		for (auto& stat : statistics)
+			val += stat.mad;
+		return val / m_channels;
+	}
+
+	void ComputeBWMV() {
+
+		double x9mad = 1 / (9 * ComputeMAD());
+		double sum1 = 0, sum2 = 0;
+		double Y, a;
+		for (int ch = 0; ch < m_channels; ++ch) {
+			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+				Y = (*pixel - Median(ch)) * x9mad;
+
+				(abs(Y) < 1) ? a = 1 : a = 0;
+
+				Y *= Y;
+
+				sum1 += (a * pow(*pixel - Median(ch), 2) * pow(1 - Y, 4));
+				sum2 += (a * (1 - Y) * (1 - 5 * Y));
+			}
+			statistics[ch].bwmv = sqrt((m_total * sum1) / (abs(sum2) * abs(sum2)));
+		}
+	}
+
+	T ComputeMedianABS(int channel_num) {
+
+		std::vector<int> histogram(65536);
+
+		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
+			histogram[fabsf(*pixel) * m_multiplier]++;
+
+		return HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
 
 	}
 
-	T Max() {
-		T max = std::numeric_limits<T>::min();
-		for (T& pixel : *this)
-			if (pixel > max) max = pixel;
-		return max;
+	float ComputeMAD_MedABS(int channel_num) {
+
+		T Med = ComputeMedianABS(channel_num);
+
+		std::vector<int> histogram(65536);
+
+		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
+			histogram[fabsf(*pixel - Med) * m_multiplier]++;
+
+		return HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
+
 	}
 
-	T Min() {
-		T min = std::numeric_limits<T>::max();
-		for (T& pixel: *this)
-			if (pixel < min) min = pixel;
-		return min;
-	}
+
+	friend bool ReadStatsText(const std::filesystem::path& file_path, Image<float>& img);
 
 };
 
@@ -847,6 +726,10 @@ namespace ImageOP {
 
 	void AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function<float(Image32&, double& x_s, double& y_s, int& channel)> interp_type);
 
+	void AlignedStats(Image32& img, Eigen::Matrix3d& homography, Interp_func interp_type);
+
+	void AlignImageStack(ImageVector& img_stack, Interp_func interp_type);
+
 	void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
 
 	void RotateImage(Image32& img, float theta_degrees, Interp_func interp_type);
@@ -861,11 +744,17 @@ namespace ImageOP {
 
 	void Bin2x(Image32& img);
 
+	void BinImage(Image32& img, int factor, int method);
+
 	void MedianBlur3x3(Image32& img);
+
+	void GaussianBlur(Image32& img, int kernel_radius, float std_dev = 0.0f);
 
 	void B3WaveletTransform(Image32& img, ImageVector& wavelet_vector, int scale = 5);
 
 	void B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_vector, float thresh, int scale_num = 5);
+
+	void B3WaveletLayerNoiseReduction(Image32& img, int scale_num = 4);
 
 	void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);
 
