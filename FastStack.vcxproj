@@ -100,10 +100,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Drizzle.cpp" />
     <ClCompile Include="Homography.cpp" />
     <ClCompile Include="Image.cpp" />
+    <ClCompile Include="ImageOperations.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
-    <ClCompile Include="Interpolation.cpp" />
     <ClCompile Include="StarDetection.cpp" />
     <ClCompile Include="StarMatching.cpp" />
     <QtRcc Include="FastStack.qrc" />
@@ -113,10 +114,12 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Drizzle.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
+    <ClInclude Include="ImageOperations.h" />
     <ClInclude Include="ImageStacking.h" />
-    <ClInclude Include="Interpolation.h" />
+    <ClInclude Include="Interpolator.h" />
     <ClInclude Include="StarDetection.h" />
     <ClInclude Include="StarMatching.h" />
   </ItemGroup>

@@ -1,5 +1,6 @@
 #pragma once
 #include "Image.h"
+#include "ImageOperations.h"
 
 struct Star {
     double xc=0; //x-center coordinate

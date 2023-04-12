@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Dense>
 #include<filesystem>
+#include <fstream>
 
 struct Stats {
 	float max = std::numeric_limits<float>::min();
@@ -35,6 +36,7 @@ private:
 
 public:
 	std::unique_ptr<T[]> data;
+	std::vector<bool> weight_map;
 
 	Eigen::Matrix3d homography = Eigen::Matrix3d::Identity();
 
@@ -166,6 +168,71 @@ public:
 
 	};
 
+	struct ConstIterator {
+		using ValueType = const T;
+		using PointerType = const ValueType*;
+		using ReferenceType = const ValueType&;
+		using difference_type = ptrdiff_t;
+
+
+		ConstIterator(PointerType ptr) : m_ptr(ptr) {};
+
+		ConstIterator operator++() { m_ptr++; return *this; }
+
+		ConstIterator operator++(int) {
+			ConstIterator iterator = *this;
+			++(*this);
+			return iterator;
+		}
+
+		ConstIterator operator--() { m_ptr--; return *this; }
+
+		ConstIterator operator--(int) {
+			ConstIterator iterator = *this;
+			--(*this);
+			return iterator;
+		}
+
+		ConstIterator& operator+=(difference_type offset) noexcept {
+			m_ptr += offset;
+			return *this;
+		}
+
+		ConstIterator operator+(difference_type offset) noexcept {
+			ConstIterator t = *this;
+			t += offset;
+			return t;
+		}
+
+		ConstIterator& operator-=(difference_type offset) noexcept {
+			m_ptr -= offset;
+			return *this;
+		}
+
+		ConstIterator operator-(difference_type offset) noexcept {
+			ConstIterator t = *this;
+			t -= offset;
+			return t;
+		}
+
+		ReferenceType operator*()const { return *m_ptr; }
+
+		PointerType operator->()const { return m_ptr; }
+
+		bool operator ==(const ConstIterator& other) const {
+			return m_ptr == other.m_ptr;
+		}
+
+		bool operator !=(const ConstIterator& other) const {
+			return m_ptr != other.m_ptr;
+		}
+
+
+	private:
+		PointerType m_ptr;
+
+	};
+
 	Image& operator=(Image&& other) {
 
 		if (this != &other) {
@@ -240,6 +307,15 @@ public:
 		return Iterator(this->data.get() + (channel + 1) * m_total);
 	}
 
+	ConstIterator cbegin(int channel)const {
+		return ConstIterator(this->data.get() + channel * m_total);
+	}
+
+	ConstIterator cend(int channel)const {
+		return ConstIterator(this->data.get() + (channel + 1) * m_total);
+	}
+
+
 	int Rows()const { return m_rows; }
 
 	int Cols()const { return m_cols; }
@@ -301,7 +377,9 @@ public:
 		m_channels = 1;
 	}
 
-	//int Weight_At(int x, int y) { return weight_map[y * m_cols + x]; }
+	int Weight_At(int x, int y) { return weight_map[y * m_cols + x]; }
+
+	void Set_Weight_At(int x, int y, bool val) { weight_map[y * m_cols + x] = val; }
 
 	void CopyTo(Image& dest) const {
 		if (dest.m_rows != m_rows || dest.m_bitdepth != m_bitdepth)
@@ -313,8 +391,36 @@ public:
 		statistics = std::move(src.statistics);
 	}
 
-	bool IsInBounds(int x, int y) {
+	bool IsInBounds(int x, int y)const {
 		return (0 <= y && y < m_rows && 0 <= x && x < m_cols);
+	}
+
+	bool IsXInBounds(int x)const {
+		return (0 <= x && x < m_cols);
+	}
+
+	bool IsYInBounds(int y)const {
+		return (0 <= y && y < m_rows);
+	}
+
+	bool IsOutBounds(int x, int y)const {
+		return (y < 0 || m_rows <= y || x < 0 || m_cols <= x);
+	}
+
+	bool IsXOutBounds(int x)const {
+		return (x < 0 || m_cols <= x);
+	}
+
+	bool IsYOutBounds(int y)const {
+		return (y < 0 || m_rows <= y);
+	}
+
+	T ClipPixel(float pixel) {
+		if (pixel > m_max_val)
+			return m_max_val;
+		else if (pixel < 0)
+			return 0;
+		return pixel;
 	}
 
 	void FillZero() {
@@ -337,7 +443,7 @@ public:
 
 		float dm = 1.0f / (max - min);
 
-		for (float& pixel : *this)
+		for (auto& pixel : *this)
 			pixel = (pixel - min) * dm;
 	}
 
@@ -383,7 +489,7 @@ public:
 
 	}
 
-	bool IsClippedVal(T& pixel) {
+	bool IsClippedVal(T pixel)const {
 		return (pixel <= 0.0 || m_max_val <= pixel);
 	}
 
@@ -460,6 +566,78 @@ public:
 			statistics[ch].stdev = sqrt(var / count);
 			statistics[ch].bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
 		}
+	}
+
+	T ComputeMax(bool clip = false) {
+
+		T r_max = std::numeric_limits<T>::min();
+
+		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				T max = std::numeric_limits<T>::min();
+
+				for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+
+					if (*pixel > max)  max = *pixel;
+				}
+				statistics[ch].max = max;
+
+				if (max > r_max)
+					r_max = max;
+			}
+			return r_max;
+		}
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			T max = std::numeric_limits<T>::min();
+
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
+				if (*pixel > max)  max = *pixel;
+
+			statistics[ch].max = max;
+
+			if (max > r_max)
+				r_max = max;
+		}
+
+		return r_max;
+	}
+
+	T ComputeMin(bool clip = false) {
+
+		T r_min = std::numeric_limits<T>::max();
+
+		if (clip) {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				T min = std::numeric_limits<T>::max();
+
+				for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+
+					if (*pixel < min)  min = *pixel;
+				}
+				statistics[ch].min = min;
+
+				if (min < r_min)
+					r_min = min;
+			}
+			return r_min;
+		}
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			T min = std::numeric_limits<T>::max();
+
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
+				if (*pixel < min)  min = *pixel;
+
+			statistics[ch].min = min;
+
+			if (min < r_min)
+				r_min = min;
+		}
+
+		return r_min;
 	}
 
 	void ComputeMean(bool clip = false) {
@@ -680,8 +858,91 @@ public:
 	}
 
 
-	friend bool ReadStatsText(const std::filesystem::path& file_path, Image<float>& img);
+	friend void CreateStatsText(const std::filesystem::path& file_path, Image<T>& img) {
 
+		std::ofstream myfile;
+		std::filesystem::path temp = file_path;
+		myfile.open(temp.replace_extension(".txt"));
+		myfile << file_path.string() << "\n\n";
+
+		for (int ch = 0; ch < img.Channels(); ++ch) {
+			myfile << "Channel Number: " << ch << "\n";
+			myfile << "Max: " << std::fixed << std::setprecision(7) << img.Max(ch) << "\n";
+			myfile << "Min: " << img.Min(ch) << "\n";
+			myfile << "Median: " << img.Median(ch) << "\n";
+			myfile << "Mean: " << img.Mean(ch) << "\n";
+			myfile << "Standard Deviation: " << img.StdDev(ch) << "\n";
+			myfile << "MAD: " << img.MAD(ch) << "\n";
+			myfile << "AvgDev: " << img.AvgDev(ch) << "\n";
+			myfile << "BWMV: " << img.BWMV(ch) << "\n\n";
+		}
+		myfile << "Homography: " << img.homography(0, 0) << "," << img.homography(0, 1) << "," << img.homography(0, 2)
+			<< "," << img.homography(1, 0) << "," << img.homography(1, 1) << "," << img.homography(1, 2) << ",\n\n";
+
+		for (int y = 0; y < img.Rows(); ++y) {
+			for (int x = 0; x < img.Cols(); ++x)
+				if (!img.Weight_At(x, y))
+					myfile << x << "," << y << "\n";
+		}
+		myfile.close();
+	}
+
+	friend bool ReadStatsText(const std::filesystem::path& file_path, Image<T>& img) {
+
+		std::filesystem::path temp = file_path;
+		std::string line;
+		std::ifstream myfile(temp.replace_extension(".txt"));
+		int ch;
+
+		if (myfile.is_open()) {
+
+			while (std::getline(myfile, line)) {
+
+				if (line.substr(0, 14) == "Channel Number")
+					ch = std::stoi(line.substr(16, 17));
+
+				if (line.substr(0, 3) == "Max")
+					img.statistics[ch].max = std::stof(line.substr(5, std::string::npos));
+
+				if (line.substr(0, 3) == "Min")
+					img.statistics[ch].min = std::stof(line.substr(5, std::string::npos));
+
+				if (line.substr(0, 6) == "Median")
+					img.statistics[ch].median = std::stof(line.substr(8, std::string::npos));
+
+				if (line.substr(0, 4) == "Mean")
+					img.statistics[ch].mean = std::stof(line.substr(6, std::string::npos));
+
+				if (line.substr(0, 19) == "Standard Deviation")
+					img.statistics[ch].stdev = std::stof(line.substr(21, std::string::npos));
+
+				if (line.substr(0, 3) == "MAD")
+					img.statistics[ch].mad = std::stof(line.substr(5, std::string::npos));
+
+				if (line.substr(0, 6) == "AvgDev")
+					img.statistics[ch].avgDev = std::stof(line.substr(7, std::string::npos));
+
+				if (line.substr(0, 4) == "BWMV")
+					img.statistics[ch].bwmv = std::stof(line.substr(6, std::string::npos));
+
+				if (line.substr(0, 10) == "Homography") {
+					size_t start = 12;
+					size_t comma = 12;
+					int i = 0, j = 0;
+					while ((comma = line.find(",", comma)) != std::string::npos) {
+						img.homography(i, j) = std::stod(line.substr(start, comma - start));
+						start = (comma += 1);
+						j += 1;
+						if (j == 3) { i++, j = 0; }
+					}
+				}
+			}
+
+			myfile.close();
+			return true;
+		}
+		return false;
+	}
 };
 
 typedef Image<float> Image32;
@@ -690,7 +951,6 @@ typedef Image<uint8_t> Image8;
 typedef std::vector<Image32> ImageVector;
 typedef std::vector<Image8> Image8Vector;
 typedef std::vector<bool> WeightMap;
-typedef std::function<float(Image32&, double& x_s, double& y_s, int& channel)> Interp_func;
 typedef std::vector<std::filesystem::path> FileVector;
 
 enum class FastRotate {
@@ -709,6 +969,10 @@ enum class ScaleEstimator {
 	none
 };
 
+bool StatsTextExists(const std::filesystem::path& file_path);
+
+void GetImageStackFromTemp(FileVector& light_files, ImageVector& img_stack);
+
 namespace FileOP {
 
 	void TiffRead(std::filesystem::path file, Image32& img);
@@ -722,47 +986,3 @@ namespace FileOP {
 	void TiffWrite(Image32& img, std::string filename);
 }
 
-namespace ImageOP {
-
-	void AlignFrame(Image32& img, Eigen::Matrix3d homography, std::function<float(Image32&, double& x_s, double& y_s, int& channel)> interp_type);
-
-	void AlignedStats(Image32& img, Eigen::Matrix3d& homography, Interp_func interp_type);
-
-	void AlignImageStack(ImageVector& img_stack, Interp_func interp_type);
-
-	void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
-
-	void RotateImage(Image32& img, float theta_degrees, Interp_func interp_type);
-
-	void FastRotation(Image32& img, FastRotate type);
-
-	void Crop(Image32& img, int top, int bottom, int left, int right);
-
-	void Resize2x_Bicubic(Image32& img);
-
-	void ImageResize_Bicubic(Image32& img, int new_rows, int new_cols);
-
-	void Bin2x(Image32& img);
-
-	void BinImage(Image32& img, int factor, int method);
-
-	void MedianBlur3x3(Image32& img);
-
-	void GaussianBlur(Image32& img, int kernel_radius, float std_dev = 0.0f);
-
-	void B3WaveletTransform(Image32& img, ImageVector& wavelet_vector, int scale = 5);
-
-	void B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_vector, float thresh, int scale_num = 5);
-
-	void B3WaveletLayerNoiseReduction(Image32& img, int scale_num = 4);
-
-	void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);
-
-	void ScaleImageStack(ImageVector& img_stack, ScaleEstimator type);
-
-	void MaxMin_Normalization(Image32& img, float max, float min);
-
-	void STFImageStretch(Image32& img);
-
-	void ASinhStretch(Image32& img, float stretch_factor);
-}
