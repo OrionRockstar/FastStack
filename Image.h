@@ -77,7 +77,27 @@ public:
 	}
 
 	Image() = default;
-	//Image(const Image& img);
+	Image(const Image& img) {
+		m_rows = img.m_rows;
+		m_cols = img.m_cols;
+		m_channels = img.m_channels;
+
+		m_bitdepth = img.m_bitdepth;
+		m_total = img.m_total;
+		m_total_image = img.m_total_image;
+		statistics = std::move(img.statistics);
+
+		m_max_val = img.m_max_val;
+		m_multiplier = img.m_multiplier;
+
+		m_red = img.m_red;
+		m_green = img.m_green;
+		m_blue = img.m_blue;
+
+		homography = img.homography;
+		memcpy(data.get(), img.data.get(), m_total * m_bitdepth / 8);
+		weight_map = std::move(img.weight_map);
+	}
 	Image(Image&& other) {
 
 		m_rows = other.m_rows;
@@ -447,6 +467,7 @@ public:
 			pixel = (pixel - min) * dm;
 	}
 
+private:
 	std::vector<int> GetHistogram() {
 
 		std::vector<int> histogram(65536);
@@ -457,7 +478,7 @@ public:
 		return histogram;
 	}
 
-	static float HistogramMedian(std::vector<int>& histogram, int sum_count, uint16_t bit_depth) {
+	float HistogramMedian(std::vector<int>& histogram, int sum_count) {
 		int occurrences = 0;
 		int median1 = 0, median2 = 0;
 		int medianlength = sum_count / 2;
@@ -483,12 +504,21 @@ public:
 		}
 
 		float med = (median1 + median2) / 2.0;
-		if (bit_depth == 32)
-			return (med + (float(medianlength - (occurrences - histogram[med])) / histogram[med]));
+
+		if (histogram[med] == 0) {
+			float k1 = float(medianlength - (occurrences - histogram[median1])) / histogram[median1];
+			float k2 = float(medianlength - occurrences) / histogram[median2];
+			return med + (k1 + k2) / 2;
+		}
+
+		else if (med != 0.0f)
+			return med + float(medianlength - (occurrences - histogram[median1])) / histogram[med];
+
 		return med;
 
 	}
 
+public:
 	bool IsClippedVal(T pixel)const {
 		return (pixel <= 0.0 || m_max_val <= pixel);
 	}
@@ -519,7 +549,7 @@ public:
 			}
 			statistics[ch].max = max;
 			statistics[ch].min = min;
-			float median = statistics[ch].median = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
+			float median = statistics[ch].median = HistogramMedian(hist, count) / m_multiplier;
 			float mean = statistics[ch].mean = meansum / count;
 
 			std::fill(hist.begin(), hist.end(), 0);
@@ -538,7 +568,7 @@ public:
 
 			statistics[ch].avgDev = avgDevsum / count;
 
-			statistics[ch].mad = HistogramMedian(hist, count, Bitdepth()) / m_multiplier;
+			statistics[ch].mad = HistogramMedian(hist, count) / m_multiplier;
 
 			double x9mad = 1 / (9 * statistics[ch].mad);
 			double sum1 = 0, sum2 = 0;
@@ -700,7 +730,7 @@ public:
 					histogram[*pixel * m_multiplier]++;
 					count++;
 				}
-				statistics[ch].median = HistogramMedian(histogram, count, m_bitdepth) / m_multiplier;
+				statistics[ch].median = HistogramMedian(histogram, count) / m_multiplier;
 			}
 			return;
 		}
@@ -709,7 +739,7 @@ public:
 			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
 				histogram[*pixel * m_multiplier]++;
 
-			statistics[ch].median = HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
+			statistics[ch].median = HistogramMedian(histogram, m_total) / m_multiplier;
 		}
 	}
 
@@ -793,7 +823,7 @@ public:
 					count++;
 				}
 
-				statistics[ch].mad = HistogramMedian(histogram, count, m_bitdepth) / m_multiplier;
+				statistics[ch].mad = HistogramMedian(histogram, count) / m_multiplier;
 			}
 			return;
 		}
@@ -840,7 +870,7 @@ public:
 		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
 			histogram[fabsf(*pixel) * m_multiplier]++;
 
-		return HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
+		return HistogramMedian(histogram, m_total) / m_multiplier;
 
 	}
 
@@ -948,6 +978,7 @@ public:
 typedef Image<float> Image32;
 typedef Image<uint16_t> Image16;
 typedef Image<uint8_t> Image8;
+
 typedef std::vector<Image32> ImageVector;
 typedef std::vector<Image8> Image8Vector;
 typedef std::vector<bool> WeightMap;

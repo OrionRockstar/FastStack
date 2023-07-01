@@ -1,30 +1,18 @@
 #pragma once
-#include "StarDetection.h"
-#include "StarMatching.h"
-#include <eigen3/Eigen/Dense>
+#include "Matrix.h"
+#include "Star.h"
 
-//class Homography
-//{
-//public:
-struct InlierStar {
-	//center of stars that are considered matched inliers
-	double xc;
-	double yc;
+class Homography
+{
+	Matrix m_homography = Matrix(3, 3);
+
+	//random number vector generator
+	std::vector<int> RNVG(int max_num);
+
+	void InitialHomography(const StarPairVector& spv);
+
+	void FinalHomography(const StarPairVector& spv);
+
+public:
+	Matrix ComputeHomography(const StarPairVector& starpairs);
 };
-
-typedef std::vector<InlierStar> InlierVector;
-typedef Eigen::Matrix <double, 8, 1> E_Vector8d;
-typedef Eigen::Matrix <double, 8, 8> Matrix8d;
-	
-namespace homography {
-	std::vector<int> RandomPoints(int maxnum); //maxnum=tvgspvector.size()
-
-	Eigen::Matrix3d ComputeHomography(const StarVector& refstarvector, const StarVector& tgtstarvector, const TVGSPVector& tvgspvector, const std::vector<int> randompoints);
-
-	Eigen::Matrix3d ComputeFinalHomography(const InlierVector& final_ref_inlier, const InlierVector& final_tgt_inlier);
-
-	Eigen::Matrix3d RANSAC(const StarVector& refstarvector, const StarVector& tgtstarvector, const TVGSPVector& tvgspvector);
-}
-//};
-
-

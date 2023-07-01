@@ -1,136 +1,112 @@
 #include "Homography.h"
-//#include <eigen3/Eigen/Dense
+#include "Maths.h"
 
+std::vector<int> Homography::RNVG(int max_num) {
 
-static double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
-
-std::vector<int> homography::RandomPoints(int maxnum) {
-    int randnum = 0;
     std::vector<int> randint;
     randint.reserve(4);
 
     while (randint.size() < 4) {
     newrand:
-        randnum = rand() % maxnum;
+        int randnum = rand() % max_num;
         for (int i : randint)
             if (randnum == i)
                 goto newrand;
 
         randint.emplace_back(randnum);
+
     }
 
     return randint;
 }
 
-Eigen::Matrix3d homography::ComputeHomography(const StarVector &refstarvector,const StarVector &tgtstarvector,const TVGSPVector &tvgspvector, std::vector<int> randompoints) {
-    
-    Matrix8d matrix(8, 8);
-    E_Vector8d tgtmat;
-    E_Vector8d homovec = E_Vector8d::Zero();
-    Eigen::Matrix3d homography = Eigen::Matrix3d::Ones();
+void Homography::InitialHomography(const StarPairVector& spv) {
 
-    double rx1 = refstarvector[tvgspvector[randompoints[0]].refstar].xc,
-        rx2 = refstarvector[tvgspvector[randompoints[1]].refstar].xc,
-        rx3 = refstarvector[tvgspvector[randompoints[2]].refstar].xc,
-        rx4 = refstarvector[tvgspvector[randompoints[3]].refstar].xc,
-        ry1 = refstarvector[tvgspvector[randompoints[0]].refstar].yc,
-        ry2 = refstarvector[tvgspvector[randompoints[1]].refstar].yc,
-        ry3 = refstarvector[tvgspvector[randompoints[2]].refstar].yc,
-        ry4 = refstarvector[tvgspvector[randompoints[3]].refstar].yc,
-        tx1 = tgtstarvector[tvgspvector[randompoints[0]].tgtstar].xc,
-        tx2 = tgtstarvector[tvgspvector[randompoints[1]].tgtstar].xc,
-        tx3 = tgtstarvector[tvgspvector[randompoints[2]].tgtstar].xc,
-        tx4 = tgtstarvector[tvgspvector[randompoints[3]].tgtstar].xc,
-        ty1 = tgtstarvector[tvgspvector[randompoints[0]].tgtstar].yc,
-        ty2 = tgtstarvector[tvgspvector[randompoints[1]].tgtstar].yc,
-        ty3 = tgtstarvector[tvgspvector[randompoints[2]].tgtstar].yc,
-        ty4 = tgtstarvector[tvgspvector[randompoints[3]].tgtstar].yc;
+    std::vector<int> randints = RNVG(spv.size());
 
-    matrix << rx1, ry1, 1, 0, 0, 0, -rx1 * tx1, -ry1 * tx1,
-        0, 0, 0, rx1, ry1, 1, -rx1 * ty1, -ry1 * ty1,
-        rx2, ry2, 1, 0, 0, 0, -rx2 * tx2, -ry2 * tx2,
-        0, 0, 0, rx2, ry2, 1, -rx2 * ty2, -ry2 * ty2,
-        rx3, ry3, 1, 0, 0, 0, -rx3 * tx3, -ry3 * tx3,
-        0, 0, 0, rx3, ry3, 1, -rx3 * ty3, -ry3 * ty3,
-        rx4, ry4, 1, 0, 0, 0, -rx4 * tx4, -ry4 * tx4,
-        0, 0, 0, rx4, ry4, 1, -rx4 * ty4, -ry4 * ty4;
+    Matrix points(8, 8);
+    Matrix tgtvec(8, 1);
 
-    tgtmat << tx1, ty1, tx2, ty2, tx3, ty3, tx4, ty4;
-    homovec = Eigen::Inverse(Eigen::Transpose(matrix) * matrix) * (Eigen::Transpose(matrix) * tgtmat);
-    homography << homovec(0), homovec(1), homovec(2), homovec(3), homovec(4), homovec(5), homovec(6), homovec(7);
-    return homography;
-}
+    for (int i = 0; i < 4; i++) {
+        double rx = spv[randints[i]].rxc;
+        double ry = spv[randints[i]].ryc;
+        double tx = spv[randints[i]].txc;
+        double ty = spv[randints[i]].tyc;
 
-Eigen::Matrix3d homography::ComputeFinalHomography(const InlierVector &final_ref_inlier,const InlierVector &final_tgt_inlier) {
-
-    Eigen::Matrix <double, Eigen::Dynamic, 8> matrix(2 * final_ref_inlier.size(), 8);
-    Eigen::Matrix <double, Eigen::Dynamic, 1> tgtmat(2 * final_ref_inlier.size(), 1);
-    E_Vector8d homovec = E_Vector8d::Zero();
-    Eigen::Matrix3d homography = Eigen::Matrix3d::Ones();
-    double rx, ry, tx, ty;
-
-    for (int i = 0; i < final_ref_inlier.size(); i++) {
-        rx = final_ref_inlier[i].xc;
-        ry = final_ref_inlier[i].yc;
-        tx = final_tgt_inlier[i].xc;
-        ty = final_tgt_inlier[i].yc;
-        matrix.block(2 * i, 0, 2, 8) <<
-            rx, ry, 1, 0, 0, 0, -rx * tx, -ry * tx,
-            0, 0, 0, rx, ry, 1, -rx * ty, -ry * ty;
-        tgtmat.block(2 * i, 0, 2, 1) << tx, ty;
+        points.ModifyRow(2 * i, 0, { rx, ry, 1, 0, 0, 0, -rx * tx, -ry * tx });
+        points.ModifyRow(2 * i + 1, 0, { 0, 0, 0, rx, ry, 1, -rx * ty, -ry * ty });
+        tgtvec.ModifyVector(2 * i, { tx,ty });
     }
 
-    homovec = Eigen::Inverse((Eigen::Transpose(matrix) * matrix)) * (Eigen::Transpose(matrix) * tgtmat);
-    homography << homovec(0), homovec(1), homovec(2), homovec(3), homovec(4), homovec(5), homovec(6), homovec(7);
+    Matrix homovec = Matrix::LeastSquares(points, tgtvec);
 
-    return homography;
+    m_homography = { homovec[0], homovec[1], homovec[2], homovec[3], homovec[4], homovec[5], homovec[6], homovec[7], 1 };
+    //return Matrix(3, 3, { homovec[0], homovec[1], homovec[2], homovec[3], homovec[4], homovec[5], homovec[6], homovec[7], 1 });
 }
 
-Eigen::Matrix3d homography::RANSAC(const StarVector &refstarvector,const StarVector &tgtstarvector,const TVGSPVector &tvgspvector){
-    std::vector<int>randints;
-    Eigen::Matrix3d homography;
-    Eigen::Matrix3d finalhomography;
+void Homography::FinalHomography(const StarPairVector& spv) {
 
-    InlierVector ref_inlier, final_ref_inlier, tgt_inlier, final_tgt_inlier;
+    Matrix points(2 * spv.size(), 8);
+    Matrix tgtvec(2 * spv.size());
 
-    Eigen::Vector3d pred_pts;
-    Eigen::Vector3d ref_pts = Eigen::Vector3d::Ones();
+    for (int i = 0; i < spv.size(); i++) {
+        double rx = spv[i].rxc;
+        double ry = spv[i].ryc;
+        double tx = spv[i].txc;
+        double ty = spv[i].tyc;
 
-    int match = 0,
-        tvgsptotal = int(tvgspvector.size()),
+        points.ModifyRow(2 * i, 0, { rx, ry, 1, 0, 0, 0, -rx * tx, -ry * tx });
+        points.ModifyRow(2 * i + 1, 0, { 0, 0, 0, rx, ry, 1, -rx * ty, -ry * ty });
+        tgtvec.ModifyVector(2 * i, { tx,ty });
+    }
+
+    Matrix homovec = Matrix::LeastSquares(points, tgtvec);
+
+    m_homography = { homovec[0], homovec[1], homovec[2], homovec[3], homovec[4], homovec[5], homovec[6], homovec[7], 1 };
+
+}
+
+Matrix Homography::ComputeHomography(const StarPairVector& spv) {
+
+    StarPairVector inliers;
+    inliers.reserve(spv.size());
+
+    StarPairVector final_inliers;
+
+    int tvgtotal = int(spv.size()),
         maxmatch = 0;
     double tol = 2;
+
     srand(time(NULL));
 
-    for (int iter = 0; iter < 150; iter++) {
-        match = 0;
-        ref_inlier.clear();
-        tgt_inlier.clear();
-        randints = RandomPoints(tvgsptotal);
+    for (int iter = 0; iter < 250; iter++) {
+        int match = 0;
+        inliers.clear();
 
-        homography = ComputeHomography(refstarvector, tgtstarvector, tvgspvector, randints);
+        InitialHomography(spv);
 
-        for (auto starnum : tvgspvector) {
-            ref_pts << refstarvector[starnum.refstar].xc, refstarvector[starnum.refstar].yc;
-            pred_pts = homography * ref_pts;
-            if (Distance(pred_pts(0) / pred_pts(2), pred_pts(1) / pred_pts(2), tgtstarvector[starnum.tgtstar].xc, tgtstarvector[starnum.tgtstar].yc) <= tol) {
-                ref_inlier.push_back({ refstarvector[starnum.refstar].xc,refstarvector[starnum.refstar].yc });
-                tgt_inlier.push_back({ tgtstarvector[starnum.tgtstar].xc,tgtstarvector[starnum.tgtstar].yc });
+        for (const auto& sp : spv) {
+            Matrix ref_pts(3, 1, { sp.rxc, sp.ryc, 1 });
+            Matrix pred_pts = m_homography * ref_pts;
+            if (Distance(pred_pts[0] / pred_pts[2], pred_pts[1] / pred_pts[2], sp.txc, sp.tyc) <= tol) {
+                inliers.emplace_back(sp.rxc, sp.ryc, sp.txc, sp.tyc);
                 match++;
             }
         }
+
         if (match > maxmatch) {
             maxmatch = match;
-            final_ref_inlier = ref_inlier;
-            final_tgt_inlier = tgt_inlier;
-            if (maxmatch >= .98 * tvgsptotal) { break; }
+            final_inliers = inliers;
+            if (maxmatch >= .98 * tvgtotal) break;
         }
     }
 
-    if (maxmatch < .25*tvgsptotal) 
-        return Eigen::Matrix3d::Constant(std::numeric_limits<double>::quiet_NaN());
+    if (maxmatch < .25 * tvgtotal) {
+        m_homography.Fill(std::numeric_limits<double>::quiet_NaN());
+        return m_homography;
+    }
 
-    finalhomography = ComputeFinalHomography(final_ref_inlier, final_tgt_inlier);
+    FinalHomography(final_inliers);
 
-    return finalhomography;
+    return m_homography;
 }

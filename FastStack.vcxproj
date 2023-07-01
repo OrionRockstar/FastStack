@@ -105,7 +105,8 @@
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageOperations.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
-    <ClCompile Include="StarDetection.cpp" />
+    <ClCompile Include="Matrix.cpp" />
+    <ClCompile Include="StarDetector.cpp" />
     <ClCompile Include="StarMatching.cpp" />
     <QtRcc Include="FastStack.qrc" />
     <QtUic Include="FastStack.ui" />
@@ -115,12 +116,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Drizzle.h" />
+    <ClInclude Include="GaussianFilter.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageOperations.h" />
     <ClInclude Include="ImageStacking.h" />
     <ClInclude Include="Interpolator.h" />
-    <ClInclude Include="StarDetection.h" />
+    <ClInclude Include="Maths.h" />
+    <ClInclude Include="Matrix.h" />
+    <ClInclude Include="RGBColorSpace.h" />
+    <ClInclude Include="Star.h" />
+    <ClInclude Include="StarDetector.h" />
     <ClInclude Include="StarMatching.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

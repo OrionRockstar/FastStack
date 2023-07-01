@@ -24,7 +24,7 @@ private:
 		return pixrow;
 	}
 
-	static float InterpolatePix(std::array<float, 4> pixrow, std::array<float, 4>& vec) {
+	static float InterpolatePix(std::array<float, 4> pixrow, std::array<float, 4> vec) {
 		float f03 = pixrow[0] * vec[0] + pixrow[3] * vec[3];
 		float f12 = pixrow[1] * vec[1] + pixrow[2] * vec[2];
 
