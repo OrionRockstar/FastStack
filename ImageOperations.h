@@ -4,9 +4,9 @@
 
 namespace ImageOP {
 
-	void AlignFrame(Image32& img, Eigen::Matrix3d homography, Interpolation_Type interp_type);
+	void AlignFrame(Image32& img, Matrix& homography, Interpolation_Type interp_type);
 
-	void AlignedStats(Image32& img, Eigen::Matrix3d& homography, Interpolation_Type interp_type);
+	void AlignedStats(Image32& img, Matrix& homography, Interpolation_Type interp_type);
 
 	void AlignImageStack(ImageVector& img_stack, Interpolation_Type interp_type);
 
@@ -45,13 +45,6 @@ namespace ImageOP {
 
 	template<typename T>
 	extern void BilateralFilter(Image<T>& img, float std_dev, float std_dev_range);
-
-
-	void B3WaveletTransform(Image32& img, ImageVector& wavelet_vector, int scale = 5);
-
-	void B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_vector, float thresh, int scale_num = 5);
-
-	void B3WaveletLayerNoiseReduction(Image32& img, int scale_num = 4);
 
 
 	void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);

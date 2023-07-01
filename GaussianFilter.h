@@ -167,7 +167,7 @@ void GaussianFilter::ApplyGaussianBlur(Image<T>& img) {
 template<typename T>
 void GaussianFilter::ApplyGaussianBlur(Image<T>& img, Image<T>& temp) {
 
-	if (!temp.IsSameDim(img))
+	if (!temp.Matches(img))
 		temp = Image<T>(img.Rows(), img.Cols(), img.Channels());
 
 	for (int ch = 0; ch < img.Channels(); ++ch) {

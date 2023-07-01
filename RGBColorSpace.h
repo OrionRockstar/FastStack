@@ -1,7 +1,6 @@
 #pragma once
 #include "Matrix.h"
-#include "Math.h"
-//#include <cmath>
+#include "Maths.h"
 
 class ColorSpace {
 private:

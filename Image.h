@@ -1,5 +1,6 @@
 #pragma once
-#include <Eigen/Dense>
+#include"Matrix.h"
+#include "RGBColorSpace.h"
 #include<filesystem>
 #include <fstream>
 
@@ -27,8 +28,8 @@ private:
 
 	std::vector<Stats> statistics;
 
-	inline static int m_max_val = 0;
-	inline static int m_multiplier = 0;
+	T m_max_val = 0;
+	float m_imax_val = 0;
 
 	T* m_red = nullptr;
 	T* m_green = nullptr;
@@ -38,10 +39,11 @@ public:
 	std::unique_ptr<T[]> data;
 	std::vector<bool> weight_map;
 
-	Eigen::Matrix3d homography = Eigen::Matrix3d::Identity();
+	Matrix homography = Matrix(3,3).Identity();
 
 	Image(int r, int c, int ch = 1) :m_rows(r), m_cols(c), m_channels(ch) {
 		assert(ch == 1 || ch == 3);
+
 		m_bitdepth = sizeof(T) * 8;
 		data = std::make_unique<T[]>(r * c * ch);
 
@@ -54,50 +56,34 @@ public:
 		else
 			statistics.resize(1, Stats());
 
-		switch (m_bitdepth) {
-		case 32:
-			m_max_val = 1.0f;
-			m_multiplier = 65535;
-			break;
-		case 16:
-			m_max_val = 65535;
-			m_multiplier = 1;
-			break;
-
-		case 8:
-			m_max_val = 255;
-			m_multiplier = 1;
-			break;
-
-		default:
-			m_max_val = 1.0f;
-			m_multiplier = 65535;
-			break;
-		}
+		m_max_val = (m_bitdepth == 32) ? 1 : std::numeric_limits<T>::max();
+		m_imax_val = 1.0 / m_max_val;
 	}
 
 	Image() = default;
-	Image(const Image& img) {
-		m_rows = img.m_rows;
-		m_cols = img.m_cols;
-		m_channels = img.m_channels;
 
-		m_bitdepth = img.m_bitdepth;
-		m_total = img.m_total;
-		m_total_image = img.m_total_image;
-		statistics = std::move(img.statistics);
+	Image(const Image& other) {
+		m_rows = other.m_rows;
+		m_cols = other.m_cols;
+		m_channels = other.m_channels;
 
-		m_max_val = img.m_max_val;
-		m_multiplier = img.m_multiplier;
+		m_bitdepth = other.m_bitdepth;
+		m_total = other.m_total;
+		m_total_image = other.m_total_image;
+		statistics = other.statistics;
 
-		m_red = img.m_red;
-		m_green = img.m_green;
-		m_blue = img.m_blue;
+		m_max_val = other.m_max_val;
+		m_imax_val = other.m_imax_val;
 
-		homography = img.homography;
-		memcpy(data.get(), img.data.get(), m_total * m_bitdepth / 8);
-		weight_map = std::move(img.weight_map);
+		m_red = other.m_red;
+		m_green = other.m_green;
+		m_blue = other.m_blue;
+
+		homography = other.homography;
+		memcpy(data.get(), other.data.get(), m_total_image * sizeof(T));
+		weight_map = other.weight_map;
 	}
+
 	Image(Image&& other) {
 
 		m_rows = other.m_rows;
@@ -110,7 +96,7 @@ public:
 		statistics = std::move(other.statistics);
 
 		m_max_val = other.m_max_val;
-		m_multiplier = other.m_multiplier;
+		m_imax_val = other.m_imax_val;
 
 		m_red = other.m_red;
 		m_green = other.m_green;
@@ -118,6 +104,7 @@ public:
 
 		homography = other.homography;
 		data = std::move(other.data);
+		weight_map = std::move(other.weight_map);
 
 	}
 
@@ -267,7 +254,6 @@ public:
 			statistics = std::move(other.statistics);
 
 			m_max_val = other.m_max_val;
-			m_multiplier = other.m_multiplier;
 
 			m_red = other.m_red;
 			m_green = other.m_green;
@@ -276,6 +262,54 @@ public:
 			homography = other.homography;
 			data = std::move(other.data);
 		}
+		return *this;
+	}
+
+	Image& operator+=(Image& other) {
+		for (auto s = begin(), o = other.begin(); s != end(); ++s, ++o)
+			*s += *o;
+		return *this;
+	}
+
+	Image& operator+=(const Image& other) {
+		for (int i = 0; i < m_total_image; ++i)
+			data[i] += other[i];
+		return *this;
+	}
+
+	Image& operator-=(Image& other) {
+		for (auto s = begin(), o = other.begin(); s != end(); ++s, ++o)
+			*s -= *o;
+		return *this;
+	}
+
+	Image& operator-=(const Image& other) {
+		for (int i = 0; i < m_total_image; ++i)
+			data[i] -= other[i];
+		return *this;
+	}
+
+	Image& operator*=(Image& other) {
+		for (auto s = begin(), o = other.begin(); s != end(); ++s, ++o)
+			*s *= *o;
+		return *this;
+	}
+
+	Image& operator*=(const Image& other) {
+		for (int i = 0; i < m_total_image; ++i)
+			data[i] *= other[i];
+		return *this;
+	}
+
+	Image& operator/=(Image& other) {
+		for (auto s = begin(), o = other.begin(); s != end(); ++s, ++o)
+			*s /= *o;
+		return *this;
+	}
+
+	Image& operator/=(const Image& other) {
+		for (int i = 0; i < m_total_image; ++i)
+			data[i] /= other[i];
 		return *this;
 	}
 
@@ -335,6 +369,13 @@ public:
 		return ConstIterator(this->data.get() + (channel + 1) * m_total);
 	}
 
+	bool Exists()const { return data != nullptr; }
+
+	template<typename P>
+	bool Matches(Image<P>& other)const {
+		return (m_rows == other.Rows() && m_cols == other.Cols() && m_channels == other.Channels() && m_bitdepth == other.Bitdepth());
+	}
+
 
 	int Rows()const { return m_rows; }
 
@@ -345,6 +386,7 @@ public:
 	int TotalImage()const { return m_total_image; }
 
 	int Channels()const { return m_channels; }
+
 
 	float Max(int channel_num = 0)const { return statistics[channel_num].max; }
 
@@ -366,40 +408,46 @@ public:
 
 	uint16_t Bitdepth()const { return m_bitdepth; }
 
+
+	float ToFloat(T pixel) { return (is_float()) ? pixel : pixel * m_imax_val; }
+
+	T ToType(float pixel) { return (is_float()) ? pixel : pixel * m_max_val; }
+
+
+	T Pixel(int x, int y, int ch = 0) noexcept {
+		return (0 <= y && y < m_rows && 0 <= x & x < m_cols) ? data[ch * m_total + y * m_cols + x] : 0;
+	}
+
+	T& RedPixel(int el) { return m_red[el]; }
+
 	T& RedPixel(int x, int y) { return m_red[y * m_cols + x]; }
+
+	T& GreenPixel(int el) { return m_green[el]; }
 
 	T& GreenPixel(int x, int y) { return m_green[y * m_cols + x]; }
 
+	T& BluePixel(int el) { return m_blue[el]; }
+
 	T& BluePixel(int x, int y) { return m_blue[y * m_cols + x]; }
-
-	static float GetLinearVal(float pixel) {
-		return (pixel > 0.04045) ? powf((pixel + 0.055f) / 1.055, 2.4f) : (pixel / 12.92);
-	}
-
-	static float GetLightness(float Y) {
-		return (Y <= 0.008856f) ? Y * 9.033f : (1.16f * powf(Y, 0.333333f)) - 0.16f;
-	}
-
-	bool IsSameDim(Image<T>& other) {
-		return (m_rows == other.m_rows && m_cols == other.m_cols && m_channels == other.m_channels);
-	}
 
 	void RGBtoGray() {
 		if (m_channels == 1)
 			return;
 
-		//#pragma omp parallel for
-		for (int el = 0; el < m_total; ++el) {
-			float pix = 0.2126f * GetLinearVal(m_red[el]) + 0.7152f * GetLinearVal(m_green[el]) + 0.0722f * GetLinearVal(m_blue[el]);
-			data[el] = GetLightness(pix);
-		}
+#pragma omp parallel for num_threads(2)
+		for (int el = 0; el < m_total; ++el)
+			data[el] = ColorSpace::CIEL(m_red[el], m_green[el], m_blue[el]);
+
 		realloc(data.get(), m_total * sizeof(T));
 		m_channels = 1;
+		m_total_image = m_total;
 	}
+
 
 	int Weight_At(int x, int y) { return weight_map[y * m_cols + x]; }
 
 	void Set_Weight_At(int x, int y, bool val) { weight_map[y * m_cols + x] = val; }
+
 
 	void CopyTo(Image& dest) const {
 		if (dest.m_rows != m_rows || dest.m_bitdepth != m_bitdepth)
@@ -407,35 +455,60 @@ public:
 		memcpy(dest.data.get(), data.get(), m_total * m_channels * sizeof(T));
 	}
 
+	void CopyToFloat(Image<float>& dest, bool normalize = false) {
+		if (!this->Matches(dest))
+			dest = Image<float>(m_rows, m_cols, m_channels);
+
+		if (this->is_float())
+			memcpy(dest.data.get(), data.get(), m_total_image * sizeof(float));
+
+		else if (normalize)
+			for (int el = 0; el < m_total_image; ++el)
+				dest[el] = ToFloat(data[el]);
+		else
+			for (int el = 0; el < m_total_image; ++el)
+				dest[el] = data[el];
+	}
+
 	void MoveStatsFrom(Image& src) {
 		statistics = std::move(src.statistics);
 	}
 
+
+	template<typename N>
+	bool Is_Same_Type(Image<N>& other) { return std::is_same<T, N>::value; }
+
+	static bool is_uint8() { return std::is_same<T, uint8_t>::value; }
+
+	static bool is_uint16() { return std::is_same<T, uint16_t>::value; }
+
+	static bool is_float() { return std::is_same<T, float>::value; }
+
+
 	bool IsInBounds(int x, int y)const {
 		return (0 <= y && y < m_rows && 0 <= x && x < m_cols);
-	}
-
-	bool IsXInBounds(int x)const {
-		return (0 <= x && x < m_cols);
-	}
-
-	bool IsYInBounds(int y)const {
-		return (0 <= y && y < m_rows);
 	}
 
 	bool IsOutBounds(int x, int y)const {
 		return (y < 0 || m_rows <= y || x < 0 || m_cols <= x);
 	}
 
-	bool IsXOutBounds(int x)const {
-		return (x < 0 || m_cols <= x);
+	T MirrorEdgePixel(int x, int y, int ch) {
+		if (y < 0)
+			y = -y;
+		else if (y >= m_rows)
+			y = 2 * m_rows - (y + 1);
+
+		if (x < 0)
+			x = -x;
+		else if (x >= m_cols)
+			x = 2 * m_cols - (x + 1);
+
+		return (*this)(x, y, ch);
 	}
 
-	bool IsYOutBounds(int y)const {
-		return (y < 0 || m_rows <= y);
-	}
 
-	T ClipPixel(float pixel) {
+	float ClipPixel(float pixel) noexcept {
 		if (pixel > m_max_val)
 			return m_max_val;
 		else if (pixel < 0)
@@ -453,70 +526,238 @@ public:
 			pixel = val;
 	}
 
+	void Truncate() {
+		for (T& pixel : *this)
+			pixel = ClipPixel(pixel);
+	}
+
 	void Normalize() {
-		float max = std::numeric_limits<T>::min();
-		float min = std::numeric_limits<T>::max();
-		for (auto& pixel : *this) {
+		T max = std::numeric_limits<T>::min();
+		T min = std::numeric_limits<T>::max();
+		for (T& pixel : *this) {
 			if (pixel > max) max = pixel;
 			if (pixel < min) min = pixel;
 		}
 
 		float dm = 1.0f / (max - min);
 
-		for (auto& pixel : *this)
+		for (T& pixel : *this)
 			pixel = (pixel - min) * dm;
 	}
 
-private:
-	std::vector<int> GetHistogram() {
+	void Rescale(T a, T b) {
+		T max = std::numeric_limits<T>::min();
+		T min = std::numeric_limits<T>::max();
+		for (T& pixel : *this) {
+			if (pixel > max) max = pixel;
+			if (pixel < min) min = pixel;
+		}
 
-		std::vector<int> histogram(65536);
+		for (T& pixel : *this)
+			pixel = min + ((pixel - min) * (b - a)) / (max - min);
+	}
 
+	void Binerize(T threshold) {
 		for (auto& pixel : *this)
-			histogram[pixel * m_multiplier]++;
-
-		return histogram;
+			pixel = (pixel >= threshold) ? 1 : 0;
 	}
 
-	float HistogramMedian(std::vector<int>& histogram, int sum_count) {
-		int occurrences = 0;
-		int median1 = 0, median2 = 0;
-		int medianlength = sum_count / 2;
 
-		for (int i = 0; i < 65535; ++i) {
-			occurrences += histogram[i];
-			if (occurrences > medianlength) {
-				median1 = i;
-				median2 = i;
+private:
+	struct Histogram {
 
-				break;
-			}
-			else if (occurrences == medianlength) {
-				median1 = i;
-				for (int j = i + 1; j <= 65535; ++j) {
-					if (histogram[j] > 0) {
-						median2 = j;
-						break;
-					}
+		std::unique_ptr<uint32_t[]> hist;
+		int m_size = 0;
+		int m_count = 0;
+		bool isfloat = false;
+
+		uint32_t& operator[](int val) { return hist[val]; }
+
+		//buids full image histogram
+		Histogram(Image& img, bool empty = false) {
+			if (Image::is_uint8()) {
+				hist = std::make_unique<uint32_t[]>(256);
+				m_size = 256;
+				isfloat = false;
+				if (empty)
+					return;
+				for (auto pixel : img) {
+					hist[pixel]++;
+					m_count++;
 				}
-				break;
+				return;
+			}
+
+			if (Image::is_uint16()) {
+				data = std::make_unique<uint32_t[]>(65536);
+				m_size = 65536;
+				isfloat = false;
+				if (empty)
+					return;
+				for (auto pixel : img) {
+					hist[pixel]++;
+					m_count++;
+				}
+				return;
+			}
+
+			if (Image::is_float()) {
+				hist = std::make_unique<uint32_t[]>(65536);
+				m_size = 65536;
+				isfloat = true;
+				if (empty)
+					return;
+				for (auto pixel : img) {
+					hist[pixel * 65535]++;
+					m_count++;
+				}
 			}
 		}
 
-		float med = (median1 + median2) / 2.0;
+		//builds histogram on per channel basis
+		Histogram(Image& img, int ch) {
+			if (Image::is_uint8()) {
+				hist = std::make_unique<uint32_t[]>(256);
+				m_size = 256;
+				m_count = img.Total();
+				isfloat = false;
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+					hist[*pixel]++;
 
-		if (histogram[med] == 0) {
-			float k1 = float(medianlength - (occurrences - histogram[median1])) / histogram[median1];
-			float k2 = float(medianlength - occurrences) / histogram[median2];
-			return med + (k1 + k2) / 2;
+				return;
+			}
+
+			if (Image::is_uint16()) {
+				hist = std::make_unique<uint32_t[]>(65536);
+				m_size = 65536;
+				m_count = img.Total();
+				isfloat = false;
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+					hist[*pixel]++;
+
+				return;
+			}
+
+			if (Image::is_float()) {
+				hist = std::make_unique<uint32_t[]>(65536);
+				isfloat = true;
+				m_size = 65536;
+				m_count = img.Total();
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+					hist[*pixel * 65535]++;
+
+				return;
+			}
 		}
 
-		else if (med != 0.0f)
-			return med + float(medianlength - (occurrences - histogram[median1])) / histogram[med];
+		//builds mad histogram
+		Histogram(Image& img, int ch, float median, bool clip = false) {
+			if (Image::is_uint8()) {
+				hist = std::make_unique<uint32_t[]>(256);
+				m_size = 256;
+				isfloat = false;
 
-		return med;
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
+					if (clip && img.IsClippedVal(*pixel))
+						continue;
+					hist[abs(*pixel - median)]++;
+					m_count++;
+				}
+				return;
+			}
 
-	}
+			if (Image::is_uint16()) {
+				hist = std::make_unique<uint32_t[]>(65536);
+				m_size = 65536;
+				isfloat = false;
+
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
+					if (clip && img.IsClippedVal(*pixel))
+						continue;
+					hist[abs(*pixel - median)]++;
+					m_count++;
+				}
+				return;
+			}
+
+			if (Image::is_float()) {
+				hist = std::make_unique<uint32_t[]>(65536);
+				isfloat = true;
+				m_size = 65536;
+				for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
+					if (clip && img.IsClippedVal(*pixel))
+						continue;
+					hist[abs(*pixel - median) * 65535]++;
+					m_count++;
+				}
+			}
+		}
+
+		//computes and returns median
+		float Median(bool clip = false) {
+			int occurrences = 0;
+			int median1 = 0, median2 = 0;
+			int medianlength = m_count / 2;
+
+			int cl = 0, cu = m_size;
+			if (clip) { cl = 1; cu -= 1; medianlength = (m_count - hist[0] - hist[m_size - 1]) / 2; }
+
+			for (int i = cl; i < cu; ++i) {
+				occurrences += hist[i];
+				if (occurrences > medianlength) {
+					median1 = i;
+					median2 = i;
+
+					break;
+				}
+				else if (occurrences == medianlength) {
+					median1 = i;
+					for (int j = i + 1; j < cu; ++j) {
+						if (hist[j] > 0) {
+							median2 = j;
+							break;
+						}
+					}
+					break;
+				}
+			}
+
+			float med = (median1 + median2) / 2.0;
+
+			if (hist[med] == 0) {
+				float k1 = float(medianlength - (occurrences - hist[median1])) / hist[median1];
+				float k2 = float(medianlength - occurrences) / hist[median2];
+				med += (k1 + k2) / 2;
+				if (is_float)
+					return med / 65535;
+				return med;
+			}
+
+			med += float(medianlength - (occurrences - hist[median1])) / hist[med];
+			if (isfloat)
+				return med / 65535;
+			return med;
+
+
+		}
+
+		void UpdateHistogram(float val) {
+			if (isfloat) {
+				hist[val * 65535]++;
+				m_count++;
+			}
+			else {
+				hist[val]++;
+				m_count++;
+			}
+		}
+
+		void ZeroHistogram() {
+			m_count = 0;
+			for (int el = 0; el < m_size; ++el)
+				hist[el] = 0;
+		}
+	};
 
 public:
 	bool IsClippedVal(T pixel)const {
@@ -529,53 +770,50 @@ public:
 			float max = std::numeric_limits<float>::min();
 			float min = std::numeric_limits<float>::max();
 
-			std::vector<int> hist(65536);
-
 			int count = 0;
 			double meansum = 0;
+			Histogram histogram((*this), ch);
 
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
 				if (clip && IsClippedVal(*pixel)) continue;
 
 				if (*pixel > max)
 					max = *pixel;
 				if (*pixel < min)
 					min = *pixel;
+
 				meansum += *pixel;
-				hist[*pixel * m_multiplier]++;
 				count++;
 
 			}
+
 			statistics[ch].max = max;
 			statistics[ch].min = min;
-			float median = statistics[ch].median = HistogramMedian(hist, count) / m_multiplier;
+			float median = statistics[ch].median = histogram.Median(clip);
 			float mean = statistics[ch].mean = meansum / count;
 
-			std::fill(hist.begin(), hist.end(), 0);
-
+			histogram.ZeroHistogram();
 			double avgDevsum = 0;
 
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
 				if (clip && IsClippedVal(*pixel)) continue;
 
-				float t = fabsf(*pixel - median);
-				hist[t * m_multiplier]++;
+				float t = abs(*pixel - median);
+				histogram.UpdateHistogram(t);
 				avgDevsum += t;
 
 			}
 
 			statistics[ch].avgDev = avgDevsum / count;
 
-			statistics[ch].mad = HistogramMedian(hist, count) / m_multiplier;
+			statistics[ch].mad = histogram.Median();
 
 			double x9mad = 1 / (9 * statistics[ch].mad);
 			double sum1 = 0, sum2 = 0;
 			double Y, a;
 			double d, var = 0;
 
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
 
 				if (clip && IsClippedVal(*pixel)) continue;
 
@@ -598,26 +836,11 @@ public:
 		}
 	}
 
-	T ComputeMax(bool clip = false) {
+	void ComputeMax(bool clip = false) {
 
-		T r_max = std::numeric_limits<T>::min();
+		if (clip)
+			return ComputeClippedMax();
 
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				T max = std::numeric_limits<T>::min();
-
-				for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-					if (IsClippedVal(*pixel)) continue;
-
-					if (*pixel > max)  max = *pixel;
-				}
-				statistics[ch].max = max;
-
-				if (max > r_max)
-					r_max = max;
-			}
-			return r_max;
-		}
 
 		for (int ch = 0; ch < m_channels; ++ch) {
 			T max = std::numeric_limits<T>::min();
@@ -627,18 +850,209 @@ public:
 
 			statistics[ch].max = max;
 
-			if (max > r_max)
-				r_max = max;
 		}
 
-		return r_max;
 	}
 
-	T ComputeMin(bool clip = false) {
+	T ComputeMaximum() {
+		T max = std::numeric_limits<T>::min();
 
-		T r_min = std::numeric_limits<T>::max();
+		for (auto pixel : *this)
+			if (pixel > max)  max = pixel;
 
-		if (clip) {
+		return max;
+	}
+
+	T ComputeMinimum() {
+		T min = std::numeric_limits<T>::max();
+
+		for (auto pixel : *this)
+			if (pixel < min)  min = pixel;
+
+		return min;
+	}
+
+	void ComputeMin(bool clip = false) {
+
+
+		if (clip)
+			return ComputeClippedMin();
+
+		for (int ch = 0; ch < m_channels; ++ch) {
+			T min = std::numeric_limits<T>::max();
+
+			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
+				if (*pixel < min)  min = *pixel;
+
+			statistics[ch].min = min;
+		}
+
+	}
+
+	std::array<T, 2> ComputeMaxMin() {
+		T min = std::numeric_limits<T>::max();
+		T max = std::numeric_limits<T>::min();
+
+		for (auto pixel : *this) {
+			if (pixel < min) min = pixel;
+			if (pixel > max) max = pixel;
+		}
+
+		return { max,min };
+	}
+
+
+	float ComputeMean(int ch, bool clip = false) {
+
+		double sum = 0;
+		int count = 0;
+
+		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel))
+				continue;
+			sum += *pixel;
+			count++;
+
+		}
+		return statistics[ch].mean = sum / count;
+	}
+
+	void ComputeMean(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeMean(ch, clip);
+	}
+
+
+	T ComputeMedian(int ch, bool clip = false) {
+		Histogram hist(*this, ch);
+		return statistics[ch].median = hist.Median(clip);
+	}
+
+	void ComputeMedian(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeMedian(ch, clip);
+
+	}
+
+
+	float ComputeStdDev(int ch, bool clip = false) {
+
+		ComputeMean(ch, clip);
+
+		double d, var = 0;
+		float mean = Mean(ch);
+		int count = 0;
+
+		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel)) continue;
+			d = *pixel - mean;
+			var += d * d;
+			count++;
+		}
+
+		return statistics[ch].stdev = sqrt(var / count);
+
+	}
+
+	void ComputeStdDev(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeStdDev(ch, clip);
+	}
+
+
+	float ComputeAvgDev(int ch, bool clip = false) {
+
+		T median = ComputeMedian(ch, clip);
+
+		double sum = 0;
+		int count = 0;
+
+		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel)) continue;
+			sum += fabs(*pixel - median);
+			count++;
+		}
+		return statistics[ch].avgDev = (sum / count);
+	}
+
+	void ComputeAvgDev(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeAvgDev(ch);
+
+	}
+
+
+	T ComputeMAD(int ch, bool clip = false) {
+
+		T median = ComputeMedian(ch, clip);
+
+		Histogram histogram((*this), ch, median, clip);
+		return statistics[ch].mad = histogram.Median();
+	}
+
+	void ComputeMAD(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeMAD(ch, clip);
+
+	}
+
+
+	float ComputeBWMV(int ch, bool clip = false) {
+
+		T mad = ComputeMAD(ch, clip);
+		T median = Median(ch);
+
+		double x9mad = 1 / (9 * mad);
+		double sum1 = 0, sum2 = 0;
+		double Y, a;
+		int count = 0;
+
+		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+
+			if (clip && IsClippedVal(*pixel)) continue;
+
+			Y = (*pixel - median) * x9mad;
+
+			(abs(Y) < 1) ? a = 1 : a = 0;
+
+			Y *= Y;
+
+			sum1 += (a * pow(*pixel - median, 2) * pow(1 - Y, 4));
+			sum2 += (a * (1 - Y) * (1 - 5 * Y));
+			count++;
+		}
+		return statistics[ch].bwmv = sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
+
+	}
+
+	void ComputeBWMV(bool clip = false) {
+
+		for (int ch = 0; ch < m_channels; ++ch)
+			ComputeBWMV(ch, clip);
+	}
+
+
+	private:
+
+		void ComputeClippedMax() {
+			for (int ch = 0; ch < m_channels; ++ch) {
+				T max = std::numeric_limits<T>::min();
+
+				for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+					if (IsClippedVal(*pixel)) continue;
+
+					if (*pixel > max)  max = *pixel;
+				}
+				statistics[ch].max = max;
+			}
+		}
+
+		void ComputeClippedMin() {
 			for (int ch = 0; ch < m_channels; ++ch) {
 				T min = std::numeric_limits<T>::max();
 
@@ -648,244 +1062,8 @@ public:
 					if (*pixel < min)  min = *pixel;
 				}
 				statistics[ch].min = min;
-
-				if (min < r_min)
-					r_min = min;
 			}
-			return r_min;
 		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			T min = std::numeric_limits<T>::max();
-
-			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-				if (*pixel < min)  min = *pixel;
-
-			statistics[ch].min = min;
-
-			if (min < r_min)
-				r_min = min;
-		}
-
-		return r_min;
-	}
-
-	void ComputeMean(bool clip = false) {
-
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				int count = 0;
-				double sum = 0;
-				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-					if (IsClippedVal(*pixel)) continue;
-
-					sum += *pixel;
-					count++;
-				}
-				statistics[ch].mean = sum / count;
-			}
-			return;
-		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			double sum = 0;
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
-				sum += *pixel;
-
-			statistics[ch].mean = sum / m_total;
-		}
-	}
-
-	float ComputeMean(int channel_num, bool clip = false) {
-
-		if (clip) {
-			int count = 0;
-			double sum = 0;
-			for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel) {
-				if (IsClippedVal(*pixel)) continue;
-
-				sum += *pixel;
-				count++;
-			}
-			return statistics[channel_num].mean = sum / count;
-
-		}
-
-		double sum = 0;
-		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
-			sum += *pixel;
-
-		return statistics[channel_num].mean = sum / m_total;
-	}
-
-	void ComputeMedian(bool clip = false) {
-
-		std::vector<int> histogram(65536);
-
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				int count = 0;
-				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-					if (IsClippedVal(*pixel)) continue;
-					histogram[*pixel * m_multiplier]++;
-					count++;
-				}
-				statistics[ch].median = HistogramMedian(histogram, count) / m_multiplier;
-			}
-			return;
-		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
-				histogram[*pixel * m_multiplier]++;
-
-			statistics[ch].median = HistogramMedian(histogram, m_total) / m_multiplier;
-		}
-	}
-
-	float ComputeAverageMedian() {
-		float val = 0;
-		for (auto& stat : statistics)
-			val += stat.median;
-		return val / m_channels;
-	}
-
-	void ComputeStdDev(bool clip = false) {
-		ComputeMean(clip);
-
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				double d, var = 0;
-				int count = 0;
-				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-					if (IsClippedVal(*pixel)) continue;
-					d = *pixel - Mean(ch);
-					var += d * d;
-					count++;
-				}
-				statistics[ch].stdev = sqrt(var / count);
-			}
-			return;
-		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			double d, var = 0;
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-				d = *pixel - Mean(ch);
-				var += d * d;
-			}
-			statistics[ch].stdev = sqrt(var / m_total);
-		}
-	}
-
-	void ComputeAvgDev(bool clip = false) {
-
-		ComputeMedian(clip);
-
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				double sum = 0;
-				int count = 0;
-				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-
-					if (IsClippedVal(*pixel)) continue;
-
-					sum += fabs(*pixel - Median(ch));
-					count++;
-				}
-				statistics[ch].avgDev = (sum / count);
-			}
-			return;
-		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			double sum = 0;
-
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
-				sum += fabs(*pixel - Median(ch));
-
-			statistics[ch].avgDev = (sum / m_total);
-		}
-	}
-
-	void ComputeMAD(bool clip = false) {
-
-		ComputeMedian(clip);
-
-		std::vector<int> histogram(65536);
-
-		if (clip) {
-			for (int ch = 0; ch < m_channels; ++ch) {
-				int count = 0;
-				for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-					if (IsClippedVal(*pixel)) continue;
-					histogram[fabsf(*pixel - Median(ch)) * m_multiplier]++;
-					count++;
-				}
-
-				statistics[ch].mad = HistogramMedian(histogram, count) / m_multiplier;
-			}
-			return;
-		}
-
-		for (int ch = 0; ch < m_channels; ++ch) {
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel)
-				histogram[fabsf(*pixel - Median(ch)) * m_multiplier]++;
-
-			statistics[ch].mad = HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
-		}
-	}
-
-	float ComputeAverageMAD() {
-		float val = 0;
-		for (auto& stat : statistics)
-			val += stat.mad;
-		return val / m_channels;
-	}
-
-	void ComputeBWMV() {
-
-		double x9mad = 1 / (9 * ComputeMAD());
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		for (int ch = 0; ch < m_channels; ++ch) {
-			for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-				Y = (*pixel - Median(ch)) * x9mad;
-
-				(abs(Y) < 1) ? a = 1 : a = 0;
-
-				Y *= Y;
-
-				sum1 += (a * pow(*pixel - Median(ch), 2) * pow(1 - Y, 4));
-				sum2 += (a * (1 - Y) * (1 - 5 * Y));
-			}
-			statistics[ch].bwmv = sqrt((m_total * sum1) / (abs(sum2) * abs(sum2)));
-		}
-	}
-
-	T ComputeMedianABS(int channel_num) {
-
-		std::vector<int> histogram(65536);
-
-		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
-			histogram[fabsf(*pixel) * m_multiplier]++;
-
-		return HistogramMedian(histogram, m_total) / m_multiplier;
-
-	}
-
-	float ComputeMAD_MedABS(int channel_num) {
-
-		T Med = ComputeMedianABS(channel_num);
-
-		std::vector<int> histogram(65536);
-
-		for (auto pixel = begin(channel_num); pixel != end(channel_num); ++pixel)
-			histogram[fabsf(*pixel - Med) * m_multiplier]++;
-
-		return HistogramMedian(histogram, m_total, m_bitdepth) / m_multiplier;
-
-	}
 
 
 	friend void CreateStatsText(const std::filesystem::path& file_path, Image<T>& img) {

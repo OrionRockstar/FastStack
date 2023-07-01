@@ -1,6 +1,6 @@
 #include "ImageOperations.h"
 
-void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, Interpolation_Type interp_type) {
+void ImageOP::AlignFrame(Image32& img, Matrix& homography, Interpolation_Type interp_type) {
 
 	Image32 temp(img.Rows(), img.Cols());
 	int ch = 0;
@@ -26,7 +26,7 @@ void ImageOP::AlignFrame(Image32& img, Eigen::Matrix3d homography, Interpolation
 	img = std::move(temp);
 }
 
-void ImageOP::AlignedStats(Image32& img, Eigen::Matrix3d& homography, Interpolation_Type interp_type) {
+void ImageOP::AlignedStats(Image32& img, Matrix& homography, Interpolation_Type interp_type) {
 
 	Image32 temp(img.Rows(), img.Cols(), img.Channels());
 
@@ -777,197 +777,6 @@ template void ImageOP::BilateralFilter(Image16&, float, float);
 template void ImageOP::BilateralFilter(Image32&, float, float);
 
 
-static void LinearInterpolation3x3(Image32& source, Image32& convolved, Image32& wavelet, int scale_num) {
-
-	int _2i = pow(2, scale_num);
-	int _x2i = 2 * _2i;
-
-	for (int ch = 0; ch < source.Channels(); ++ch) {
-#pragma omp parallel for
-		for (int y = 0; y < source.Rows(); ++y)
-			for (int x = 0; x < source.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y, ch) * 0.25f : 0;
-				sum += source(x, y, ch) * 0.5f;
-				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y, ch) * 0.25f : 0;
-
-				wavelet(x, y, ch) = sum;
-			}
-
-#pragma omp parallel for
-		for (int y = 0; y < source.Rows(); ++y)
-			for (int x = 0; x < source.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i, ch) * 0.25f : 0;
-				sum += wavelet(x, y, ch) * 0.5f;
-				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i, ch) * 0.25f : 0;
-
-				convolved(x, y, ch) = sum;
-			}
-	}
-
-	for (auto s = source.begin(), c = convolved.begin(), w = wavelet.begin(); s != source.end(); ++s, ++c, ++w)
-		*w = *s - *c;
-
-	convolved.CopyTo(source);
-}
-
-static void B3Spline5x5(Image32& source, Image32& convolved, Image32& wavelet, int scale_num) {
-
-	int _2i = pow(2, scale_num);
-	int _x2i = 2 * _2i;
-
-	for (int ch = 0; ch < source.Channels(); ++ch) {
-#pragma omp parallel for
-		for (int y = 0; y < source.Rows(); ++y)
-			for (int x = 0; x < source.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += source.IsInBounds(x - _x2i, y) ? source(x - _x2i, y, ch) * 0.0625f : 0;
-				sum += source.IsInBounds(x - _2i, y) ? source(x - _2i, y, ch) * 0.25f : 0;
-				sum += source(x, y, ch) * 0.375f;
-				sum += source.IsInBounds(x + _2i, y) ? source(x + _2i, y, ch) * 0.25f : 0;
-				sum += source.IsInBounds(x + _x2i, y) ? source(x + _x2i, y, ch) * 0.0625f : 0;
-
-				wavelet(x, y, ch) = sum;
-			}
-
-#pragma omp parallel for
-		for (int y = 0; y < source.Rows(); ++y)
-			for (int x = 0; x < source.Cols(); ++x) {
-
-				float sum = 0;
-
-				sum += wavelet.IsInBounds(x, y - _x2i) ? wavelet(x, y - _x2i, ch) * 0.0625 : 0;
-				sum += wavelet.IsInBounds(x, y - _2i) ? wavelet(x, y - _2i, ch) * 0.25f : 0;
-				sum += wavelet(x, y, ch) * 0.375f;
-				sum += wavelet.IsInBounds(x, y + _2i) ? wavelet(x, y + _2i, ch) * 0.25f : 0;
-				sum += wavelet.IsInBounds(x, y + _x2i) ? wavelet(x, y + _x2i, ch) * 0.0625f : 0;
-
-				convolved(x, y, ch) = sum;
-			}
-	}
-
-	for (auto s = source.begin(), c = convolved.begin(), w = wavelet.begin(); s != source.end(); ++s, ++c, ++w)
-		*w = *s - *c;
-
-	convolved.CopyTo(source);
-}
-
-void ImageOP::B3WaveletTransform(Image32& img, ImageVector& wavelet_vector, int scale_num) {
-
-	wavelet_vector.reserve(scale_num);
-
-	Image32 source(img.Rows(), img.Cols(), img.Channels());
-	img.CopyTo(source);
-	ImageOP::MedianBlur3x3(source);
-
-	Image32 convolved(img.Rows(), img.Cols(), img.Channels());
-
-	for (int i = 0; i < scale_num; ++i) {
-
-		int _2i = pow(2, i);
-		int _x2i = 2 * _2i;
-		Image32 wavelet(img.Rows(), img.Cols(), img.Channels());
-
-		B3Spline5x5(source, convolved, wavelet, i);
-
-		wavelet.AvgDev(true);
-		wavelet_vector.emplace_back(std::move(wavelet));
-	}
-
-}
-
-static void TrinerizeImage(Image32& input, Image8& output, float thresh) {
-
-	for (int el = 0; el < input.Total(); ++el)
-		output[el] = (input[el] >= thresh) ? 1 : 0;
-
-	for (int y = 1; y < output.Rows() - 1; ++y) {
-		for (int x = 1; x < output.Cols() - 1; ++x) {
-			if (output(x, y) == 1)
-				if (output(x - 1, y) != 0 && output(x + 1, y) != 0 && output(x, y - 1) != 0 && output(x, y + 1) != 0) output(x, y) = 2;
-		}
-	}
-
-}
-
-void ImageOP::B3WaveletTransformTrinerized(Image32& img, Image8Vector& wavelet_vector, float thresh, int scale_num) {
-
-	wavelet_vector.reserve(scale_num);
-
-	Image32 source(img.Rows(), img.Cols(), img.Channels());
-	img.CopyTo(source);
-
-	if (source.Channels() == 3)
-		img.RGBtoGray();
-
-	ImageOP::MedianBlur3x3(source);
-
-	Image32 convolved(img.Rows(), img.Cols());
-	Image32 wavelet(img.Rows(), img.Cols());
-
-	for (int i = 0; i < scale_num; ++i) {
-
-		B3Spline5x5(source, convolved, wavelet, i);
-
-		wavelet.ComputeAvgDev(true);
-
-		Image8 tri_wavelet(img.Rows(), img.Cols());
-		TrinerizeImage(wavelet, tri_wavelet, wavelet.Median() + thresh * (wavelet.AvgDev() / 0.6745));
-		wavelet_vector.emplace_back(std::move(tri_wavelet));
-	}
-
-}
-
-static int GetSign(float& val) {
-	return (val < 0) ? -1 : 1;
-}
-
-static void LinearNoiseReduction(Image32& wavelet, int threshold = 3, float amount = 1) {
-	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
-
-		float thresh = 3 * (wavelet.ComputeMedianABS(ch) / 0.6745);
-		float amount = 1;
-		amount = fabsf(amount - 1);
-
-		for (auto w = wavelet.begin(ch); w != wavelet.end(ch); ++w) {
-			float val = fabsf(*w);
-			*w = (val < threshold) ? *w * amount : GetSign(*w) * (val - threshold);
-		}
-	}
-}
-
-void ImageOP::B3WaveletLayerNoiseReduction(Image32& img, int scale_num) {
-	assert(scale_num <= 4);
-
-	Image32 source(img.Rows(), img.Cols(), img.Channels());
-	img.CopyTo(source);
-	img.FillZero();
-	Image32 wavelet(img.Rows(), img.Cols(), img.Channels());
-	Image32 convolved(img.Rows(), img.Cols(), img.Channels());
-
-	for (int i = 0; i < scale_num; ++i) {
-
-		B3Spline5x5(source, convolved, wavelet, i);
-		if (i == 0)
-			LinearNoiseReduction(wavelet, 3, 1);
-
-		for (int el = 0; el < img.Total() * img.Channels(); ++el)
-			img[el] += wavelet[el];
-
-	}
-
-	for (int el = 0; el < img.Total() * img.Channels(); ++el)
-		img[el] += convolved[el];
-
-}
-
 
 void ImageOP::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type) {
 
@@ -1008,32 +817,6 @@ void ImageOP::ScaleImageStack(ImageVector& img_stack, ScaleEstimator type) {
 
 }
 
-
-void ImageOP::STFImageStretch(Image32& img) {
-
-	float nMAD = 1.4826f * img.ComputeAverageMAD();
-	float median = img.ComputeAverageMedian();
-	//4.5
-	float shadow = median - 2.8f * nMAD, midtone = 3 * (median - shadow); // correct val is 3
-
-	float m1 = midtone - 1, m2 = (2 * midtone) - 1;
-
-	for (auto& pixel : img) {
-
-		pixel = (pixel - shadow) / (1.0f - shadow);
-
-		if (pixel <= 0.0f) pixel = 0.0f;
-
-		else if (pixel == 1.0f) pixel = 1.0f;
-
-		else if (pixel == midtone)  pixel = 0.5f;
-
-		else
-			pixel = (m1 * pixel) / ((m2 * pixel) - midtone);
-
-	}
-
-}
 
 void ImageOP::ASinhStretch(Image32& img, float stretch_factor) {
 
@@ -1139,100 +922,7 @@ static int Min(int a, int b) {
 }
 
 template<typename Image>
-void ImageOP::AdaptiveStretch(Image& img, float thresh_coef, int thresh_exp, float contrast_coef, int contrast_exp, int num_data_points) {
-
-	float thresh = thresh_coef * pow(10, thresh_exp);
-	float contrast = contrast_coef * pow(10, contrast_exp);
-
-	std::vector<uint32_t> pos(num_data_points);
-	std::vector<uint32_t> neg(num_data_points);
-
-	std::vector<float> cumnet(num_data_points);
-
-	int mult = num_data_points - 1;
-
-#pragma omp parallel for
-	for (int y = 0; y < img.Rows(); ++y)
-		for (int x = 0; x < img.Cols(); ++x) {
-			float a0 = img(x, y);
-			int l0 = a0 * mult;
-			float a1, l1;
-
-			if (img.IsXInBounds(x + 1)) {
-				a1 = img(x + 1, y);
-				l1 = Min(a1 * mult, l0);
-
-				if (abs(a0 - a1) > thresh)
-					pos[l1]++;
-				else
-					neg[l1]++;
-			}
-
-			if (img.IsInBounds(x - 1, y + 1)) {
-				a1 = img(x - 1, y + 1);
-				l1 = Min(a1 * mult, l0);
-
-				if (abs(a0 - a1) > thresh)
-					pos[l1]++;
-				else
-					neg[l1]++;
-			}
-
-			if (img.IsYInBounds(y + 1)) {
-				a1 = img(x, y + 1);
-				l1 = Min(a1 * mult, l0);
-
-				if (abs(a0 - a1) > thresh)
-					pos[l1]++;
-				else
-					neg[l1]++;
-			}
-
-			if (img.IsInBounds(x + 1, y + 1)) {
-				a1 = img(x + 1, y + 1);
-				l1 = Min(a1 * mult, l0);
-
-				if (abs(a0 - a1) > thresh)
-					pos[l1]++;
-				else
-					neg[l1]++;
-			}
-
-		}
-
-	cumnet[0] = pos[0] - contrast * neg[0];
-	for (int i = 1; i < cumnet.size(); ++i)
-		cumnet[i] = pos[i] - contrast * neg[i] + cumnet[i - 1];
-
-	float m = 1, M = 0;
-	for (auto v : img) {
-		if (v < m)
-			m = v;
-		if (v > M)
-			M = v;
-	}
-
-	int bm = m * mult, bM = M * mult;
-
-	double mindiff = 0;
-	for (int k = bm; k < bM; ++k)
-	{
-		float d = cumnet[k + 1] - cumnet[k];
-		if (d < mindiff)
-			mindiff = d;
-	}
-	if (mindiff < 0)
-	{
-		mindiff = -mindiff;
-		for (int k = bm; k <= bM; ++k)
-			cumnet[k] += (k - bm) * (mindiff + 1 / (bM - bm));
-	}
-
-	float max = cumnet[bM], min = cumnet[bm];
-
-	for (auto& v : img)
-		v = (cumnet[v * mult] - min) / (max - min);
-}
+void ImageOP::AdaptiveStretch(Image& img, float thresh_coef, int thresh_exp, float contrast_coef, int contrast_exp, int num_data_points);
 template void ImageOP::AdaptiveStretch(Image8&, float, int, float, int, int);
 template void ImageOP::AdaptiveStretch(Image16&, float, int, float, int, int);
 template void ImageOP::AdaptiveStretch(Image32&, float, int, float, int, int);

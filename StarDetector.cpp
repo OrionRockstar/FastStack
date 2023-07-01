@@ -2,6 +2,7 @@
 #include "Maths.h"
 #include <array>
 #include "Matrix.h"
+#include "Wavelet.h"
 
 bool StarDetector::IsNewStar(int x, int y, int r, std::vector<Star>& star_vector) {
 
@@ -192,7 +193,7 @@ void StarDetector::AperturePhotometry_Gaussian(const Image32& img, StarVector& s
 StarVector StarDetector::StarDetection(const Image32& img) {
 
     Image8Vector wavelet_vector;
-    //Wavelet()::B3WaveletTransform_Trinerized(img, wavelet_vector, m_K, m_median_blur, m_num_of_layers);
+    Wavelet().B3WaveletTransform_Trinerized(img, wavelet_vector, m_K, m_median_blur, m_num_of_layers);
 
     std::vector<std::vector<Star>> svv(wavelet_vector.size());
     for (auto& s : svv)
