@@ -18,7 +18,7 @@ static float Mean(std::vector<float>& pixelstack) {
     return mean / pixelstack.size();
 }
 
-static float Median(std::vector<float>& pixelstack){}
+//static float Median(std::vector<float>& pixelstack){}
 
 static float StandardDeviation(std::vector<float>& pixelstack) {
     float mean = 0;

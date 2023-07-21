@@ -1,6 +1,7 @@
 #pragma once
 
-#include <QtWidgets/QMainWindow>
+//#include <QtWidgets/QMainWindow>
+#include<QtWidgets>
 #include "ui_FastStack.h"
 
 class FastStack : public QMainWindow

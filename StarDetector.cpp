@@ -221,7 +221,7 @@ StarVector StarDetector::StarDetection(const Image32& img) {
                             int a = int(round(x + r * tf._cos)); //x
                             int b = int(round(y + r * tf._sin)); //y 
 
-                            if (img.IsInBounds(a, b)) {
+                            if (img.IsInBounds(a, b, 5)) {
 
                                 if (wavelet_vector[el](a, b) == 2)  istarv++;
 
@@ -230,16 +230,11 @@ StarVector StarDetector::StarDetection(const Image32& img) {
                                 else  spacev++;
                             }
 
-                            else {
+                            else
                                 goto newstar;
-                                //edge_star = true;
-                                //break;
-                            }
+
 
                         }
-
-                        //if (edge_star)
-                            //break;
 
                         if (vote >= 6) {
                             if (IsNewStar(x, y, r, svv[el]))
@@ -258,14 +253,9 @@ StarVector StarDetector::StarDetection(const Image32& img) {
     StarVector star_vector = CombineStarVectors(svv);
     svv.clear();
 
-    std::cout << star_vector.size() << "\n";
-
     AperturePhotometry_Gaussian(img, star_vector);
 
     std::sort(star_vector.begin(), star_vector.end(), Star());
-
-    if (star_vector.size() > 200)
-        star_vector.resize(200);
 
     return star_vector;
 }
