@@ -2,6 +2,7 @@
 #include "Image.h"
 #include "Interpolator.h"
 #include "ImageOperations.h"
+#include "Maths.h"
 
 class Drizzle {
 	float m_drop = 0.9;
@@ -20,18 +21,10 @@ public:
 	Drizzle() = default;
 
 private:
-	template<typename T>
-	struct Point {
-		T x = 0;
-		T y = 0;
-
-		Point() = default;
-		Point(T x, T y) : x(x), y(y) {}
-	};
 
 	float AddPixel(float inp, float out, float area, int pix_weight);
 
-	void DrizzlePixel(Image32& input, Point<int> source, Image32& output, Point<double> dest);
+	void DrizzlePixel(Image32& input, Pointi source, Image32& output, Pointd dest);
 
 
 public:

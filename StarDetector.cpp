@@ -77,8 +77,8 @@ void StarDetector::AperturePhotometry_WCG(const Image32& img, StarVector& star_v
             }
         }
 
-        float b = MedianNC(local_background);
-        float t = b * MADNC(local_background, b);
+        float b = Median_nocopy(local_background);
+        float t = b * MAD_nocopy(local_background, b);
 
         for (int y = yc - r; y <= yc + r; ++y) {
             for (int x = xc - r; x <= xc + r; ++x) {
@@ -132,8 +132,8 @@ void StarDetector::AperturePhotometry_Gaussian(const Image32& img, StarVector& s
             }
         }
 
-        float b = MedianNC(local_background);
-        float t = b + MADNC(local_background, b);
+        float b = Median_nocopy(local_background);
+        float t = b + MAD_nocopy(local_background, b);
 
         bool erase_star = false;
 

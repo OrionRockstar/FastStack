@@ -778,46 +778,6 @@ template void ImageOP::BilateralFilter(Image32&, float, float);
 
 
 
-void ImageOP::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type) {
-
-	float rse, cse;
-	for (int ch = 0; ch < ref.Channels(); ++ch) {
-		switch (type) {
-		case ScaleEstimator::median:
-			rse = ref.Median(ch);
-			cse = tgt.Median(ch);
-			break;
-		case ScaleEstimator::avgdev:
-			rse = ref.AvgDev(ch);
-			cse = ref.AvgDev(ch);
-			break;
-		case ScaleEstimator::mad:
-			rse = ref.MAD(ch);
-			cse = tgt.MAD(ch);
-			break;
-		case ScaleEstimator::bwmv:
-			rse = ref.BWMV(ch);
-			cse = tgt.BWMV(ch);
-			break;
-		case ScaleEstimator::none:
-			return;
-		}
-
-		float k = rse / cse;
-		for (auto pixel = tgt.begin(ch); pixel != tgt.end(ch); ++pixel)
-			*pixel = tgt.ClipPixel(k * (*pixel - tgt.Median(ch)) + ref.Median(ch));
-	}
-
-}
-
-void ImageOP::ScaleImageStack(ImageVector& img_stack, ScaleEstimator type) {
-
-	for (auto iter = img_stack.begin() + 1; iter != img_stack.end(); ++iter)
-		ImageOP::ScaleImage(*img_stack.begin(), *iter, type);
-
-}
-
-
 void ImageOP::ASinhStretch(Image32& img, float stretch_factor) {
 
 	std::vector<int> hist(65536);

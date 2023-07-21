@@ -11,7 +11,7 @@ namespace ImageOP {
 	void AlignImageStack(ImageVector& img_stack, Interpolation_Type interp_type);
 
 
-	void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
+	//void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
 
 	template<typename Image>
 	extern void RotateImage(Image& img, float theta_degrees, Interpolation_Type interp_type);
@@ -47,9 +47,9 @@ namespace ImageOP {
 	extern void BilateralFilter(Image<T>& img, float std_dev, float std_dev_range);
 
 
-	void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);
+	//void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);
 
-	void ScaleImageStack(ImageVector& img_stack, ScaleEstimator type);
+	//void ScaleImageStack(ImageVector& img_stack, ScaleEstimator type);
 
 
 	void STFImageStretch(Image32& img);

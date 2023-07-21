@@ -14,7 +14,7 @@ float Drizzle::AddPixel(float inp, float out, float area, int pix_weight) {
 	return (dw != 0) ? ((inp * area * pix_weight * s2) + (out * m_out_weight)) / dw : out;
 }
 
-void Drizzle::DrizzlePixel(Image32& input, Point<int> source, Image32& output, Point<double> dest) {
+void Drizzle::DrizzlePixel(Image32& input, Pointi source, Image32& output, Pointd dest) {
 
 	dest.x *= m_scale_factor;
 	dest.y *= m_scale_factor;

@@ -1249,14 +1249,6 @@ enum class FastRotate {
 	verticalmirror
 };
 
-enum class ScaleEstimator {
-	median,
-	avgdev,
-	mad,
-	bwmv,
-	none
-};
-
 bool StatsTextExists(const std::filesystem::path& file_path);
 
 void GetImageStackFromTemp(FileVector& light_files, ImageVector& img_stack);
