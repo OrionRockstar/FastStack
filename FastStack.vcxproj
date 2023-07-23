@@ -100,7 +100,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CurveInterpolation.cpp" />
+    <ClCompile Include="CurvesTransformation.cpp" />
     <ClCompile Include="Drizzle.cpp" />
+    <ClCompile Include="HistogramTransformation.cpp" />
     <ClCompile Include="Homography.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageOperations.cpp" />
@@ -116,8 +119,11 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CurveInterpolation.h" />
+    <ClInclude Include="CurvesTransformation.h" />
     <ClInclude Include="Drizzle.h" />
     <ClInclude Include="GaussianFilter.h" />
+    <ClInclude Include="HistogramTransformation.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageOperations.h" />

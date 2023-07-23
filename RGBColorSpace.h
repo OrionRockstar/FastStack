@@ -21,15 +21,6 @@ private:
                                       1.0,
                                       0.82521 });
 
-    static double Clip(double val) {
-        if (val > 1)
-            return 1;
-        else if (val < 0)
-            return 0;
-        else
-            return val;
-    }
-
 public:
     static void RGBtoHSV(double R, double G, double B, double& H, double& S, double& V) {
         double max = Max(R, Max(G, B));

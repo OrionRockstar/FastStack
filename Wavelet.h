@@ -113,7 +113,6 @@ public:
 
 	void B3WaveletTransform_Trinerized(const Image32& img, Image8Vector& wavelet_vector, float thresh_mult = 3, bool median_blur = true, int scale_num = 5);
 
-	
-
+	void ChrominanceNoiseReduction(Image32& img, int layers_to_remove, int layers_to_keep);
 };
 

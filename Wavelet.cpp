@@ -292,7 +292,7 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 	for (int i = 0; i < scale_num; ++i) {
 
 
-		//ImageOP::MedianBlur(source, 2 * (i + 1) + 1, convolved);
+		ImageOP::MedianBlur(source, 2 * (i + 1) + 1, convolved);
 		GetWaveletLayer();
 
 
