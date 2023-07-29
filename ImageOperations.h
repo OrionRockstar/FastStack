@@ -4,17 +4,17 @@
 
 namespace ImageOP {
 
-	void AlignFrame(Image32& img, Matrix& homography, Interpolation_Type interp_type);
+	void AlignFrame(Image32& img, Matrix& homography, Interpolate interp_type);
 
-	void AlignedStats(Image32& img, Matrix& homography, Interpolation_Type interp_type);
+	void AlignedStats(Image32& img, Matrix& homography, Interpolate interp_type);
 
-	void AlignImageStack(ImageVector& img_stack, Interpolation_Type interp_type);
+	void AlignImageStack(ImageVector& img_stack, Interpolate interp_type);
 
 
 	//void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
 
 	template<typename Image>
-	extern void RotateImage(Image& img, float theta_degrees, Interpolation_Type interp_type);
+	extern void RotateImage(Image& img, float theta_degrees, Interpolate interp_type);
 
 	template<typename Image>
 	extern void FastRotation(Image& img, FastRotate type);

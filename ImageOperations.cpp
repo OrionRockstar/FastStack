@@ -1,32 +1,34 @@
 #include "ImageOperations.h"
 
-void ImageOP::AlignFrame(Image32& img, Matrix& homography, Interpolation_Type interp_type) {
+void ImageOP::AlignFrame(Image32& img, Matrix& homography, Interpolate interp_type) {
+	Interpolator<Image32> interpolator;
 
-	Image32 temp(img.Rows(), img.Cols());
-	int ch = 0;
-
+	Image32 temp(img.Rows(), img.Cols(), img.Channels());
 	temp.homography = img.homography;
 
+	for (int ch = 0; ch < img.Channels(); ++ch) {
 #pragma omp parallel for
-	for (int y = 0; y < img.Rows(); ++y) {
+		for (int y = 0; y < img.Rows(); ++y) {
 
-		double yx = y * homography(0, 1);
-		double yy = y * homography(1, 1);
+			double yx = y * homography(0, 1);
+			double yy = y * homography(1, 1);
+			for (int x = 0; x < img.Cols(); ++x) {
+				double x_s = x * homography(0, 0) + yx + homography(0, 2);
+				double y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-		for (int x = 0; x < img.Cols(); ++x) {
-			double x_s = x * homography(0, 0) + yx + homography(0, 2);
-			double y_s = x * homography(1, 0) + yy + homography(1, 2);
+				temp(x, y, ch) = interpolator.InterpolatePixel(img, x_s, y_s, ch, interp_type);//img.ClipPixel(interp_type(img, x_s, y_s, ch));
 
-			temp(x, y) = Interpolator<Image32>::InterpolatePixel(img, x_s, y_s, ch, interp_type);
-
+			}
 		}
 	}
 
-	temp.ComputeStatistics(true);
 	img = std::move(temp);
+	img.ComputeStatistics(true);
 }
 
-void ImageOP::AlignedStats(Image32& img, Matrix& homography, Interpolation_Type interp_type) {
+void ImageOP::AlignedStats(Image32& img, Matrix& homography, Interpolate interp_type) {
+
+	Interpolator<Image32> interpolator;
 
 	Image32 temp(img.Rows(), img.Cols(), img.Channels());
 
@@ -41,18 +43,17 @@ void ImageOP::AlignedStats(Image32& img, Matrix& homography, Interpolation_Type 
 				double x_s = x * homography(0, 0) + yx + homography(0, 2);
 				double y_s = x * homography(1, 0) + yy + homography(1, 2);
 
-				temp(x, y, ch) = Interpolator<Image32>::InterpolatePixel(img, x_s, y_s, ch, interp_type);
+				temp(x, y, ch) = interpolator.InterpolatePixel(img, x_s, y_s, ch, interp_type);
 
 			}
 		}
 	}
 	temp.ComputeStatistics(true);
 	img.MoveStatsFrom(temp);
-	//img.CopyStatsFrom(temp);
-
+	
 }
 
-void ImageOP::AlignImageStack(ImageVector& img_stack, Interpolation_Type interp_type) {
+void ImageOP::AlignImageStack(ImageVector& img_stack, Interpolate interp_type) {
 
 	for (auto im = img_stack.begin(); im != img_stack.end(); im++) {
 		if (im == img_stack.begin())
@@ -63,7 +64,9 @@ void ImageOP::AlignImageStack(ImageVector& img_stack, Interpolation_Type interp_
 }
 
 template<typename Image>
-void ImageOP::RotateImage(Image& img, float theta, Interpolation_Type interp_type) {
+void ImageOP::RotateImage(Image& img, float theta, Interpolate interp_type) {
+
+	Interpolator<Image> interpolator;
 
 	theta *= (M_PI / 180);
 	float s = sin(theta);
@@ -87,7 +90,7 @@ void ImageOP::RotateImage(Image& img, float theta, Interpolation_Type interp_typ
 				double x_s = ((x - hc) * c - yx) + offsetx;
 				double y_s = ((x - hc) * s + yy) + offsety;
 
-				temp(x, y, ch) = Interpolator<Image>::InterpolatePixel(img, x_s, y_s, ch, interp_type);
+				temp(x, y, ch) = interpolator.InterpolatePixel(img, x_s, y_s, ch, interp_type);
 
 			}
 		}
@@ -96,9 +99,9 @@ void ImageOP::RotateImage(Image& img, float theta, Interpolation_Type interp_typ
 	img = std::move(temp);
 
 }
-template void ImageOP::RotateImage(Image8&, float, Interpolation_Type);
-template void ImageOP::RotateImage(Image16&, float, Interpolation_Type);
-template void ImageOP::RotateImage(Image32&, float, Interpolation_Type);
+template void ImageOP::RotateImage(Image8&, float, Interpolate);
+template void ImageOP::RotateImage(Image16&, float, Interpolate);
+template void ImageOP::RotateImage(Image32&, float, Interpolate);
 
 
 template<typename Image>
@@ -224,6 +227,8 @@ void ImageOP::Crop(Image32& img, int top, int bottom, int left, int right) {
 template<typename Image>
 void ImageOP::ImageResize_Bicubic(Image& img, int new_rows, int new_cols) {
 
+	Interpolator<Image> interpolator;
+
 	Image temp(new_rows, new_cols, img.Channels());
 
 	double ry = double(img.Rows()) / temp.Rows();
@@ -237,7 +242,7 @@ void ImageOP::ImageResize_Bicubic(Image& img, int new_rows, int new_cols) {
 			for (int x = 0; x < temp.Cols(); ++x) {
 				double x_s = x * rx;
 
-				temp(x, y, ch) = Interpolator<Image>::InterpolatePixel(img, x_s, y_s, ch, Interpolation_Type::Bicubic_Spline);
+				temp(x, y, ch) = interpolator.InterpolatePixel(img, x_s, y_s, ch, Interpolate::bicubic_spline);
 
 			}
 		}
