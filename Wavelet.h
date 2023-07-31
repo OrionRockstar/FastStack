@@ -77,8 +77,8 @@ private:
 	Wavelet(Image<T>& img) {
 		source = Image32(img.Rows(), img.Cols(), img.Channels());
 		img.CopyToFloat(source, true);
-		convolved = Image32(img.Rows(), img.Cols(), img.Channels());
-		wavelet = Image32(img.Rows(), img.Cols(), img.Channels());
+		convolved = Image32(source);
+		wavelet = Image32(source);
 	}
 
 	std::vector<float> GetScalingFunction(ScalingFunction sf);
@@ -93,8 +93,7 @@ private:
 
 	void MedianNoiseReduction(float threshold = 3, float amount = 1);
 
-	template<typename Image>
-	void TrinerizeImage(const Image& input, Image8& output, float threshold);
+	void TrinerizeImage(const Image32& input, Image8& output, float threshold);
 
 
 public:

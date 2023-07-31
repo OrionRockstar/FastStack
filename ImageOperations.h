@@ -35,6 +35,8 @@ namespace ImageOP {
 		int m_kernel_radius = (m_kernel_dim - 1) / 2;
 		std::vector<bool> m_kmask = std::vector<bool>(m_kernel_dim * m_kernel_dim, true);
 
+		float m_selection = 0.5;
+
 		template <typename T>
 		struct Kernel2D {
 			std::unique_ptr<T[]> data;
@@ -54,40 +56,42 @@ namespace ImageOP {
 				return data[el];
 			}
 
+			T& operator()(int x, int y) {
+				return data[x * m_dim + y];
+			}
+
 			int Size() const { return m_size; }
-			int Radius() const { return m_radius; }
-			int Dimension() const { return m_dim; }
 
-			void PopulateKernelCC(Image<T>& img, int y) {
+			void Populate(Image<T>& img, int y, int ch) {
 
-				for (int i = -Radius(), el = 0; i <= Radius(); ++i) {
+				for (int i = -m_radius, el = 0; i <= m_radius; ++i) {
 
-					for (int j = -Radius(); j <= Radius(); ++j) {
+					for (int j = -m_radius; j <= m_radius; ++j) {
 
-						data[el++] = img.MirrorEdgePixel(i, y + j, 0);
+						data[el++] = img.MirrorEdgePixel(i, y + j, ch);
 					}
 				}
 			}
 
-			void UpdateKernelCC(Image<T>& img, int x, int y) {
+			void Update(Image<T>& img, int x, int y, int ch) {
 
-				int xx = x + Radius();
+				int xx = x + m_radius;
 				if (xx >= img.Cols())
 					xx = 2 * img.Cols() - (xx + 1);
 
-				int n = Size() - Dimension();
+				int n = m_size - m_dim;
 
 				for (int el = 0; el < n; ++el)
-					data[el] = data[el + Dimension()];
+					data[el] = data[el + m_dim];
 
-				for (int j = -Radius(), el = n; j <= Radius(); ++j, ++el) {
+				for (int j = -m_radius, el = n; j <= m_radius; ++j, ++el) {
 
 					int yy = y + j;
 					if (yy < 0)
 						yy = -yy;
 					else if (yy >= img.Rows())
 						yy = 2 * img.Rows() - (yy + 1);
-					data[el] = img(xx, yy);
+					data[el] = img(xx, yy, ch);
 
 				}
 
@@ -96,7 +100,6 @@ namespace ImageOP {
 		};
 
 	public:
-
 		Morphology() = default;
 
 		Morphology(int kernel_dimension, bool circular = false) : m_kernel_dim(kernel_dimension) {
@@ -138,6 +141,21 @@ namespace ImageOP {
 			return locations;
 		}
 
+		template <typename T>
+		void FastMedian3x3(Image<T>& img);
+
+		template <typename T>
+		void FastMedian5x5(Image<T>& img);
+
+		template <typename T>
+		void FastMedian7x7(Image<T>& img);
+
+		template <typename T>
+		void FastMedian9x9(Image<T>& img);
+
+		template <typename T>
+		void FastMedian(Image<T>& img, int kernel_dim);
+
 	public:
 		template <typename T>
 		void Erosion(Image<T>& img);
@@ -151,34 +169,21 @@ namespace ImageOP {
 		template <typename T>
 		void Closing(Image<T>& img);
 
-		template<typename T>
+		template <typename T>
+		void Selection(Image<T>& img);
+
+		template <typename T>
 		void Median(Image<T>& img);
+
+		template <typename T>
+		void Midpoint(Image<T>& img);
 	};
 
 	template<typename Image>
 	extern void SobelEdge(Image& img);
 
 	template<typename T>
-	extern void MedianBlur(Image<T>& img, int kernel_dim);
-
-	template<typename T>
-	extern void MedianBlur(Image<T>& img, int kernel_dim, Image<T>& output);
-
-	template<typename T>
 	extern void BilateralFilter(Image<T>& img, float std_dev, float std_dev_range);
-
-
-	//void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator type);
-
-	//void ScaleImageStack(ImageVector& img_stack, ScaleEstimator type);
-
-
-	void STFImageStretch(Image32& img);
-
-	void ASinhStretch(Image32& img, float stretch_factor);
-
-	template<typename Image>
-	extern void HistogramTransformation(Image& img, float shadow = 0.0f, float midtone = 0.5f, float highlight = 1.0f);
 
 	template<typename Image>
 	extern void PowerofInvertedPixels(Image& img, float order, bool lightness_mask = true);

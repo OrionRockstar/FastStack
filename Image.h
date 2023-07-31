@@ -239,6 +239,12 @@ public:
 		m_imax_val = 1.0 / m_max_val;
 	}
 
+	Image(Image<T>& other, bool copy = false) {
+		*this = Image<T>(other.m_rows, other.m_cols, other.m_channels);
+		if (copy)
+			memcpy(this->data.get(), other.data.get(), other.m_total_image * sizeof(T));
+	}
+
 	Image() = default;
 
 	Image(const Image& other) {
@@ -567,6 +573,11 @@ public:
 	int Channels()const { return m_channels; }
 
 
+	template <typename P>
+	bool IsSameDim(Image<P>& other)const {
+		return(m_rows == other.Rows() && m_cols == other.Cols() && m_channels == other.Channels());
+	}
+
 	float Max(int channel_num = 0)const { return statistics[channel_num].max; }
 
 	float Min(int channel_num = 0)const { return statistics[channel_num].min; }
@@ -647,7 +658,7 @@ public:
 
 		m_red[el] = R * m_max_val;
 		m_green[el] = G * m_max_val;
-		m_blue[el] = B * m_imax_val;
+		m_blue[el] = B * m_max_val;
 	}
 
 	void ToRGBType(int el, double R, double G, double B) {
@@ -660,7 +671,7 @@ public:
 
 		m_red[el] = R * m_max_val;
 		m_green[el] = G * m_max_val;
-		m_blue[el] = B * m_imax_val;
+		m_blue[el] = B * m_max_val;
 	}
 
 
@@ -673,7 +684,6 @@ public:
 			double R, G, B;
 			ToRGBDouble(el, R, G, B);
 			data[el] = ToType(ColorSpace::CIEL(R, G, B));
-			//data[el] = ColorSpace::CIEL(m_red[el], m_green[el], m_blue[el]);
 		}
 		realloc(data.get(), m_total * sizeof(T));
 		m_channels = 1;
@@ -781,6 +791,10 @@ public:
 		if (dest.m_rows != m_rows || dest.m_bitdepth != m_bitdepth)
 			dest = Image<T>(m_rows, m_cols, m_channels);
 		memcpy(dest.data.get(), data.get(), m_total * m_channels * sizeof(T));
+	}
+
+	void MoveTo(Image& dest) {
+		dest = std::move(*this);
 	}
 
 	void CopyToFloat(Image<float>& dest, bool normalize = false) {

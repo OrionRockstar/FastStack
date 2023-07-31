@@ -157,8 +157,7 @@ void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 
 }
 
-template<typename Image>
-void Wavelet::TrinerizeImage(const Image& input, Image8& output, float threshold) {
+void Wavelet::TrinerizeImage(const Image32& input, Image8& output, float threshold) {
 
 	for (int el = 0; el < input.Total(); ++el)
 		output[el] = (input[el] >= threshold) ? 1 : 0;
@@ -169,9 +168,6 @@ void Wavelet::TrinerizeImage(const Image& input, Image8& output, float threshold
 				if (output(x - 1, y) != 0 && output(x + 1, y) != 0 && output(x, y - 1) != 0 && output(x, y + 1) != 0) output(x, y) = 2;
 
 }
-template void Wavelet::TrinerizeImage(const Image8&, Image8&, float);
-template void Wavelet::TrinerizeImage(const Image16&, Image8&, float);
-template void Wavelet::TrinerizeImage(const Image32&, Image8&, float);
 
 template<typename Image>
 void Wavelet::WaveletTransform(Image& img, std::vector<Image32>& wavelet_vector, ScalingFunction sf, int scale_num, bool residual) {
@@ -291,8 +287,8 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 
 	for (int i = 0; i < scale_num; ++i) {
 
-
-		ImageOP::MedianBlur(source, 2 * (i + 1) + 1, convolved);
+		source.CopyTo(convolved);
+		ImageOP::Morphology(2 * (i + 1) + 1).Median(convolved);
 		GetWaveletLayer();
 
 
@@ -325,11 +321,10 @@ void Wavelet::B3WaveletTransform_Trinerized(const Image32& img, Image8Vector& wa
 	if (source.Channels() == 3)
 		source.RGBtoGray();
 
-	//if (median_blur)
-		//ImageOP::MedianBlur(source, 3);
+	if (median_blur)
+		ImageOP::Morphology(3).Median(source);
 
 	convolved = Image32(img.Rows(), img.Cols());
-	source.CopyTo(convolved);
 	wavelet = Image32(img.Rows(), img.Cols());
 
 	for (int i = 0; i < scale_num; ++i) {

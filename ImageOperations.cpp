@@ -430,7 +430,7 @@ template<typename T>
 void ImageOP::Morphology::Erosion(Image<T>& img) {
 
 	int k_r = m_kernel_radius;
-	Image<T> temp(img.Rows(), img.Cols(), img.Channels());
+	Image<T> temp(img);
 
 	std::vector<int> locations = GetMaskedLocations();
 
@@ -439,12 +439,12 @@ void ImageOP::Morphology::Erosion(Image<T>& img) {
 		for (int y = 0; y < img.Rows(); ++y) {
 
 			Kernel2D<T> kernel(m_kernel_radius);
-			kernel.PopulateKernelCC(img, y);
+			kernel.Populate(img, y, ch);
 
 			for (int x = 0; x < img.Cols(); ++x) {
 
 				if (x != 0)
-					kernel.UpdateKernelCC(img, x, y);
+					kernel.Update(img, x, y, ch);
 
 				T min = std::numeric_limits<T>::max();
 				for (int el = 0; el < locations.size(); ++el)
@@ -456,7 +456,7 @@ void ImageOP::Morphology::Erosion(Image<T>& img) {
 		}
 	}
 
-	img = std::move(temp);
+	temp.MoveTo(img);
 }
 template void ImageOP::Morphology::Erosion(Image8&);
 template void ImageOP::Morphology::Erosion(Image16&);
@@ -466,7 +466,7 @@ template<typename T>
 void ImageOP::Morphology::Dialation(Image<T>& img) {
 
 	int k_r = m_kernel_radius;
-	Image<T> temp(img.Rows(), img.Cols(), img.Channels());
+	Image<T> temp(img);
 
 	std::vector<int> locations = GetMaskedLocations();
 
@@ -476,12 +476,12 @@ void ImageOP::Morphology::Dialation(Image<T>& img) {
 		for (int y = 0; y < img.Rows(); ++y) {
 
 			Kernel2D<T> kernel(m_kernel_radius);
-			kernel.PopulateKernelCC(img, y);
+			kernel.Populate(img, y, ch);
 
 			for (int x = 0; x < img.Cols(); ++x) {
 
 				if (x != 0)
-					kernel.UpdateKernelCC(img, x, y);
+					kernel.Update(img, x, y, ch);
 
 				T max = std::numeric_limits<T>::min();
 				for (int el = 0; el < locations.size(); ++el)
@@ -493,7 +493,7 @@ void ImageOP::Morphology::Dialation(Image<T>& img) {
 		}
 	}
 
-	img = std::move(temp);
+	temp.MoveTo(img);
 }
 template void ImageOP::Morphology::Dialation(Image8&);
 template void ImageOP::Morphology::Dialation(Image16&);
@@ -524,25 +524,68 @@ template void ImageOP::Morphology::Closing(Image16&);
 template void ImageOP::Morphology::Closing(Image32&);
 
 template <typename T>
-void ImageOP::Morphology::Median(Image<T>& img) {
+void ImageOP::Morphology::Selection(Image<T>& img) {
 
-	Image<T> temp(img.Rows(), img.Cols(), img.Channels());
+	int k_r = m_kernel_radius;
+	Image<T> temp(img);
 
 	std::vector<int> locations = GetMaskedLocations();
-
-	int half = locations.size() / 2;
+	int pivot = (m_selection == 1.0) ? locations.size() - 1 : locations.size() * m_selection;
 
 	for (int ch = 0; ch < img.Channels(); ++ch) {
 #pragma omp parallel for
 		for (int y = 0; y < img.Rows(); ++y) {
 
 			Kernel2D<T> kernel(m_kernel_radius);
-			kernel.PopulateKernelCC(img, y);
+			kernel.Populate(img, y, ch);
 
 			for (int x = 0; x < img.Cols(); ++x) {
 
 				if (x != 0)
-					kernel.UpdateKernelCC(img, x, y);
+					kernel.Update(img, x, y, ch);
+
+				std::vector<T> k(locations.size());
+
+				if (locations.size() == kernel.Size())
+					memcpy(&k[0], &kernel[0], sizeof(T) * kernel.Size());
+
+				else
+					for (int el = 0; el < k.size(); ++el)
+						k[el] = kernel[locations[el]];
+
+				std::nth_element(&k[0], &k[pivot], &k[locations.size()]);
+				temp(x, y, ch) = k[pivot];
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::Selection(Image8&);
+template void ImageOP::Morphology::Selection(Image16&);
+template void ImageOP::Morphology::Selection(Image32&);
+
+template <typename T>
+void ImageOP::Morphology::Median(Image<T>& img) {
+
+	std::vector<int> locations = GetMaskedLocations();
+	int half = locations.size() / 2;
+
+	if (locations.size() == m_kmask.size() && m_kernel_dim <= 9)
+		return FastMedian(img, m_kernel_dim);
+
+	Image<T> temp(img);
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+
+			Kernel2D<T> kernel(m_kernel_radius);
+			kernel.Populate(img, y, ch);
+
+			for (int x = 0; x < img.Cols(); ++x) {
+
+				if (x != 0)
+					kernel.Update(img, x, y, ch);
 
 				std::vector<T> k(locations.size());
 
@@ -554,13 +597,219 @@ void ImageOP::Morphology::Median(Image<T>& img) {
 						k[el] = kernel[locations[el]];
 
 				std::nth_element(&k[0], &k[half], &k[locations.size()]);
-				temp(x, y) = k[half];
+				temp(x, y, ch) = k[half];
 			}
 		}
 	}
-	img = std::move(temp);
+	temp.MoveTo(img);
 }
+template void ImageOP::Morphology::Median(Image8&);
+template void ImageOP::Morphology::Median(Image16&);
 template void ImageOP::Morphology::Median(Image32&);
+
+template<typename T>
+void ImageOP::Morphology::Midpoint(Image<T>& img) {
+
+	int k_r = m_kernel_radius;
+	Image<T> temp(img);
+
+	std::vector<int> locations = GetMaskedLocations();
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+
+			Kernel2D<T> kernel(m_kernel_radius);
+			kernel.Populate(img, y, ch);
+
+			for (int x = 0; x < img.Cols(); ++x) {
+
+				if (x != 0)
+					kernel.Update(img, x, y, ch);
+
+				T min = std::numeric_limits<T>::max();
+				T max = std::numeric_limits<T>::min();
+				for (int el = 0; el < locations.size(); ++el) {
+					if (kernel[locations[el]] < min)
+						min = kernel[locations[el]];
+
+					if (kernel[locations[el]] > max)
+						max = kernel[locations[el]];
+				}
+
+				temp(x, y, ch) = (0.5 * min + 0.5 * max);
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::Midpoint(Image8&);
+template void ImageOP::Morphology::Midpoint(Image16&);
+template void ImageOP::Morphology::Midpoint(Image32&);
+
+template <typename T>
+void ImageOP::Morphology::FastMedian3x3(Image<T>& img) {
+
+	Image<T> temp(img);
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+			for (int x = 0; x < img.Cols(); ++x) {
+				std::array<T, 9>kernel{ 0 };
+
+				kernel[0] = img.MirrorEdgePixel(x - 1, y - 1, ch);
+				kernel[1] = img.MirrorEdgePixel(x, y - 1, ch);
+				kernel[2] = img.MirrorEdgePixel(x + 1, y - 1, ch);
+
+				kernel[3] = img.MirrorEdgePixel(x - 1, y, ch);
+				kernel[4] = img(x, y, ch);
+				kernel[5] = img.MirrorEdgePixel(x + 1, y, ch);
+
+				kernel[6] = img.MirrorEdgePixel(x - 1, y + 1, ch);
+				kernel[7] = img.MirrorEdgePixel(x, y + 1, ch);
+				kernel[8] = img.MirrorEdgePixel(x + 1, y + 1, ch);
+
+				for (int r = 0; r < 3; ++r) {
+					for (int i = 0, j = 5; i < 4; ++i, ++j) {
+						if (kernel[i] > kernel[4])
+							std::swap(kernel[i], kernel[4]);
+						if (kernel[j] < kernel[4])
+							std::swap(kernel[j], kernel[4]);
+					}
+				}
+
+				temp(x, y, ch) = kernel[4];
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::FastMedian3x3(Image8&);
+template void ImageOP::Morphology::FastMedian3x3(Image16&);
+template void ImageOP::Morphology::FastMedian3x3(Image32&);
+
+template <typename T>
+void ImageOP::Morphology::FastMedian5x5(Image<T>& img) {
+	Image<T> temp(img);
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+			for (int x = 0; x < img.Cols(); ++x) {
+				std::array<T, 25>kernel{ 0 };
+
+				for (int j = -2, el = 0; j <= 2; ++j)
+					for (int i = -2; i <= 2; ++i)
+						kernel[el++] = img.MirrorEdgePixel(x + i, y + j, ch);
+
+				for (int r = 0; r < 5; ++r)
+					for (int i = 0, j = 13; i < 12; ++i, ++j) {
+						if (kernel[i] > kernel[12])
+							std::swap(kernel[i], kernel[12]);
+						if (kernel[j] < kernel[12])
+							std::swap(kernel[j], kernel[12]);
+					}
+
+				temp(x, y, ch) = kernel[12];
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::FastMedian5x5(Image8& img);
+template void ImageOP::Morphology::FastMedian5x5(Image8& img);
+template void ImageOP::Morphology::FastMedian5x5(Image8& img);
+
+template <typename T>
+void ImageOP::Morphology::FastMedian7x7(Image<T>& img) {
+
+	Image<T> temp(img);
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for
+		for (int y = 0; y < img.Rows(); ++y) {
+			for (int x = 0; x < img.Cols(); ++x) {
+				std::array<float, 49> kernel;
+
+				for (int j = -3, el = 0; j <= 3; ++j)
+					for (int i = -3; i <= 3; ++i)
+						kernel[el++] = img.MirrorEdgePixel(x + i, y + j, ch);
+
+				for (int r = 0; r < 7; ++r) {
+					for (int i = 0, j = 25; i < 24; ++i, ++j) {
+						if (kernel[i] > kernel[24])
+							std::swap(kernel[i], kernel[24]);
+						if (kernel[j] < kernel[24])
+							std::swap(kernel[j], kernel[24]);
+					}
+				}
+
+				temp(x, y, ch) = kernel[24];
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::FastMedian7x7(Image8& img);
+template void ImageOP::Morphology::FastMedian7x7(Image16& img);
+template void ImageOP::Morphology::FastMedian7x7(Image32& img);
+
+template <typename T>
+void ImageOP::Morphology::FastMedian9x9(Image<T>& img) {
+	Image<T> temp(img);
+
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+#pragma omp parallel for //private(kernel)
+		for (int y = 0; y < img.Rows(); ++y) {
+			Kernel2D<T> kernel(4);
+			kernel.Populate(img, y, ch);
+
+			for (int x = 0; x < img.Cols(); ++x) {
+
+				if (x != 0)
+					kernel.Update(img, x, y, ch);
+
+				std::vector<T> k(kernel.m_size);
+				memcpy(&k[0], &kernel[0], k.size() * sizeof(T));
+
+				for (int r = 0; r < 9; ++r) {
+					for (int i = 0, j = 41; i < 40; ++i, ++j) {
+						if (k[i] > k[40])
+							std::swap(k[i], k[40]);
+						if (k[j] < k[40])
+							std::swap(k[j], k[40]);
+					}
+				}
+
+				temp(x, y, ch) = k[40];
+			}
+		}
+	}
+	temp.MoveTo(img);
+}
+template void ImageOP::Morphology::FastMedian9x9(Image8& img);
+template void ImageOP::Morphology::FastMedian9x9(Image16& img);
+template void ImageOP::Morphology::FastMedian9x9(Image32& img);
+
+template <typename T>
+void ImageOP::Morphology::FastMedian(Image<T>& img, int kernel_dim) {
+	if (kernel_dim > 9 || kernel_dim % 2 == 0)
+		return;
+	switch (kernel_dim) {
+	case 3:
+		return FastMedian3x3(img);
+	case 5:
+		return FastMedian5x5(img);
+	case 7:
+		return FastMedian7x7(img);
+	case 9:
+		return FastMedian9x9(img);
+	}
+}
+template void ImageOP::Morphology::FastMedian(Image8&, int);
+template void ImageOP::Morphology::FastMedian(Image16&, int);
+template void ImageOP::Morphology::FastMedian(Image32&, int);
 
 
 template<typename Image>
@@ -601,272 +850,6 @@ void ImageOP::SobelEdge(Image& img) {
 template void ImageOP::SobelEdge(Image8&);
 template void ImageOP::SobelEdge(Image16&);
 template void ImageOP::SobelEdge(Image32&);
-
-template<typename T>
-static void MedianBlur3x3(Image<T>& img, Image<T>& output) {
-
-	std::array<T, 9>kernel{ 0 };
-
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for private(kernel)
-		for (int y = 0; y < img.Rows(); ++y) {
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				kernel[0] = img.MirrorEdgePixel(x - 1, y - 1, ch);
-				kernel[1] = img.MirrorEdgePixel(x, y - 1, ch);
-				kernel[2] = img.MirrorEdgePixel(x + 1, y - 1, ch);
-
-				kernel[3] = img.MirrorEdgePixel(x - 1, y, ch);
-				kernel[4] = img(x, y, ch);
-				kernel[5] = img.MirrorEdgePixel(x + 1, y, ch);
-
-				kernel[6] = img.MirrorEdgePixel(x - 1, y + 1, ch);
-				kernel[7] = img.MirrorEdgePixel(x, y + 1, ch);
-				kernel[8] = img.MirrorEdgePixel(x + 1, y + 1, ch);
-
-				for (int r = 0; r < 3; ++r) {
-					for (int i = 0, j = 5; i < 4; ++i, ++j) {
-						if (kernel[i] > kernel[4])
-							std::swap(kernel[i], kernel[4]);
-						if (kernel[j] < kernel[4])
-							std::swap(kernel[j], kernel[4]);
-					}
-				}
-
-				output(x, y) = kernel[4];//kernelmedian(kernel);
-			}
-		}
-	}
-}
-
-template<typename T>
-static void MedianBlur5x5(Image<T>& img, Image<T>& output) {
-
-	std::array<T, 25>kernel{ 0 };
-
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for private(kernel)
-		for (int y = 0; y < img.Rows(); ++y) {
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				for (int j = -2, el = 0; j <= 2; ++j)
-					for (int i = -2; i <= 2; ++i)
-						kernel[el++] = img.MirrorEdgePixel(x + i, y + j, ch);
-
-				for (int r = 0; r < 7; ++r)
-					for (int i = 0, j = 13; i < 12; ++i, ++j) {
-						if (kernel[i] > kernel[12])
-							std::swap(kernel[i], kernel[12]);
-						if (kernel[j] < kernel[12])
-							std::swap(kernel[j], kernel[12]);
-					}
-
-				output(x, y) = kernel[12];
-			}
-		}
-	}
-}
-
-template<typename T>
-static void MedianBlur7x7(Image<T>& img, Image<T>& output) {
-
-	std::array<float, 49>kernel{ 0 };
-
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for private(kernel)
-		for (int y = 0; y < img.Rows(); ++y) {
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				for (int j = -3, el = 0; j <= 3; ++j)
-					for (int i = -3; i <= 3; ++i)
-						kernel[el++] = img.MirrorEdgePixel(x + i, y + j, ch);
-
-				for (int r = 0; r < 7; ++r)
-					for (int i = 0, j = 25; i < 24; ++i, ++j) {
-						if (kernel[i] > kernel[24])
-							std::swap(kernel[i], kernel[24]);
-						if (kernel[j] < kernel[24])
-							std::swap(kernel[j], kernel[24]);
-					}
-				output(x, y) = kernel[24];
-			}
-		}
-	}
-}
-
-template<typename T>
-static void MedianBlur9x9(Image<T>& img, Image<T>& output) {
-
-	std::array<float, 81>kernel{ 0 };
-
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for private(kernel)
-		for (int y = 0; y < img.Rows(); ++y) {
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				for (int j = -4, el = 0; j <= 4; ++j)
-					for (int i = -4; i <= 4; ++i)
-						kernel[el++] = img.MirrorEdgePixel(x + i, y + j, ch);
-
-				for (int r = 0; r < 9; ++r)
-					for (int i = 0, j = 41; i < 40; ++i, ++j) {
-						if (kernel[i] > kernel[40])
-							std::swap(kernel[i], kernel[40]);
-						if (kernel[j] < kernel[40])
-							std::swap(kernel[j], kernel[40]);
-					}
-				output(x, y) = kernel[40];
-			}
-		}
-	}
-}
-
-template<typename T>
-static void MedianBlurAny(Image<T>& img, int kernel_dim, Image<T>& output) {
-
-	struct Kernel2D {
-		std::unique_ptr<T[]> data;
-		int m_dim = 0;
-		int m_radius = 0;
-		int m_size = 0;
-
-		Kernel2D(int radius) : m_radius(radius) {
-			m_dim = 2 * m_radius + 1;
-			m_size = m_dim * m_dim;
-			data = std::make_unique<T[]>(m_size);
-		}
-
-		~Kernel2D() {};
-
-		T& operator[](int el) {
-			return data[el];
-		}
-
-		int Size() const { return m_size; }
-		int Radius() const { return m_radius; }
-		int Dimension() const { return m_dim; }
-
-		void PopulateKernelCC(Image<T>& img, int y) {
-
-			for (int i = -Radius(), el = 0; i <= Radius(); ++i) {
-
-				for (int j = -Radius(); j <= Radius(); ++j) {
-
-					data[el++] = img.MirrorEdgePixel(i, y + j, 0);
-				}
-			}
-		}
-
-		void UpdateKernelCC(Image<T>& img, int x, int y) {
-
-			int xx = x + Radius();
-			if (xx >= img.Cols())
-				xx = 2 * img.Cols() - (xx + 1);
-
-			int n = Size() - Dimension();
-
-			for (int el = 0; el < n; ++el)
-				data[el] = data[el + Dimension()];
-
-			for (int j = -Radius(), el = n; j <= Radius(); ++j, ++el) {
-
-				int yy = y + j;
-				if (yy < 0)
-					yy = -yy;
-				else if (yy >= img.Rows())
-					yy = 2 * img.Rows() - (yy + 1);
-				data[el] = img(xx, yy);
-
-			}
-
-		}
-
-	};
-
-	int kernel_radius = (kernel_dim - 1) / 2;
-
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y) {
-			Kernel2D kernel(kernel_radius);
-			kernel.PopulateKernelCC(img, y);
-
-			for (int x = 0; x < img.Cols(); ++x) {
-
-				if (x != 0)
-					kernel.UpdateKernelCC(img, x, y);
-
-				std::vector<T> k(kernel.m_size);
-				memcpy(&k[0], &kernel[0], k.size() * sizeof(T));
-				auto mid = k.begin() + k.size() / 2;
-				std::nth_element(k.begin(), mid, k.end());
-
-				output(x, y, ch) = *mid;//kernelmedian(kernel);
-			}
-		}
-	}
-}
-
-template<typename T>
-void ImageOP::MedianBlur(Image<T>& img, int kernel_dim) {
-	assert(kernel_dim != 1 && kernel_dim % 2 == 1);
-
-	Image<T> output(img.Rows(), img.Cols(), img.Channels());
-	switch (kernel_dim) {
-	case 3:
-		MedianBlur3x3(img, output);
-		goto move;
-	case 5:
-		MedianBlur5x5(img, output);
-		goto move;
-	case 7:
-		MedianBlur7x7(img, output);
-		goto move;
-	case 9:
-		MedianBlur9x9(img, output);
-		goto move;
-	default:
-		MedianBlurAny(img, kernel_dim, output);
-		goto move;
-	}
-move:
-	img = std::move(output);
-}
-template void ImageOP::MedianBlur(Image8&, int);
-template void ImageOP::MedianBlur(Image16&, int);
-template void ImageOP::MedianBlur(Image32&, int);
-
-template<typename T>
-void ImageOP::MedianBlur(Image<T>& img, int kernel_dim, Image<T>& output) {
-	assert(kernel_dim != 1 && kernel_dim % 2 == 1);
-
-	if (output.data == img.data)
-		return MedianBlur(img, kernel_dim);
-
-	if (!output.Matches(img))
-		output = Image<T>(img.Rows(), img.Cols(), img.Channels());
-
-	switch (kernel_dim) {
-	case 3:
-		MedianBlur3x3(img, output);
-		return;
-	case 5:
-		MedianBlur5x5(img, output);
-		return;
-	case 7:
-		MedianBlur7x7(img, output);
-		return;
-	case 9:
-		MedianBlur9x9(img, output);
-		return;
-	default:
-		MedianBlurAny(img, kernel_dim, output);
-		return;
-	}
-}
-template void ImageOP::MedianBlur(Image8&, int, Image8&);
-template void ImageOP::MedianBlur(Image16&, int, Image16&);
-template void ImageOP::MedianBlur(Image32&, int, Image32&);
 
 template<typename T>
 void ImageOP::BilateralFilter(Image<T>& img, float std_dev, float std_dev_range) {
@@ -988,96 +971,6 @@ void ImageOP::BilateralFilter(Image<T>& img, float std_dev, float std_dev_range)
 template void ImageOP::BilateralFilter(Image8&, float, float);
 template void ImageOP::BilateralFilter(Image16&, float, float);
 template void ImageOP::BilateralFilter(Image32&, float, float);
-
-
-
-void ImageOP::ASinhStretch(Image32& img, float stretch_factor) {
-
-	std::vector<int> hist(65536);
-
-	for (const auto& pixel : img)
-		hist[pixel * 65535]++;
-
-	int sum = 0;
-	int i = 0;
-
-	while (sum < img.TotalImage() * .02) {
-		sum += hist[i];
-		++i;
-	}
-
-	float blackpoint = i / 65535.0f;
-	float low = 0,
-		high = 10000,
-		mid;
-
-	for (int i = 0; i < 20; i++)
-	{
-		mid = (low + high) / 2;
-		float multiplier_mid = mid / asinh(mid);
-		(stretch_factor <= multiplier_mid) ? high = mid : low = mid;
-	}
-
-	float beta = mid;
-	float asinhb = asinh(beta);
-
-	if (img.Channels() == 1) {
-		img.ComputeMax();
-		float max = img.Max();
-		for (auto& pixel : img) {
-			float r = (pixel - blackpoint) / (max - blackpoint);
-			//float k = (r != 0) ? asinh(beta * r) / (r * asinhb) : 0;
-			//pixel = ClipPixel(r * k);
-
-			pixel = img.ClipPixel((r != 0) ? asinh(r * beta) / asinhb : 0);
-		}
-	}
-
-	bool srbg = false;
-	if (img.Channels() == 3) {
-
-		float max = img.Max();
-		std::array<float, 3> color = { 0.333333f, 0.333333f, 0.333333f };
-		if (srbg) color = { 0.222491f, 0.716888f, 0.060621f };
-
-		for (int y = 0; y < img.Rows(); ++y)
-			for (int x = 0; x < img.Cols(); ++x) {
-				float I = ((color[0] * img.RedPixel(x, y) + color[1] * img.GreenPixel(x, y) + color[2] * img.BluePixel(x, y)) - blackpoint) / (max - blackpoint);
-				float k = (I != 0) ? asinh(beta * I) / (I * asinhb) : 0;
-
-				img.RedPixel(x, y) = img.ClipPixel(((img.RedPixel(x, y) - blackpoint) / (max - blackpoint)) * k);
-				img.GreenPixel(x, y) = img.ClipPixel(((img.GreenPixel(x, y) - blackpoint) / (max - blackpoint)) * k);
-				img.BluePixel(x, y) = img.ClipPixel(((img.BluePixel(x, y) - blackpoint) / (max - blackpoint)) * k);
-			}
-	}
-
-}
-
-template<typename Image>
-void ImageOP::HistogramTransformation(Image& img, float shadow, float midtone, float highlight) {
-	assert(highlight > shadow && 0.0 < midtone && midtone < 1.0f);
-
-	float m1 = midtone - 1, m2 = (2 * midtone) - 1;
-	float s = 1.0f / (highlight - shadow);
-
-	for (auto& pixel : img) {
-
-		pixel = (pixel - shadow) * s;
-
-		if (pixel <= 0.0f) pixel = 0.0f;
-
-		else if (pixel > 1.0f) pixel = 1.0f;
-
-		else if (pixel == midtone)  pixel = 0.5f;
-
-		else
-			pixel = (m1 * pixel) / ((m2 * pixel) - midtone);
-
-	}
-}
-template void ImageOP::HistogramTransformation(Image8&, float, float, float);
-template void ImageOP::HistogramTransformation(Image16&, float, float, float);
-template void ImageOP::HistogramTransformation(Image32&, float, float, float);
 
 template<typename Image>
 void ImageOP::PowerofInvertedPixels(Image& img, float order, bool lightness_mask) {
