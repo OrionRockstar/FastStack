@@ -1,5 +1,5 @@
+#include "pch.h"
 #include "HistogramTransformation.h"
-#include <omp.h>
 
 HistogramTransformation::HistogramTransformation(Component component, float shadow, float midtone, float highlight) {
 	using enum Component;

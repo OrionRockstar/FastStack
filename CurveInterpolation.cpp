@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "CurveInterpolation.h"
 #include "Matrix.h"
 

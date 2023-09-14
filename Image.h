@@ -106,6 +106,7 @@ struct Histogram {
 	//builds mad histogram
 	template<typename Image>
 	Histogram(Image& img, int ch, float median, bool clip = false) {
+
 		if (Image::is_uint8()) {
 			histogram = std::make_unique<uint32_t[]>(256);
 			m_size = 256;
@@ -132,6 +133,7 @@ struct Histogram {
 		}
 
 		if (Image::is_float()) {
+
 			histogram = std::make_unique<uint32_t[]>(65536);
 			m_size = 65536;
 
@@ -144,7 +146,7 @@ struct Histogram {
 		}
 	}
 
-	//computes and returns median
+	//computes and returns 8/16 bit median
 	float Median(bool clip = false) {
 		int occurrences = 0;
 		int median1 = 0, median2 = 0;
@@ -1049,7 +1051,7 @@ public:
 
 	T ComputeMedian(int ch, bool clip = false) {
 		Histogram hist(*this, ch);
-		return statistics[ch].median = hist.Median(clip);
+		return statistics[ch].median = hist.Median(clip) / ((is_float()) ? 65535.0 : 1);
 	}
 
 	void ComputeMedian(bool clip = false) {
@@ -1110,11 +1112,9 @@ public:
 
 
 	T ComputeMAD(int ch, bool clip = false) {
-
 		T median = ComputeMedian(ch, clip);
-
 		Histogram histogram((*this), ch, median, clip);
-		return statistics[ch].mad = histogram.Median();
+		return statistics[ch].mad = histogram.Median() / ((is_float()) ? 65535.0 : 1);
 	}
 
 	void ComputeMAD(bool clip = false) {
@@ -1271,7 +1271,7 @@ namespace FileOP {
 
 	void TiffRead(std::filesystem::path file, Image32& img);
 
-	bool FitsRead(const std::filesystem::path& file, Image32& img);
+	bool FitsRead(const std::filesystem::path file, Image32& img);
 
 	//void XISFRead(std::string file, Image32& img);
 

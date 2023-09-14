@@ -1,6 +1,6 @@
+#include "pch.h"
 #include "StarDetector.h"
 #include "Maths.h"
-#include <array>
 #include "Matrix.h"
 #include "Wavelet.h"
 

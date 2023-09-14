@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "ImageStacking.h"
 
 void ImageStacking::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator scale_est) {

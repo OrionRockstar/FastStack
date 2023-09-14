@@ -1,9 +1,5 @@
+#include "pch.h"
 #include "Image.h"
-#include "tiffio.h"
-#include "cfitsio/fitsio.h"
-#include <array>
-#include <fstream>
-
 
 bool StatsTextExists(const std::filesystem::path& file_path) {
 	auto temp = file_path;
@@ -74,7 +70,7 @@ void FileOP::TiffRead(std::filesystem::path file, Image32& img) {
 	}
 }
 
-bool FileOP::FitsRead(const std::filesystem::path& file, Image32& img) {
+bool FileOP::FitsRead(const std::filesystem::path file, Image32& img) {
 
 	fitsfile* fptr;
 	int status = 0;

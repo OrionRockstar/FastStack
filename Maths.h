@@ -1,7 +1,15 @@
 #pragma once
+#include "pch.h"
 
-#include <cmath>
-#include <algorithm>
+inline std::chrono::steady_clock::time_point GetTimePoint() {
+    return std::chrono::high_resolution_clock().now();
+}
+
+inline void DisplayTimeDuration(std::chrono::steady_clock::time_point start_point) {
+    float dt = std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock().now() - start_point).count();
+    std::cout << ((dt > 1000) ? dt / 1000 : dt)
+        << ((dt > 1000) ? "s" : "ms") << "\n";
+}
 
 inline double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
@@ -12,6 +20,14 @@ T Max(T a, T b) { return (a > b) ? a : b; }
 
 template<typename T>
 T Min(T a, T b) { return (a < b) ? a : b; }
+
+inline int Clip(int val, int low = 0, int high = 10) {
+    if (val > high)
+        return high;
+    else if (val < low)
+        return low;
+    return val;
+}
 
 inline float Clip(float val, float low = 0.0, float high = 1.0) {
     if (val > high)

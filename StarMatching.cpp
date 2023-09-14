@@ -1,7 +1,6 @@
+#include "pch.h"
 #include "StarMatching.h"
 #include "Maths.h"
-#include <array>
-#include "omp.h"
 
 StarMatching::TriangleVector StarMatching::TriangleComputation(const StarVector& star_vector)
 {

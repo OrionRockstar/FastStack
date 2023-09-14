@@ -1,5 +1,5 @@
+#include "pch.h"
 #include "FastStack.h"
-#include <QtWidgets/QApplication>
 
 int main(int argc, char *argv[])
 {

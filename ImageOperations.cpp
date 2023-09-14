@@ -1,9 +1,10 @@
+#include "pch.h"
 #include "ImageOperations.h"
 
 void ImageOP::AlignFrame(Image32& img, Matrix& homography, Interpolate interp_type) {
 	Interpolator<Image32> interpolator;
 
-	Image32 temp(img.Rows(), img.Cols(), img.Channels());
+	Image32 temp(img);
 	temp.homography = img.homography;
 
 	for (int ch = 0; ch < img.Channels(); ++ch) {
@@ -22,7 +23,7 @@ void ImageOP::AlignFrame(Image32& img, Matrix& homography, Interpolate interp_ty
 		}
 	}
 
-	img = std::move(temp);
+	temp.MoveTo(img);
 	img.ComputeStatistics(true);
 }
 
@@ -30,7 +31,7 @@ void ImageOP::AlignedStats(Image32& img, Matrix& homography, Interpolate interp_
 
 	Interpolator<Image32> interpolator;
 
-	Image32 temp(img.Rows(), img.Cols(), img.Channels());
+	Image32 temp(img);
 
 	for (int ch = 0; ch < img.Channels(); ++ch) {
 #pragma omp parallel for
@@ -96,8 +97,7 @@ void ImageOP::RotateImage(Image& img, float theta, Interpolate interp_type) {
 		}
 	}
 
-	img = std::move(temp);
-
+	temp.MoveTo(img);
 }
 template void ImageOP::RotateImage(Image8&, float, Interpolate);
 template void ImageOP::RotateImage(Image16&, float, Interpolate);
@@ -116,6 +116,7 @@ public:
 
 		int offsetx = hc - (temp.Cols() - img.Cols()) / 2 - hr;
 		int offsety = hr - (temp.Rows() - img.Rows()) / 2 + hc - 1;
+
 
 		for (int y = 0; y < temp.Rows(); ++y) {
 			int x_s = y - offsetx;

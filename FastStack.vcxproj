@@ -32,12 +32,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.2.4_msvc2019_64</QtInstall>
     <QtModules>core;gui;widgets</QtModules>
-    <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.2.4_msvc2019_64</QtInstall>
     <QtModules>core;gui;widgets</QtModules>
-    <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
     <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
@@ -56,12 +54,17 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <OpenMPSupport>true</OpenMPSupport>
+      <MinimalRebuild>false</MinimalRebuild>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -70,6 +73,8 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <OpenMPSupport>true</OpenMPSupport>
       <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <QtRcc />
   </ItemDefinitionGroup>
@@ -78,7 +83,7 @@
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <Optimization>Disabled</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -95,20 +100,27 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Bitmap.cpp" />
     <ClCompile Include="CurveInterpolation.cpp" />
     <ClCompile Include="CurvesTransformation.cpp" />
     <ClCompile Include="Drizzle.cpp" />
+    <ClCompile Include="MenuBar.cpp" />
     <ClCompile Include="HistogramTransformation.cpp" />
     <ClCompile Include="Homography.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="ImageOperations.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
+    <ClCompile Include="ImageWindow.cpp" />
     <ClCompile Include="Matrix.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="StarDetector.cpp" />
     <ClCompile Include="StarMatching.cpp" />
     <ClCompile Include="Wavelet.cpp" />
@@ -117,20 +129,26 @@
     <QtMoc Include="FastStack.h" />
     <ClCompile Include="FastStack.cpp" />
     <ClCompile Include="main.cpp" />
+    <QtUic Include="ImageWindow.ui" />
+    <QtUic Include="MenuBar.ui" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Bitmap.h" />
     <ClInclude Include="CurveInterpolation.h" />
     <ClInclude Include="CurvesTransformation.h" />
     <ClInclude Include="Drizzle.h" />
+    <QtMoc Include="MenuBar.h" />
     <ClInclude Include="GaussianFilter.h" />
     <ClInclude Include="HistogramTransformation.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageOperations.h" />
     <ClInclude Include="ImageStacking.h" />
+    <QtMoc Include="ImageWindow.h" />
     <ClInclude Include="Interpolator.h" />
     <ClInclude Include="Maths.h" />
     <ClInclude Include="Matrix.h" />
+    <ClInclude Include="pch.h" />
     <ClInclude Include="RGBColorSpace.h" />
     <ClInclude Include="Star.h" />
     <ClInclude Include="StarDetector.h" />

@@ -1,4 +1,5 @@
 #pragma once
+#include "pch.h"
 #include "Image.h"
 #include "CurveInterpolation.h"
 #include "Maths.h"

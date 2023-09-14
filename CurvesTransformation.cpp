@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "CurvesTransformation.h"
 
 CurveTransform::CurveTransform(CurveComponent comp, Pointsf& vec, CurveType curve) {

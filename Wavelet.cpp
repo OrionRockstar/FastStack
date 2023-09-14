@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "Wavelet.h"
 
 float Wavelet::Histogram::Median(bool mad) {

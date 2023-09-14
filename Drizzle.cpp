@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "Drizzle.h"
 
 float Drizzle::AddPixel(float inp, float out, float area, int pix_weight) {
