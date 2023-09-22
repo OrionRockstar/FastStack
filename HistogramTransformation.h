@@ -20,6 +20,8 @@ class HistogramTransformation {
 		float m2 = 2 * m_midtone - 1;
 		float dv = 1.0 / (m_highlights - m_shadow);
 
+		std::vector<uint16_t> m_lut;
+
 		HistogramCurve(float shadow, float midtone, float highlight) : m_shadow(shadow), m_midtone(midtone), m_highlights(highlight) {}
 
 		HistogramCurve() = default;
@@ -42,10 +44,6 @@ class HistogramTransformation {
 			dv = 1.0 / (m_highlights - m_shadow);
 		}
 
-		float ScalePixel(float pixel) {
-			return (pixel - m_shadow) * dv;
-		}
-
 		float MTF(float pixel) {
 
 			if (pixel <= 0.0f) return 0;
@@ -64,6 +62,21 @@ class HistogramTransformation {
 			return MTF(pixel);
 		}
 
+
+		void Generate16Bit_LUT() {
+			m_lut.resize(65536);
+			for (int el = 0; el < 65536; ++el)
+				m_lut[el] = TransformPixel(el / 65535.0f) * 65535;
+		}
+
+		void Generate8Bit_LUT() {
+			m_lut.resize(256);
+			for (int el = 0; el < 256; ++el)
+				m_lut[el] = TransformPixel(el / 255.0f) * 255;
+		}
+
+		template <typename Image>
+		void ApplyChannel(Image& img, int ch);
 	};
 
 	HistogramCurve Red;

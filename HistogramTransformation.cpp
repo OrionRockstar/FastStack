@@ -1,6 +1,28 @@
 #include "pch.h"
 #include "HistogramTransformation.h"
 
+template <typename Image>
+void HistogramTransformation::HistogramCurve::ApplyChannel(Image& img, int ch) {
+	if (img.is_float())
+
+		for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+			*pixel = TransformPixel(*pixel);
+
+	else {
+		if (img.is_uint8())
+			Generate8Bit_LUT();
+
+		if (img.is_uint16())
+			Generate16Bit_LUT();
+
+		for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+			*pixel = m_lut[*pixel];
+	}
+}
+template void HistogramTransformation::HistogramCurve::ApplyChannel(Image8&, int);
+template void HistogramTransformation::HistogramCurve::ApplyChannel(Image16&, int);
+template void HistogramTransformation::HistogramCurve::ApplyChannel(Image32&, int);
+
 HistogramTransformation::HistogramTransformation(Component component, float shadow, float midtone, float highlight) {
 	using enum Component;
 	switch (component) {
@@ -96,65 +118,36 @@ template<typename Image>
 void HistogramTransformation::Apply(Image& img) {
 
 	if (!RGB_K.IsIdentity()) {
-		if (img.Channels() == 1)
+
+		if (img.is_float())
 			for (auto& pixel : img)
-				pixel = img.ToType(RGB_K.TransformPixel(img.ToFloat(pixel)));
+				pixel = RGB_K.TransformPixel(pixel);
 
 		else {
-			int num = (omp_get_max_threads() > 2) ? 2 : omp_get_max_threads();
-#pragma omp parallel for num_threads(num)
-			for (int el = 0; el < img.Total(); ++el) {
+			if (img.is_uint8())
+				RGB_K.Generate8Bit_LUT();
 
-				float R, G, B;
-				img.ToRGBFloat(el, R, G, B);
+			if (img.is_uint16())
+				RGB_K.Generate16Bit_LUT();
 
-				R = RGB_K.TransformPixel(R);
-				G = RGB_K.TransformPixel(G);
-				B = RGB_K.TransformPixel(B);
-
-				img.ToRGBType(el, R, G, B);
-			}
+			for (auto& pixel : img)
+				pixel = RGB_K.m_lut[pixel];
 		}
+
 	}
 
 	if (img.Channels() == 1)
 		return;
 
+	if (!Red.IsIdentity())
+		Red.ApplyChannel(img, 0);
 
-	if (!Red.IsIdentity() && Green.IsIdentity() && Blue.IsIdentity()) {
-		for (auto pixel = img.begin(0); pixel != img.end(0); ++pixel)
-			*pixel = img.ToType(Red.TransformPixel(img.ToFloat(*pixel)));
-		return;
-	}
+	if (!Green.IsIdentity())
+		Green.ApplyChannel(img, 1);
 
-	else if (!Green.IsIdentity() && Red.IsIdentity() && Blue.IsIdentity()) {
-		for (auto pixel = img.begin(1); pixel != img.end(1); ++pixel)
-			*pixel = img.ToType(Green.TransformPixel(img.ToFloat(*pixel)));
-		return;
-	}
+	if (!Blue.IsIdentity())
+		Blue.ApplyChannel(img, 2);
 
-	else if (!Blue.IsIdentity() && Red.IsIdentity() && Green.IsIdentity()) {
-		for (auto pixel = img.begin(2); pixel != img.end(2); ++pixel)
-			*pixel = img.ToType(Blue.TransformPixel(img.ToFloat(*pixel)));
-		return;
-	}
-
-	else if (!Blue.IsIdentity() || !Red.IsIdentity() || !Green.IsIdentity()) {
-
-		int num = (omp_get_max_threads() > 2) ? 2 : omp_get_max_threads();
-#pragma omp parallel for num_threads(num)
-		for (int el = 0; el < img.Total(); ++el) {
-
-			float R, G, B;
-			img.ToRGBFloat(el, R, G, B);
-
-			R = Red.TransformPixel(R);
-			G = Green.TransformPixel(G);
-			B = Blue.TransformPixel(B);
-
-			img.ToRGBType(el, R, G, B);
-		}
-	}
 }
 template void HistogramTransformation::Apply(Image8&);
 template void HistogramTransformation::Apply(Image16&);
