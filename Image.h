@@ -26,77 +26,57 @@ struct Histogram {
 
 	//buids full image histogramogram
 	template<typename Image>
-	Histogram(Image& img, bool empty = false) {
-		if (Image::is_uint8()) {
-			histogram = std::make_unique<uint32_t[]>(256);
-			m_size = 256;
-			if (empty)
-				return;
+	Histogram(Image& img) {
 
-			for (auto pixel : img) {
+		m_count = img.TotalPxCount();
+
+		if (Image::is_uint16() || Image::is_uint8()) {
+
+			m_size = (Image::is_uint16()) ? 65536 : 256;
+
+			histogram = std::make_unique<uint32_t[]>(m_size);
+
+			for (auto pixel : img)
 				histogram[pixel]++;
-				m_count++;
-			}
-			return;
-		}
 
-		if (Image::is_uint16()) {
-			histogram = std::make_unique<uint32_t[]>(65536);
-			m_size = 65536;
-			if (empty)
-				return;
-
-			for (auto pixel : img) {
-				histogram[pixel]++;
-				m_count++;
-			}
 			return;
 		}
 
 		if (Image::is_float()) {
-			histogram = std::make_unique<uint32_t[]>(65536);
 			m_size = 65536;
+			histogram = std::make_unique<uint32_t[]>(m_size);
 
-			if (empty)
-				return;
-			for (auto pixel : img) {
+			for (auto pixel : img)
 				histogram[pixel * 65535]++;
-				m_count++;
-			}
+
 		}
 	}
 
 	//builds histogram on per channel basis
 	template<typename Image>
 	Histogram(Image& img, int ch) {
-		if (Image::is_uint8()) {
-			histogram = std::make_unique<uint32_t[]>(256);
-			m_size = 256;
-			m_count = img.Total();
 
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
-				histogram[*pixel]++;
+		m_count = img.PxCount();
 
-			return;
-		}
+		if (Image::is_uint16() || Image::is_uint8()) {
 
-		if (Image::is_uint16()) {
-			histogram = std::make_unique<uint32_t[]>(65536);
-			m_size = 65536;
-			m_count = img.Total();
+			m_size = (Image::is_uint16()) ? 65536 : 256;
 
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+			histogram = std::make_unique<uint32_t[]>(m_size);
+
+			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel)
 				histogram[*pixel]++;
 
 			return;
 		}
 
 		if (Image::is_float()) {
-			histogram = std::make_unique<uint32_t[]>(65536);
-			m_size = 65536;
-			m_count = img.Total();
 
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
+			m_size = 65536;
+
+			histogram = std::make_unique<uint32_t[]>(m_size);
+
+			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel)
 				histogram[*pixel * 65535]++;
 
 			return;
@@ -107,23 +87,13 @@ struct Histogram {
 	template<typename Image>
 	Histogram(Image& img, int ch, float median, bool clip = false) {
 
-		if (Image::is_uint8()) {
-			histogram = std::make_unique<uint32_t[]>(256);
-			m_size = 256;
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
-				if (clip && img.IsClippedVal(*pixel))
-					continue;
-				histogram[abs(*pixel - median)]++;
-				m_count++;
-			}
-			return;
-		}
+		if (Image::is_uint16() || Image::is_uint8()) {
 
-		if (Image::is_uint16()) {
-			histogram = std::make_unique<uint32_t[]>(65536);
-			m_size = 65536;
+			m_size = (Image::is_uint16()) ? 65536 : 256;
 
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
+			histogram = std::make_unique<uint32_t[]>(m_size);
+
+			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel) {
 				if (clip && img.IsClippedVal(*pixel))
 					continue;
 				histogram[abs(*pixel - median)]++;
@@ -133,11 +103,10 @@ struct Histogram {
 		}
 
 		if (Image::is_float()) {
-
 			histogram = std::make_unique<uint32_t[]>(65536);
 			m_size = 65536;
 
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
+			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel) {
 				if (clip && img.IsClippedVal(*pixel))
 					continue;
 				histogram[abs(*pixel - median) * 65535]++;
@@ -197,20 +166,75 @@ struct Histogram {
 	}
 };
 
+class Pixel {
+public:
+	static double toDouble(uint8_t pixel) {
+		return double(pixel) / 255;
+	}
+
+	static double toDouble(uint16_t pixel) {
+		return double(pixel) / 65535;
+	}
+
+	static double toDouble(float pixel) {
+		return double(pixel);
+	}
+
+	static void fromDouble(double pixel, uint8_t& a) {
+		a = uint8_t(pixel * 255);
+	}
+
+	static void fromDouble(double pixel, uint16_t& a) {
+		a = uint16_t(pixel * 65535);
+	}
+
+	static void fromDouble(double pixel, float& a) {
+		a = float(pixel);
+	}
+
+
+	static float toFloat(uint8_t pixel) {
+		return float(pixel) / 255;
+	}
+
+	static float toFloat(uint16_t pixel) {
+		return float(pixel) / 65535;
+	}
+
+	static float toFloat(float pixel) {
+		return pixel;
+	}
+
+	static void fromFloat(float pixel, uint8_t& a) {
+		a = uint8_t(pixel * 255);
+	}
+
+	static void fromFloat(float pixel, uint16_t& a) {
+		a = uint16_t(pixel * 65535);
+	}
+
+	static void fromFloat(float pixel, float& a) {
+		a = float(pixel);
+	}
+};
+
+
 template <typename T>
 class Image {
 private:
 	int m_rows = 0;
 	int m_cols = 0;
 	int m_channels = 0;
+	int m_pixel_count = m_rows * m_cols;
+	int m_total_pixel_count = m_pixel_count * m_channels;
+
 	int m_total = m_rows * m_cols;
 	int m_total_image = m_total * m_channels;
-	uint16_t m_bitdepth = 0;
+	int16_t m_bitdepth = 0;
 
 	std::vector<Stats> statistics;
 
 	T m_max_val = 1;
-	float m_imax_val = 1;
 
 	T* m_red = nullptr;
 	T* m_green = nullptr;
@@ -238,7 +262,6 @@ public:
 			statistics.resize(1, Stats());
 
 		m_max_val = (m_bitdepth == 32) ? 1 : std::numeric_limits<T>::max();
-		m_imax_val = 1.0 / m_max_val;
 	}
 
 	Image(Image<T>& other, bool copy = false) {
@@ -255,12 +278,14 @@ public:
 		m_channels = other.m_channels;
 
 		m_bitdepth = other.m_bitdepth;
+		m_pixel_count = other.m_pixel_count;
+		m_total_pixel_count = other.m_total_pixel_count;
+
 		m_total = other.m_total;
 		m_total_image = other.m_total_image;
 		statistics = other.statistics;
 
 		m_max_val = other.m_max_val;
-		m_imax_val = other.m_imax_val;
 
 		m_red = other.m_red;
 		m_green = other.m_green;
@@ -278,12 +303,14 @@ public:
 		m_channels = other.m_channels;
 
 		m_bitdepth = other.m_bitdepth;
+		m_pixel_count = other.m_pixel_count;
+		m_total_pixel_count = other.m_total_pixel_count;
+
 		m_total = other.m_total;
 		m_total_image = other.m_total_image;
 		statistics = std::move(other.statistics);
 
 		m_max_val = other.m_max_val;
-		m_imax_val = other.m_imax_val;
 
 		m_red = other.m_red;
 		m_green = other.m_green;
@@ -435,6 +462,8 @@ public:
 			m_channels = other.m_channels;
 
 			m_bitdepth = other.m_bitdepth;
+			m_pixel_count = other.m_pixel_count;
+			m_total_pixel_count = other.m_total_pixel_count;
 			m_total = other.m_total;
 			m_total_image = other.m_total_image;
 
@@ -563,6 +592,11 @@ public:
 		return (m_rows == other.Rows() && m_cols == other.Cols() && m_channels == other.Channels() && m_bitdepth == other.Bitdepth());
 	}
 
+	template <typename P>
+	bool IsSameDim(Image<P>& other)const {
+		return(m_rows == other.Rows() && m_cols == other.Cols() && m_channels == other.Channels());
+	}
+
 
 	int Rows()const { return m_rows; }
 
@@ -570,124 +604,94 @@ public:
 
 	int Total()const { return m_total; }
 
+	int PxCount()const noexcept { return m_pixel_count; }
+
+	int TotalPxCount()const noexcept { return m_total_pixel_count; }
+
 	int TotalImage()const { return m_total_image; }
 
 	int Channels()const { return m_channels; }
 
+	int16_t Bitdepth()const noexcept { return m_bitdepth; }
 
-	template <typename P>
-	bool IsSameDim(Image<P>& other)const {
-		return(m_rows == other.Rows() && m_cols == other.Cols() && m_channels == other.Channels());
-	}
-
-	float Max(int channel_num = 0)const { return statistics[channel_num].max; }
-
-	float Min(int channel_num = 0)const { return statistics[channel_num].min; }
-
-	float Median(int channel_num = 0)const { return statistics[channel_num].median; }
-
-	float Mean(int channel_num = 0)const { return statistics[channel_num].mean; }
-
-	float StdDev(int channel_num = 0)const { return statistics[channel_num].stdev; }
-
-	float AvgDev(int channel_num = 0)const { return statistics[channel_num].avgDev; }
-
-	float MAD(int channel_num = 0)const { return statistics[channel_num].mad; }
-
-	float nMAD(int channel_num = 0)const { return 1.4826f * statistics[channel_num].mad; }
-
-	float BWMV(int channel_num = 0)const { return statistics[channel_num].bwmv; }
-
-	uint16_t Bitdepth()const { return m_bitdepth; }
+	T MaxVal()const noexcept { return m_max_val; }
 
 
-	float ToFloat(T pixel) { return (is_float()) ? pixel : pixel * m_imax_val; }
+	T Max(int channel_num = 0)const noexcept { return statistics[channel_num].max; }
 
-	T ToType(float pixel) { return (is_float()) ? pixel : pixel * m_max_val; }
+	T Min(int channel_num = 0)const noexcept { return statistics[channel_num].min; }
 
+	T Median(int channel_num = 0)const noexcept { return statistics[channel_num].median; }
 
-	T Pixel(int x, int y, int ch = 0) noexcept {
-		return (0 <= y && y < m_rows && 0 <= x & x < m_cols) ? data[ch * m_total + y * m_cols + x] : 0;
-	}
+	float Mean(int channel_num = 0)const noexcept { return statistics[channel_num].mean; }
 
-	T& RedPixel(int el) { return m_red[el]; }
+	float StdDev(int channel_num = 0)const noexcept { return statistics[channel_num].stdev; }
 
-	T& RedPixel(int x, int y) { return m_red[y * m_cols + x]; }
+	float AvgDev(int channel_num = 0)const noexcept { return statistics[channel_num].avgDev; }
 
-	T& GreenPixel(int el) { return m_green[el]; }
+	float MAD(int channel_num = 0)const noexcept { return statistics[channel_num].mad; }
 
-	T& GreenPixel(int x, int y) { return m_green[y * m_cols + x]; }
+	float nMAD(int channel_num = 0)const noexcept { return 1.4826f * statistics[channel_num].mad; }
 
-	T& BluePixel(int el) { return m_blue[el]; }
-
-	T& BluePixel(int x, int y) { return m_blue[y * m_cols + x]; }
+	float BWMV(int channel_num = 0)const noexcept { return statistics[channel_num].bwmv; }
 
 
-	void ToRGBFloat(int el, float& R, float& G, float& B) {
-		if (is_float()) {
+	void getRGB(int el, T& R, T& G, T& B)const {
 			R = m_red[el];
-			G = m_green[el];
-			B = m_blue[el];
-			return;
-		}
+		G = m_green[el];
+		B = m_blue[el];
+	}
 
-		R = m_red[el] * m_imax_val;
-		G = m_green[el] * m_imax_val;
-		B = m_blue[el] * m_imax_val;
+	void setRGB(int el, T R, T G, T B) {
+		m_red[el] = R;
+		m_green[el] = G;
+		m_blue[el] = B;
+	}
+
+	void toRGBFloat(int el, float& R, float& G, float& B)const {
+		R = Pixel::toFloat(m_red[el]);
+		G = Pixel::toFloat(m_green[el]);
+		B = Pixel::toFloat(m_blue[el]);
 
 	}
 
-	void ToRGBDouble(int el, double& R, double& G, double& B) {
-		if (is_float()) {
-			R = m_red[el];
-			G = m_green[el];
-			B = m_blue[el];
-			return;
-		}
-
-		R = m_red[el] * m_imax_val;
-		G = m_green[el] * m_imax_val;
-		B = m_blue[el] * m_imax_val;
+	void toRGBDouble(int el, double& R, double& G, double& B)const {
+		R = Pixel::toDouble(m_red[el]);
+		G = Pixel::toDouble(m_green[el]);
+		B = Pixel::toDouble(m_blue[el]);
 	}
 
-	void ToRGBType(int el, float R, float G, float B) {
-		if (is_float()) {
-			m_red[el] = R;
-			m_green[el] = G;
-			m_blue[el] = B;
-			return;
-		}
+	void fromRGBFloat(int el, float R, float G, float B) {
 
-		m_red[el] = R * m_max_val;
-		m_green[el] = G * m_max_val;
-		m_blue[el] = B * m_max_val;
+		Pixel::fromFloat(R, m_red[el]);
+		Pixel::fromFloat(G, m_green[el]);
+		Pixel::fromFloat(B, m_blue[el]);
 	}
 
-	void ToRGBType(int el, double R, double G, double B) {
-		if (is_float()) {
-			m_red[el] = R;
-			m_green[el] = G;
-			m_blue[el] = B;
-			return;
-		}
-
-		m_red[el] = R * m_max_val;
-		m_green[el] = G * m_max_val;
-		m_blue[el] = B * m_max_val;
+	void fromRGBDouble(int el, double R, double G, double B) {
+		Pixel::fromDouble(R, m_red[el]);
+		Pixel::fromDouble(G, m_green[el]);
+		Pixel::fromDouble(B, m_blue[el]);
 	}
 
 
 	void RGBtoGray() {
+
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double R, G, B;
-			ToRGBDouble(el, R, G, B);
-			data[el] = ToType(ColorSpace::CIEL(R, G, B));
+			toRGBDouble(el, R, G, B);
+
+			Pixel::fromDouble(ColorSpace::CIEL(R, G, B), data[el]);
 		}
-		realloc(data.get(), m_total * sizeof(T));
+
+		T* temp = (T*)realloc(data.get(), m_total * sizeof(T));
+		data.release();
+		data.reset(temp);
+
 		m_channels = 1;
 		m_total_image = m_total;
 	}
@@ -697,12 +701,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for //num_threads(4)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double R, G, B, L, a, b;
-			ToRGBDouble(el, R, G, B);
+			toRGBDouble(el, R, G, B);
 			ColorSpace::RGBtoCIELab(R, G, B, L, a, b);
-			ToRGBType(el, L, a, b);
+			fromRGBDouble(el, L, a, b);
 		}
 
 	}
@@ -712,12 +716,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for //num_threads(4)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double L, a, b, R, G, B;
-			ToRGBDouble(el, L, a, b);
+			toRGBDouble(el, L, a, b);
 			ColorSpace::CIELabtoRGB(L, a, b, R, G, B);
-			ToRGBType(el, R, G, B);
+			fromRGBDouble(el, R, G, B);
 		}
 	}
 
@@ -726,12 +730,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for //num_threads(4)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double R, G, B, L, c, h;
-			ToRGBDouble(el, R, G, B);
+			toRGBDouble(el, R, G, B);
 			ColorSpace::RGBtoCIELch(R, G, B, L, c, h);
-			ToRGBType(el, L, c, h);
+			fromRGBDouble(el, L, c, h);
 		}
 
 	}
@@ -741,12 +745,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for //num_threads(4)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double L, c, h, R, G, B;
-			ToRGBDouble(el, L, c, h);
+			toRGBDouble(el, L, c, h);
 			ColorSpace::CIELchtoRGB(L, c, h, R, G, B);
-			ToRGBType(el, R, G, B);
+			fromRGBDouble(el, R, G, B);
 		}
 	}
 
@@ -755,12 +759,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel //for num_threads(2)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double R, G, B, H, S, I;
-			ToRGBDouble(el, R, G, B);
+			toRGBDouble(el, R, G, B);
 			ColorSpace::RGBtoHSI(R, G, B, H, S, I);
-			ToRGBType(el, H, S, I);
+			fromRGBDouble(el, H, S, I);
 		}
 
 	}
@@ -770,12 +774,12 @@ public:
 		if (m_channels == 1)
 			return;
 
-#pragma omp parallel for //num_threads(2)
+#pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_total; ++el) {
 			double H, S, I, R, G, B;
-			ToRGBDouble(el, H, S, I);
+			toRGBDouble(el, H, S, I);
 			ColorSpace::HSItoRGB(H, S, I, R, G, B);
-			ToRGBType(el, R, G, B);
+			fromRGBDouble(el, R, G, B);
 		}
 	}
 
@@ -819,9 +823,6 @@ public:
 	}
 
 
-	template<typename N>
-	bool Is_Same_Type(Image<N>& other) { return std::is_same<T, N>::value; }
-
 	static bool is_uint8() { return std::is_same<T, uint8_t>::value; }
 
 	static bool is_uint16() { return std::is_same<T, uint16_t>::value; }
@@ -835,10 +836,6 @@ public:
 
 	bool IsInBounds(int x, int y, int buffer)const {
 		return(buffer <= y && y < m_rows - buffer && buffer <= x && x < m_cols - buffer);
-	}
-
-	bool IsOutBounds(int x, int y)const {
-		return (y < 0 || m_rows <= y || x < 0 || m_cols <= x);
 	}
 
 	T MirrorEdgePixel(int x, int y, int ch) {
@@ -874,35 +871,86 @@ public:
 			pixel = val;
 	}
 
-	void Truncate() {
-		for (T& pixel : *this)
-			pixel = ClipPixel(pixel);
+
+	void Truncate(T a, T b) {
+		for (T& pixel : *this) {
+			if (pixel < a)
+				pixel = a;
+			else if (pixel > b)
+				pixel = b;
+		}
+	}
+
+	void Truncate(T a, T b, int ch) {
+
+		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+			if (*pixel < a)
+				*pixel = a;
+			else if (*pixel > b)
+				*pixel = b;
+		}
+
 	}
 
 	void Normalize() {
+		T max_val = (is_float()) ? 1 : std::numeric_limits<T>::max();
+
 		T max = std::numeric_limits<T>::min();
 		T min = std::numeric_limits<T>::max();
+
 		for (T& pixel : *this) {
 			if (pixel > max) max = pixel;
 			if (pixel < min) min = pixel;
 		}
 
-		float dm = 1.0f / (max - min);
+		if (min < 0 || max > max_val)
+			for (auto& pixel : *this)
+				pixel = (pixel - min) / (max - min);
 
-		for (T& pixel : *this)
-			pixel = (pixel - min) * dm;
+	}
+
+	void AutoRescale() {
+		if (!is_float())
+			return;
+
+		T max, min;
+		ComputeMinMax(min, max);
+
+		if (max > 1.0f || min < 0.0f)
+			Rescale(min, max);
 	}
 
 	void Rescale(T a, T b) {
-		T max = std::numeric_limits<T>::min();
-		T min = std::numeric_limits<T>::max();
+		if (b == a)
+			return;
+
+		float dba = 1.0 / (b - a);
+
 		for (T& pixel : *this) {
-			if (pixel > max) max = pixel;
-			if (pixel < min) min = pixel;
+			if (pixel < a)
+				pixel = 0;
+			else if (pixel > b)
+				pixel = 1;
+			else
+				pixel = (pixel - a) * dba;
 		}
 
-		for (T& pixel : *this)
-			pixel = min + ((pixel - min) * (b - a)) / (max - min);
+	}
+
+	void Rescale(T a, T b, int ch) {
+		if (b == a)
+			return;
+
+		float dba = 1.0 / (b - a);
+
+		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+			if (*pixel < a)
+				*pixel = 0;
+			else if (*pixel > b)
+				*pixel = 1;
+			else
+				*pixel = (*pixel - a) * dba;
+		}
 	}
 
 	void Binerize(T threshold) {
@@ -988,7 +1036,21 @@ public:
 		}
 	}
 
+private:
+	void ComputeMinMax(T& min, T& max) {
 
+		max = std::numeric_limits<T>::min();
+		min = std::numeric_limits<T>::max();
+
+		for (auto pixel : *this) {
+			if (pixel > max)
+				max = pixel;
+			if (pixel < min)
+				min = pixel;
+		}
+	}
+
+public:
 	T ComputeMax(int ch, bool clip = false) {
 
 		T max = std::numeric_limits<T>::min();
@@ -1027,6 +1089,21 @@ public:
 	}
 
 
+	float ComputeMean(int ch, bool clip = false) const {
+
+		double sum = 0;
+		int count = 0;
+
+		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel))
+				continue;
+			sum += *pixel;
+			count++;
+
+		}
+		return sum / count;
+	}
+
 	float ComputeMean(int ch, bool clip = false) {
 
 		double sum = 0;
@@ -1049,6 +1126,11 @@ public:
 	}
 
 
+	T ComputeMedian(int ch, bool clip = false) const {
+		Histogram hist(*this, ch);
+		return hist.Median(clip) / ((is_float()) ? 65535.0 : 1);
+	}
+
 	T ComputeMedian(int ch, bool clip = false) {
 		Histogram hist(*this, ch);
 		return statistics[ch].median = hist.Median(clip) / ((is_float()) ? 65535.0 : 1);
@@ -1062,6 +1144,22 @@ public:
 	}
 
 
+	float ComputeStdDev(int ch, float mean, bool clip = false) const {
+
+		double d, var = 0;
+		float mean = Mean(ch);
+		int count = 0;
+
+		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel)) continue;
+			d = *pixel - mean;
+			var += d * d;
+			count++;
+		}
+
+		return sqrt(var / count);
+	}
+
 	float ComputeStdDev(int ch, bool clip = false) {
 
 		ComputeMean(ch, clip);
@@ -1070,7 +1168,7 @@ public:
 		float mean = Mean(ch);
 		int count = 0;
 
-		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
+		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
 			if (clip && IsClippedVal(*pixel)) continue;
 			d = *pixel - mean;
 			var += d * d;
@@ -1087,6 +1185,20 @@ public:
 			ComputeStdDev(ch, clip);
 	}
 
+
+	float ComputeAvgDev(int ch, T median, bool clip = false) const {
+
+		double sum = 0;
+		int count = 0;
+
+		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+			if (clip && IsClippedVal(*pixel)) continue;
+			sum += fabs(*pixel - median);
+			count++;
+		}
+
+		return sum / count;
+	}
 
 	float ComputeAvgDev(int ch, bool clip = false) {
 
@@ -1111,8 +1223,16 @@ public:
 	}
 
 
+	T ComputeMAD(int ch, T median, bool clip = false) const {
+
+		Histogram histogram((*this), ch, median, clip);
+		histogram.Median() / ((is_float()) ? 65535.0 : 1);
+	}
+
 	T ComputeMAD(int ch, bool clip = false) {
+
 		T median = ComputeMedian(ch, clip);
+
 		Histogram histogram((*this), ch, median, clip);
 		return statistics[ch].mad = histogram.Median() / ((is_float()) ? 65535.0 : 1);
 	}

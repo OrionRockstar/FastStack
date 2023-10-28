@@ -77,8 +77,8 @@ public:
         Matrix out(m_rows, other.m_cols);
 
         for (int r = 0; r < out.m_rows; ++r)
-            for (int c = 0; c < out.m_cols; ++c)
-                for (int i = 0; i < m_cols; ++i)
+            for (int i = 0; i < m_cols; ++i)
+                for (int c = 0; c < out.m_cols; ++c)
                     out(r, c) += (*this)(r, i) * other(i, c);
 
         return out;
@@ -89,8 +89,8 @@ public:
         Matrix out(m_rows, other.m_cols);
 
         for (int r = 0; r < out.m_rows; ++r)
-            for (int c = 0; c < out.m_cols; ++c)
-                for (int i = 0; i < m_cols; ++i)
+            for (int i = 0; i < m_cols; ++i)
+                for (int c = 0; c < out.m_cols; ++c)
                     out(r, c) += (*this)(r, i) * other(i, c);
 
         *this = std::move(out);

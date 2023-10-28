@@ -94,13 +94,13 @@ static T AverageMAD(Image<T>& img) {
 }
 
 
-template<typename Image>
-void HistogramTransformation::STFStretch(Image& img) {
+template<typename T>
+void HistogramTransformation::STFStretch(Image<T>& img) {
 	ModifyMidtone(Component::rgb_k, 0.25);
 
 	img.ComputeMAD(true);
-	float nMAD = img.ToFloat(1.4826f * AverageMAD(img));
-	float median = img.ToFloat(AverageMedian(img));
+	float nMAD = Pixel::toFloat(T(1.4826f * AverageMAD(img)));
+	float median = Pixel::toFloat(AverageMedian(img));
 
 	float shadow = (median > 2.8 * nMAD) ? median - 2.8f * nMAD : 0;
 	float midtone = RGB_K.MTF(median - shadow);

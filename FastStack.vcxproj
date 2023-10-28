@@ -109,6 +109,7 @@
     <ClCompile Include="CurveInterpolation.cpp" />
     <ClCompile Include="CurvesTransformation.cpp" />
     <ClCompile Include="Drizzle.cpp" />
+    <ClCompile Include="FITS.cpp" />
     <ClCompile Include="MenuBar.cpp" />
     <ClCompile Include="HistogramTransformation.cpp" />
     <ClCompile Include="Homography.cpp" />
@@ -138,10 +139,12 @@
     <ClInclude Include="CurvesTransformation.h" />
     <ClInclude Include="Drizzle.h" />
     <QtMoc Include="MenuBar.h" />
+    <ClInclude Include="FITS.h" />
     <ClInclude Include="GaussianFilter.h" />
     <ClInclude Include="HistogramTransformation.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
+    <ClInclude Include="ImageFile.h" />
     <ClInclude Include="ImageOperations.h" />
     <ClInclude Include="ImageStacking.h" />
     <QtMoc Include="ImageWindow.h" />

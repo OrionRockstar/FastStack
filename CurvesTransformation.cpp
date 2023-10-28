@@ -303,19 +303,19 @@ void CurveTransform::Apply(Image<T>& img) {
 	if (!RGB_K.IsIdentity()) {
 		if (img.Channels() == 1)
 			for (T& pixel : img)
-				pixel = img.ToType(Clip(RGB_K.Interpolate(img.ToFloat(pixel))));
+				Pixel::fromDouble(Clip(RGB_K.Interpolate(Pixel::toDouble(pixel))), pixel);
 
 		else if (img.Channels() == 3)
 #pragma omp parallel for num_threads(4)
 			for (int el = 0; el < img.Total(); ++el) {
-				float R, G, B;
-				img.ToRGBFloat(el, R, G, B);
+				double R, G, B;
+				img.toRGBDouble(el, R, G, B);
 
 				R = Clip(RGB_K.Interpolate(R));
 				G = Clip(RGB_K.Interpolate(G));
 				B = Clip(RGB_K.Interpolate(B));
 
-				img.ToRGBType(el, R, G, B);
+				img.fromRGBDouble(el, R, G, B);
 			}
 
 	}
@@ -326,14 +326,14 @@ void CurveTransform::Apply(Image<T>& img) {
 	if (!Red.IsIdentity() || !Green.IsIdentity() || !Blue.IsIdentity()) {
 #pragma omp parallel for
 		for (int el = 0; el < img.Total(); ++el) {
-			float R, G, B;
-			img.ToRGBFloat(el, R, G, B);
+			double R, G, B;
+			img.toRGBDouble(el, R, G, B);
 
 			R = Clip(Red.Interpolate(R));
 			G = Clip(Green.Interpolate(G));
 			B = Clip(Blue.Interpolate(B));
 
-			img.ToRGBType(el, R, G, B);
+			img.fromRGBDouble(el, R, G, B);
 		}
 	}
 
@@ -341,13 +341,13 @@ void CurveTransform::Apply(Image<T>& img) {
 #pragma omp parallel for
 		for (int el = 0; el < img.Total(); ++el) {
 			double R, G, B;
-			img.ToRGBDouble(el, R, G, B);
+			img.toRGBDouble(el, R, G, B);
 
 			double L, _a, _b;
 			ColorSpace::RGBtoCIELab(R, G, B, L, _a, _b);
 			ColorSpace::CIELabtoRGB(Lightness.Interpolate(L), a.Interpolate(_a), b.Interpolate(_b), R, G, B);
 
-			img.ToRGBType(el, Clip(R), Clip(G), Clip(B));
+			img.fromRGBDouble(el, Clip(R), Clip(G), Clip(B));
 		}
 	}
 
@@ -355,13 +355,13 @@ void CurveTransform::Apply(Image<T>& img) {
 #pragma omp parallel for
 		for (int el = 0; el < img.Total(); ++el) {
 			double R, G, B;
-			img.ToRGBDouble(el, R, G, B);
+			img.toRGBDouble(el, R, G, B);
 
 			double L, _c, _h;
 			ColorSpace::RGBtoCIELch(R, G, B, L, _c, _h);
 			ColorSpace::CIELchtoRGB(L, c.Interpolate(_c), _h, R, G, B);
 
-			img.ToRGBType(el, Clip(R), Clip(G), Clip(B));
+			img.fromRGBDouble(el, Clip(R), Clip(G), Clip(B));
 		}
 	}
 
@@ -369,13 +369,13 @@ void CurveTransform::Apply(Image<T>& img) {
 #pragma omp parallel for
 		for (int el = 0; el < img.Total(); ++el) {
 			double R, G, B;
-			img.ToRGBDouble(el, R, G, B);
+			img.toRGBDouble(el, R, G, B);
 
 			double H, S, V, L;
 			ColorSpace::RGBtoHSVL(R, G, B, H, S, V, L);
 			ColorSpace::HSVLtoRGB(Hue.Interpolate(H), Saturation.Interpolate(S), V, L, R, G, B);
 
-			img.ToRGBType(el, Clip(R), Clip(G), Clip(B));
+			img.fromRGBDouble(el, Clip(R), Clip(G), Clip(B));
 		}
 	}
 

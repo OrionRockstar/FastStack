@@ -95,8 +95,8 @@ public:
 
 	void ModifyHighlight(Component component, float hightlight);
 
-	template<typename Image>
-	void STFStretch(Image& img);
+	template<typename T>
+	void STFStretch(Image<T>& img);
 
 	template<typename Image>
 	void Apply(Image& img);

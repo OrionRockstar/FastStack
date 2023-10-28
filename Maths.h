@@ -11,6 +11,15 @@ inline void DisplayTimeDuration(std::chrono::steady_clock::time_point start_poin
         << ((dt > 1000) ? "s" : "ms") << "\n";
 }
 
+inline float byteswap_float(const float inp) {
+
+    unsigned int buff = *(unsigned int*)&inp;
+    buff = _byteswap_ulong(buff);
+
+    return *(float*)&buff;
+}
+
+
 inline double Distance(double x1, double y1, double x2, double y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
 inline float Distance(float x1, float y1, float x2, float y2) { return sqrtf((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }

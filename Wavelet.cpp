@@ -205,11 +205,11 @@ template void Wavelet::WaveletTransform(Image32& img, std::vector<Image32>&, Sca
 template<typename B>
 static void CopyData(Image32& src, Image<B>& dest) {
 	if (dest.is_float())
-		memcpy(dest.data.get(), src.data.get(), src.TotalImage() * 4);
+		memcpy(dest.data.get(), src.data.get(), src.TotalPxCount() * 4);
 
 	else
-		for (int el = 0; el < dest.TotalImage(); ++el)
-			dest[el] = dest.ToType(src[el]);
+		for (int el = 0; el < dest.TotalPxCount(); ++el)
+			Pixel::fromFloat(src[el], dest[el]);
 }
 
 template<typename Image>
@@ -234,8 +234,7 @@ void Wavelet::WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf, 
 
 	result += convolved;
 
-	//result.Normalize();
-	result.Truncate();
+	result.Truncate(0, 1);
 
 	CopyData(result, img);
 }
@@ -268,7 +267,7 @@ void Wavelet::MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num) {
 
 	result += convolved;
 
-	result.Truncate();
+	result.Truncate(0, 1);
 
 	CopyData(result, img);
 }
@@ -302,7 +301,7 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 
 	result += convolved;
 
-	result.Truncate();
+	result.Truncate(0, 1);
 
 	CopyData(result, img);
 }

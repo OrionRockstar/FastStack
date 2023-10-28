@@ -76,7 +76,15 @@ private:
 	template<typename T>
 	Wavelet(Image<T>& img) {
 		source = Image32(img.Rows(), img.Cols(), img.Channels());
-		img.CopyToFloat(source, true);
+
+
+		if (img.is_float())
+			memcpy(source.data.get(), img.data.get(), img.TotalPxCount() * 4);
+
+		else
+			for (int el = 0; el < img.TotalPxCount(); ++el)
+				source[el] = Pixel::toFloat(img[el]);
+
 		convolved = Image32(source);
 		wavelet = Image32(source);
 	}
