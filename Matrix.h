@@ -214,15 +214,11 @@ public:
     }
 
 private:
-    void SwapRow(int row_a, int row_b);
+    void ScaleAndSubstractRow(int rowa, int rowb, double scale);
 
-    void ScaleRow(int row, double val);
+    Matrix MatrixToAugument()const;
 
-    Matrix ScaleRowTemp(int row, double val);
-
-    void SubtractTempFromRow(int row, Matrix& temp);
-
-    void SubtractRows(int row_a, int row_b);
+    static Matrix GetMatrixFromAugument(const Matrix& aug);
 
 public:
     Matrix Transpose()const;

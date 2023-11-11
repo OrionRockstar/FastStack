@@ -302,8 +302,11 @@ void CurveTransform::Apply(Image<T>& img) {
 
 	if (!RGB_K.IsIdentity()) {
 		if (img.Channels() == 1)
-			for (T& pixel : img)
-				Pixel::fromDouble(Clip(RGB_K.Interpolate(Pixel::toDouble(pixel))), pixel);
+			for (T& pixel : img) {
+				double val = Pixel<double>::toType(pixel);
+				val = Clip(RGB_K.Interpolate(val));
+				pixel = Pixel<T>::toType(val);
+			}
 
 		else if (img.Channels() == 3)
 #pragma omp parallel for num_threads(4)

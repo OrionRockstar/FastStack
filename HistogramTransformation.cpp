@@ -98,9 +98,15 @@ template<typename T>
 void HistogramTransformation::STFStretch(Image<T>& img) {
 	ModifyMidtone(Component::rgb_k, 0.25);
 
-	img.ComputeMAD(true);
-	float nMAD = Pixel::toFloat(T(1.4826f * AverageMAD(img)));
-	float median = Pixel::toFloat(AverageMedian(img));
+	float median = 0, nMAD = 0;
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+		T cm = img.ComputeMedian(ch, true);
+		median += cm;
+		nMAD += img.ComputeMAD(ch, cm, true);
+	}
+
+	median = Pixel<float>::toType(T(median / img.Channels()));
+	nMAD = Pixel<float>::toType(T(1.4826f * (nMAD / img.Channels())));
 
 	float shadow = (median > 2.8 * nMAD) ? median - 2.8f * nMAD : 0;
 	float midtone = RGB_K.MTF(median - shadow);

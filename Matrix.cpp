@@ -1,34 +1,45 @@
 #include "pch.h"
 #include "Matrix.h"
 
-void Matrix::SwapRow(int row_a, int row_b) {
-    for (int c = 0; c < m_cols; ++c)
-        std::swap((*this)(row_a, c), (*this)(row_b, c));
+void Matrix::ScaleAndSubstractRow(int rowa, int rowb, double scale) {
+    double* ptra = &(*this)(rowa, 0);
+    double* ptrb = &(*this)(rowb, 0);
+    for (int i = 0; i < m_cols; ++i)
+        ptra[i] -= (scale * ptrb[i]);
 }
 
-void Matrix::ScaleRow(int row, double val) {
-    for (int c = 0; c < m_cols; ++c)
-        (*this)(row, c) *= val;
+Matrix Matrix::MatrixToAugument()const {
+
+    Matrix aug(m_rows, 2 * m_cols);
+
+    for (int r = 0; r < m_rows; ++r) {
+        const double* mptr = &(*this)(r, 0);
+        double* aptr = &aug(r, 0);
+        for (int c = 0; c < m_cols; ++c) {
+            aptr[c] = mptr[c];
+
+            if (r == c)
+                aug(r, c + m_cols) = 1;
+        }
+    }
+
+    return aug;
 }
 
-Matrix Matrix::ScaleRowTemp(int row, double val) {
-    Matrix t(m_cols);
+Matrix Matrix::GetMatrixFromAugument(const Matrix& aug) {
 
-    for (int c = 0; c < m_cols; ++c)
-        t[c] = (*this)(row, c) * val;
+    Matrix matrix(aug.Rows(), aug.Cols() / 2);
 
-    return t;
+    for (int r = 0; r < matrix.Cols(); ++r) {
+        const double* aptr = &aug(r, matrix.Cols());
+        double* mptr = &matrix(r, 0);
+        for (int c = 0; c < matrix.Cols(); ++c)
+            mptr[c] = aptr[c];
+    }
+
+    return matrix;
 }
 
-void Matrix::SubtractTempFromRow(int row, Matrix& temp) {
-    for (int c = 0; c < m_cols; ++c)
-        (*this)(row, c) -= temp[c];
-}
-
-void Matrix::SubtractRows(int row_a, int row_b) {
-    for (int c = 0; c < m_cols; ++c)
-        (*this)(row_a, c) -= (*this)(row_b, c);
-}
 
 Matrix Matrix::Transpose()const {
 
@@ -47,41 +58,21 @@ Matrix Matrix::Inverse()const {
     //if (Determinant() == 0)
         //return (*this);
 
-    Matrix aug(m_rows, 2 * m_cols);
-
-    for (int r = 0; r < m_rows; ++r) {
-        for (int c = 0; c < m_cols; ++c) {
-            aug(r, c) = (*this)(r, c);
-            if (r == c)
-                aug(r, c + m_cols) = 1;
-        }
-    }
+    Matrix aug = this->MatrixToAugument();
 
     for (int row = 0; row < m_rows; ++row) {
 
-        /*if ((*this)(row, row) != 1)
-            for (int r = row; r < m_rows; r++)
-                if (aug(r, row) == 1)
-                    aug.SwapRow(row, r);*/
-
-                    //reduces row to be leading by 1 
         double d = aug(row, row);
-        for (int c = 0; c < aug.m_cols; ++c)
+        for (int c = row; c < aug.Cols(); ++c)
             aug(row, c) /= d;
 
-        for (int r = 0; r < m_rows; ++r) {
-            if (r == row)
-                continue;
-            Matrix temp = aug.ScaleRowTemp(row, aug(r, row));
-            aug.SubtractTempFromRow(r, temp);
-        }
+        for (int r = 0; r < m_rows; ++r)
+            if (r != row)
+                aug.ScaleAndSubstractRow(r, row, aug(r, row));
+
     }
 
-    Matrix inverse(m_rows, m_cols);
-
-    for (int r = 0; r < m_rows; ++r)
-        for (int c = m_cols; c < aug.m_cols; ++c)
-            inverse(r, c - m_cols) = aug(r, c);
+    Matrix inverse = GetMatrixFromAugument(aug);
 
     return inverse;
 }
@@ -95,21 +86,17 @@ double Matrix::Determinant()const {
     for (int row = 0; row < m_rows; ++row) {
 
         Matrix orig(1, m_cols);
-        for (int c = 0; c < m_cols; ++c)
+        for (int c = row; c < m_cols; ++c)
             orig[c] = d(row, c);
 
         double a = d(row, row);
-        for (int c = 0; c < m_cols; ++c)
+        for (int c = row; c < m_cols; ++c)
             d(row, c) /= a;
 
-        for (int r = 0; r < m_rows; ++r) {
-            //if (r == row)
-                //continue;
-            Matrix temp = d.ScaleRowTemp(row, d(r, row));
-            d.SubtractTempFromRow(r, temp);
-        }
+        for (int r = row + 1; r < m_rows; ++r)
+            d.ScaleAndSubstractRow(r, row, d(r, row));
 
-        for (int c = 0; c < m_cols; ++c)
+        for (int c = row; c < m_cols; ++c)
             d(row, c) = orig[c];
     }
 

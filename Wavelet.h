@@ -83,7 +83,7 @@ private:
 
 		else
 			for (int el = 0; el < img.TotalPxCount(); ++el)
-				source[el] = Pixel::toFloat(img[el]);
+				source[el] = Pixel<float>::toType(img[el]);
 
 		convolved = Image32(source);
 		wavelet = Image32(source);

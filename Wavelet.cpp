@@ -209,7 +209,7 @@ static void CopyData(Image32& src, Image<B>& dest) {
 
 	else
 		for (int el = 0; el < dest.TotalPxCount(); ++el)
-			Pixel::fromFloat(src[el], dest[el]);
+			Pixel<float>::fromType(src[el], dest[el]);
 }
 
 template<typename Image>

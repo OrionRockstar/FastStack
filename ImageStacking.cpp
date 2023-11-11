@@ -43,16 +43,16 @@ void ImageStacking::ScaleImageStack(ImageVector& img_stack, ScaleEstimator scale
 
     switch (scale_est) {
     case ScaleEstimator::median:
-        img_stack[0].ComputeMedian();
+        //img_stack[0].ComputeMedian();
         break;
     case ScaleEstimator::avgdev:
-        img_stack[0].ComputeAvgDev();
+        //img_stack[0].ComputeAvgDev();
         break;
     case ScaleEstimator::mad:
-        img_stack[0].ComputeMAD();
+        //img_stack[0].ComputeMAD();
         break;
     case ScaleEstimator::bwmv:
-        img_stack[0].ComputeBWMV();
+        //img_stack[0].ComputeBWMV();
         break;
     case ScaleEstimator::none:
         return;
