@@ -8,19 +8,19 @@ void ImageStacking::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator scale_
 
         switch (scale_est) {
         case ScaleEstimator::median:
-            rse = ref.Median(ch);
+            rse;// = ref.Median(ch);
             cse = tgt.ComputeMedian(ch, true);//tgt.Median(ch);
             break;
         case ScaleEstimator::avgdev:
-            rse = ref.AvgDev(ch);
+            rse;// = ref.AvgDev(ch);
             cse = tgt.ComputeAvgDev(ch, true);
             break;
         case ScaleEstimator::mad:
-            rse = ref.MAD(ch);
+            rse;// = ref.MAD(ch);
             cse = tgt.ComputeMAD(ch, true);
             break;
         case ScaleEstimator::bwmv:
-            rse = ref.BWMV(ch);
+            rse;// = ref.BWMV(ch);
             cse = tgt.ComputeBWMV(ch, true);
             break;
         case ScaleEstimator::none:
@@ -32,7 +32,7 @@ void ImageStacking::ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator scale_
 
 
         for (auto pixel = tgt.begin(ch); pixel != tgt.end(ch); ++pixel)
-            *pixel = tgt.ClipPixel(k * (*pixel - tgt.Median(ch)) + ref.Median(ch));
+            *pixel;// = tgt.ClipPixel(k * (*pixel - tgt.Median(ch)) + ref.Median(ch));
     }
 }
 

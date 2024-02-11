@@ -1,34 +1,89 @@
 #include "pch.h"
 #include "FITS.h"
 
-void FITS::FITSHeader::AddKeyWord(const std::string& keyword, const std::string& data) {
-
-	if (keyword_count % 36 == 0 && keyword_count != 0)
-		ResizeHeaderBlock();
-
-	int iter = 0;
-	char* hbp = &header_block[keyword_count][iter];
-
+void FITS::FITSHeader::AddKW(const std::string& keyword, char* hbp, int& iter) {
 
 	for (; iter < keyword.length(); ++iter)
 		hbp[iter] = keyword[iter];
-
 
 	for (; iter < 8; ++iter)
 		hbp[iter] = ' ';
 
 	hbp[iter++] = '=';
 	hbp[iter++] = ' ';
+}
 
-	for (int i = 0; i < data.length(); ++i, ++iter)
-		hbp[iter] = data[i];
+void FITS::FITSHeader::AddKWC(const std::string& comment, char* hbp, int& iter) {
+	hbp[iter++] = ' ';
+	hbp[iter++] = '/';
+	hbp[iter++] = ' ';
+	for (char l : comment) {
 
-	for (; iter < 79; ++iter)
+		if (iter == 79)
+			break;
+
+		hbp[iter++] = l;
+	}
+}
+
+void FITS::FITSHeader::AddLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment) {
+	//byte number = iter + 1
+	if (keyword_count % 36 == 0 && keyword_count != 0)
+		ResizeHeaderBlock();
+
+	int iter = 0;
+	char* hbp = &header_block[keyword_count][0];
+
+	AddKW(keyword, hbp, iter);
+
+	for (; iter < 29; ++iter)
 		hbp[iter] = ' ';
 
-	hbp[79] = '\n';
-	keyword_count++;
+	if (boolean)
+		hbp[iter++] = 'T';
+	else
+		hbp[iter++] = 'F';
 
+	if (!comment.empty())
+		AddKWC(comment, hbp, iter);
+
+	for (; iter < 80; ++iter)
+		hbp[iter] = ' ';
+
+	keyword_count++;
+}
+
+void FITS::FITSHeader::AddIntegerKeyword(const std::string& keyword, int integer, const std::string& comment) {
+	//byte number = iter + 1
+	if (keyword_count % 36 == 0 && keyword_count != 0)
+		ResizeHeaderBlock();
+
+	int iter = 0;
+	char* hbp = &header_block[keyword_count][iter];
+
+	AddKW(keyword, hbp, iter);
+
+	for (; iter < 29; ++iter)
+		hbp[iter] = ' ';
+
+	std::string val = std::to_string(integer);
+	std::ranges::reverse(val);
+
+	for (char l : val) {
+		if (iter == 11)
+			break;
+		hbp[iter--] = l;
+	}
+
+	iter = 30;
+
+	if (!comment.empty())
+		AddKWC(comment, hbp, iter);
+
+	for (; iter < 80; ++iter)
+		hbp[iter] = ' ';
+
+	keyword_count++;
 }
 
 std::string FITS::FITSHeader::GetKeyWordValue(const std::string& keyword) {
@@ -72,9 +127,15 @@ void FITS::FITSHeader::EndHeader() {
 	for (int i = 3; i < 80; ++i)
 		db[i] = ' ';
 
-	db[79] = '\n';
-
 	keyword_count++;
+
+	while (keyword_count % 36 != 0) {
+		db = &header_block[keyword_count][0];
+		for (int i = 0; i < 80; ++i)
+			db[i] = ' ';
+		keyword_count++;
+	}
+
 }
 
 void FITS::FITSHeader::Read(std::fstream& stream) {
@@ -171,8 +232,7 @@ void FITS::Open(std::filesystem::path path) {
 
 	m_px_count = m_rows * m_cols;
 
-	SetBuffer();
-
+	ResizeBuffer();
 }
 
 void FITS::Create(std::filesystem::path path) {
@@ -207,7 +267,8 @@ void FITS::Read(Image<T>& dst) {
 			pixel = byteswap_float(pixel);
 	}
 
-	dst.AutoRescale();
+	if (dst.is_float())
+		dst.Normalize();
 
 	Close();
 }
@@ -285,23 +346,22 @@ void FITS::ReadAny(Image32& dst) {
 	Close();
 }
 
-template<typename Image>
-void FITS::WritePixels_8(Image& src, float bscale) {
+template<typename T>
+void FITS::WritePixels_8(const Image<T>& src) {
 
-	if (bscale == 1.0f) {
-		m_stream.rdbuf()->pubsetbuf((char*)src.data.get(), src.TotalPxCount())->pubseekpos(2880);
+	if (std::is_same<T, uint8_t>::value) {
 		m_stream.write((char*)src.data.get(), src.TotalPxCount());
 		return;
 	}
 
 	std::vector<uint8_t> buffer(src.Cols());
 	std::streamsize mem_size = buffer.size();
-	m_stream.rdbuf()->pubsetbuf((char*)buffer.data(), mem_size)->pubseekpos(2880);
 
 	auto bi = buffer.begin();
-	for (auto& pixel : src) {
 
-		*bi++ = pixel * bscale;
+	for (const T& pixel : src) {
+
+		*bi++ = Pixel<uint8_t>::toType(pixel);
 
 		if (bi == buffer.end()) {
 			m_stream.write((char*)buffer.data(), mem_size);
@@ -309,35 +369,21 @@ void FITS::WritePixels_8(Image& src, float bscale) {
 		}
 	}
 }
-template void FITS::WritePixels_8(Image8& src, float);
-template void FITS::WritePixels_8(Image16& src, float);
-template void FITS::WritePixels_8(Image32& src, float);
+template void FITS::WritePixels_8(const Image8&);
+template void FITS::WritePixels_8(const Image16&);
+template void FITS::WritePixels_8(const Image32&);
 
-template<typename Image>
-void FITS::WritePixels_16(Image& src, float bscale) {
+template<typename T>
+void FITS::WritePixels_16(const Image<T>& src) {
+
 	std::vector<int16_t> buffer(src.Cols());
 	std::streamsize mem_size = buffer.size() * 2;
-	m_stream.rdbuf()->pubsetbuf((char*)buffer.data(), mem_size)->pubseekpos(2880);
 
 	auto bi = buffer.begin();
 
-	if (bscale == 1.0f) {
-		for (auto pixel : src) {
+	for (const T& pixel : src) {
 
-			*bi++ = _byteswap_ushort(pixel - 32768);
-
-			if (bi == buffer.end()) {
-				m_stream.write((char*)buffer.data(), mem_size);
-				bi = buffer.begin();
-			}
-		}
-		return;
-	}
-
-
-	for (auto pixel : src) {
-
-		*bi++ = _byteswap_ushort(pixel * bscale - 32768);
+		*bi++ = _byteswap_ushort(Pixel<uint16_t>::toType(pixel) - 32768);
 
 		if (bi == buffer.end()) {
 			m_stream.write((char*)buffer.data(), mem_size);
@@ -345,35 +391,21 @@ void FITS::WritePixels_16(Image& src, float bscale) {
 		}
 	}
 }
-template void FITS::WritePixels_16(Image8&, float);
-template void FITS::WritePixels_16(Image16&, float);
-template void FITS::WritePixels_16(Image16&, float);
+template void FITS::WritePixels_16(const Image8&);
+template void FITS::WritePixels_16(const Image16&);
+template void FITS::WritePixels_16(const Image32&);
 
-template<typename Image>
-void FITS::WritePixels_float(Image& src, float bscale) {
+template<typename T>
+void FITS::WritePixels_float(const Image<T>& src) {
+
 	std::vector<float> buffer(src.Cols());
 	std::streamsize mem_size = buffer.size() * 4;
-	m_stream.rdbuf()->pubsetbuf((char*)buffer.data(), mem_size)->pubseekpos(m_data_pos);
 
 	auto bi = buffer.begin();
 
-	if (bscale == 1.0f) {
+	for (const T& pixel : src) {
 
-		for (auto pixel : src) {
-
-			*bi++ = byteswap_float(pixel);
-
-			if (bi == buffer.end()) {
-				m_stream.write((char*)buffer.data(), mem_size);
-				bi = buffer.begin();
-			}
-		}
-		return;
-	}
-
-	for (auto& pixel : src) {
-
-		*bi++ = byteswap_float(pixel * bscale);
+		*bi++ = byteswap_float(Pixel<float>::toType(pixel));
 
 		if (bi == buffer.end()) {
 			m_stream.write((char*)buffer.data(), mem_size);
@@ -381,54 +413,42 @@ void FITS::WritePixels_float(Image& src, float bscale) {
 		}
 	}
 }
-template void FITS::WritePixels_float(Image8&, float);
-template void FITS::WritePixels_float(Image16&, float);
-template void FITS::WritePixels_float(Image32&, float);
+template void FITS::WritePixels_float(const Image8&);
+template void FITS::WritePixels_float(const Image16&);
+template void FITS::WritePixels_float(const Image32&);
 
-template <typename Image>
-void FITS::Write(Image& src, int new_bit_depth) {
+template <typename T>
+void FITS::Write(const Image<T>& src, int new_bit_depth) {
 
-	m_fits_header = FITSHeader(src);
+	ResizeBuffer(src.Cols() * SizeofBitdepth(new_bit_depth));
+
+	m_fits_header = FITSHeader(new_bit_depth, { src.Rows(), src.Cols(), src.Channels() });
 	m_fits_header.Write(m_stream);
 
-	float bscale = 1.0f;
-
 	switch (new_bit_depth) {
-	case 8:
-	{
-		if (src.is_uint16())
-			bscale /= 255;
-		else if (src.is_float())
-			bscale = 255;
+		case 8:
+		{
+			WritePixels_8(src);
+			break;
+		}
+		case 16:
+		{
+			WritePixels_16(src);
+			break;
+		}
+		case -32:
+		{
+			WritePixels_float(src);
+			break;
+		}
+	}
 
-		WritePixels_8(src, bscale);
-		break;
-	}
-	case 16:
-	{
-		if (src.is_uint8())
-			bscale = 255;
-		else if (src.is_float())
-			bscale = 65535;
-
-		WritePixels_16(src, bscale);
-		break;
-	}
-	case -32:
-	{
-		if (src.is_uint8())
-			bscale /= 255;
-		else if (src.is_uint16())
-			bscale /= 65535;
-
-		WritePixels_float(src, bscale);
-		break;
-	}
-	}
+	int padding_length = ceil(float(m_stream.tellp()) / m_data_pos) * m_data_pos - m_stream.tellp();
+	std::vector<uint8_t> zeros(padding_length, 0);
+	m_stream.write((char*)zeros.data(), padding_length);
 
 	Close();
-	//m_stream.close();
 }
-template void FITS::Write(Image8&, int);
-template void FITS::Write(Image16&, int);
-template void FITS::Write(Image32&, int);
+template void FITS::Write(const Image8&, int);
+template void FITS::Write(const Image16&, int);
+template void FITS::Write(const Image32&, int);

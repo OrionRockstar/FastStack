@@ -78,7 +78,7 @@ class HistogramTransformation {
 		template <typename Image>
 		void ApplyChannel(Image& img, int ch);
 	};
-
+public:
 	HistogramCurve Red;
 	HistogramCurve Green;
 	HistogramCurve Blue;
@@ -96,6 +96,9 @@ public:
 	void ModifyHighlight(Component component, float hightlight);
 
 	template<typename T>
+	void ComputeSTFCurve(Image<T>& img);
+
+	template<typename T>
 	void STFStretch(Image<T>& img);
 
 	template<typename Image>
@@ -103,3 +106,20 @@ public:
 
 };
 
+class HistogramTransformationWidget : public QDialog {
+	Q_OBJECT
+
+	HistogramTransformation ht;
+
+public:
+	HistogramTransformationWidget(QWidget* parent = nullptr) :QDialog(parent) {
+
+		this->setGeometry(400, 400, 300, 300);
+		this->setAttribute(Qt::WA_DeleteOnClose);
+		//this->setFixedSize(300, 300);
+			//this->setSizePolicy(QSizePolicy::Policy::Maximum, QSizePolicy::Policy::Maximum)
+		this->show();
+
+	}
+
+};

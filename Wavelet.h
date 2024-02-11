@@ -33,38 +33,39 @@ class Wavelet {
 	Image32 wavelet;
 	ScalingFunction m_sf = ScalingFunction::b3spline_5;
 
-	struct Histogram {
-		std::unique_ptr<uint32_t[]> data;
+	struct WaveletHistogram {
+		std::unique_ptr<uint32_t[]> histogram;
 		int m_size = 0;
 		int m_count = 0;
 
-		uint32_t& operator[](int val) { return data[val]; }
+		uint32_t& operator[](int val) { return histogram[val]; }
 
 		//buids full channel histogram
-		Histogram(Image32& img, int ch) {
-			data = std::make_unique<uint32_t[]>(65535 * 2 + 1);
+		WaveletHistogram(Image32& img, int ch) {
+			histogram = std::make_unique<uint32_t[]>(65535 * 2 + 1);
 			m_size = 65535 * 2 + 1;
 
 			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
-				data[65535 * (*pixel + 1)]++;
+				histogram[65535 * (*pixel + 1)]++;
 				m_count++;
 			}
 		}
 
 		//builds mad histogram
-		Histogram(Image32& img, int ch, float median) {
-			data = std::make_unique<uint32_t[]>(65536);
+		WaveletHistogram(Image32& img, int ch, float median) {
+			histogram = std::make_unique<uint32_t[]>(65536);
 			m_size = 65536;
 
 			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
-				data[abs(*pixel - median) * 65535]++;
+				histogram[abs(*pixel - median) * 65535]++;
 				m_count++;
 			}
 		}
 
 		//computes and returns median
-		float Median(bool mad = false);
+		float Median();
 
+		float MAD();
 	};
 
 public:

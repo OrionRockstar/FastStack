@@ -132,7 +132,8 @@ struct Histogram {
 	int Max()const { return m_max_val; }
 
 	template <typename T>
-	float Median(bool clip = false) {
+	T Median(bool clip = false) {
+
 		int occurrences = 0;
 		int median1 = 0, median2 = 0;
 		int medianlength = m_count / 2;
@@ -162,27 +163,22 @@ struct Histogram {
 
 		T med = (median1 + median2) / 2;
 
-		if (histogram[med] == 0) {
+		/*if (histogram[med] == 0) {
 
 			float k1 = float(medianlength - (occurrences - histogram[median1])) / histogram[median1];
 			float k2 = float(medianlength - occurrences) / histogram[median2];
 			med += (k1 + k2) / 2;
 			return med;
-		}
+		}*/
 
 		if (std::is_same<T, float>::value) {
 			med += float(medianlength - (occurrences - histogram[median1])) / histogram[med];
-			med /= Max();
+			med /= 65535;
 		}
 
 		return med;
 	}
 
-	void ZeroHistogram() {
-		m_count = 0;
-		for (int el = 0; el < m_size; ++el)
-			histogram[el] = 0;
-	}
 };
 
 template<typename T>
@@ -273,7 +269,7 @@ public:
 	static uint16_t min() { return 0; }
 
 	static uint16_t toType(uint8_t pixel) {
-		return pixel * 255.0;
+		return pixel * 257;
 	}
 
 	static uint16_t toType(uint16_t pixel) {
@@ -289,7 +285,7 @@ public:
 	}
 
 	static void fromType(uint16_t pixel, uint8_t& a) {
-		a = pixel / 255;
+		a = pixel / 257;
 	}
 
 	static void fromType(uint16_t pixel, uint16_t& a) {
@@ -317,15 +313,15 @@ public:
 	}
 
 	static uint8_t toType(uint16_t pixel) {
-		return pixel / 255;
+		return pixel / 257;
 	}
 
 	static uint8_t toType(float pixel) {
-		return pixel / 255.0f;
+		return pixel * 255.0f;
 	}
 
 	static uint8_t toType(double pixel) {
-		return pixel / 255.0;
+		return pixel * 255.0;
 	}
 
 	static void fromType(uint8_t pixel, uint8_t& a) {
@@ -333,15 +329,15 @@ public:
 	}
 
 	static void fromType(uint8_t pixel, uint16_t& a) {
-		a = pixel * 255;
+		a = pixel * 257;
 	}
 
 	static void fromType(uint8_t pixel, float& a) {
-		a = pixel * 255;
+		a = pixel / 255.0f;
 	}
 
 	static void fromType(uint8_t pixel, double& a) {
-		a = pixel * 255;
+		a = pixel / 255.0;
 	}
 };
 
@@ -368,7 +364,7 @@ private:
 
 public:
 	std::unique_ptr<T[]> data;
-	std::vector<bool> weight_map;
+	//std::vector<bool> weight_map;
 
 	Matrix homography = Matrix(3,3).Identity();
 
@@ -376,6 +372,10 @@ public:
 		assert(ch == 1 || ch == 3);
 
 		m_bitdepth = sizeof(T) * 8;
+
+		if (is_float())
+			m_bitdepth *= -1;
+
 		data = std::make_unique<T[]>(r * c * ch);
 
 		if (m_channels == 3) {
@@ -419,7 +419,7 @@ public:
 
 		homography = other.homography;
 		memcpy(data.get(), other.data.get(), m_total_image * sizeof(T));
-		weight_map = other.weight_map;
+		//weight_map = other.weight_map;
 	}
 
 	Image(Image&& other) {
@@ -444,7 +444,7 @@ public:
 
 		homography = other.homography;
 		data = std::move(other.data);
-		weight_map = std::move(other.weight_map);
+		//weight_map = std::move(other.weight_map);
 
 	}
 
@@ -659,7 +659,7 @@ public:
 		return data[el];
 	}
 
-	T& operator[](int el) const {
+	const T& operator[](int el) const {
 		return data[el];
 	}
 
@@ -667,7 +667,7 @@ public:
 		return data[y * m_cols + x];
 	}
 
-	T& operator()(int x, int y) const {
+	const T& operator()(int x, int y) const {
 		return data[y * m_cols + x];
 	}
 
@@ -675,40 +675,48 @@ public:
 		return data[ch * m_total + y * m_cols + x];
 	}
 
-	T& operator()(int x, int y, int ch) const {
-		return data[ch * m_ total + y * m_cols + x];
+	const T& operator()(int x, int y, int ch) const {
+		return data[ch * m_total + y * m_cols + x];
 	}
 
 	Iterator begin() {
 		return Iterator(this->data.get());
 	}
 
-	Iterator cbegin() const {
+	Iterator begin()const {
+		return Iterator(this->data.get());
+	}
+
+	ConstIterator cbegin()const {
 		return ConstIterator(this->data.get());
 	}
 
-	Iterator end() {
-		return Iterator(this->data.get() + m_total * m_channels);
-	}
-
-	Iterator cend() const {
-		return ConstIterator(this->data.get() + m_total * m_channels);
-	}
-
 	Iterator begin(int channel) {
-		return Iterator(this->data.get() + channel * m_total);
-	}
-
-	Iterator end(int channel) {
-		return Iterator(this->data.get() + (channel + 1) * m_total);
+		return Iterator(this->data.get() + channel * m_pixel_count);
 	}
 
 	ConstIterator cbegin(int channel)const {
-		return ConstIterator(this->data.get() + channel * m_total);
+		return ConstIterator(this->data.get() + channel * m_pixel_count);
+	}
+
+	Iterator end() {
+		return Iterator(this->data.get() + m_total_pixel_count);
+	}
+
+	Iterator end()const {
+		return Iterator(this->data.get() + m_total_pixel_count);
+	}
+
+	ConstIterator cend()const {
+		return ConstIterator(this->data.get() + m_total_pixel_count);
+	}
+
+	Iterator end(int channel) {
+		return Iterator(this->data.get() + (channel + 1) * m_pixel_count);
 	}
 
 	ConstIterator cend(int channel)const {
-		return ConstIterator(this->data.get() + (channel + 1) * m_total);
+		return ConstIterator(this->data.get() + (channel + 1) * m_pixel_count);
 	}
 
 	bool Exists()const { return data != nullptr; }
@@ -740,10 +748,8 @@ public:
 
 	int16_t Bitdepth()const noexcept { return m_bitdepth; }
 
-	T MaxVal()const noexcept { return m_max_val; }
 
-
-	T Max(int channel_num = 0)const noexcept { return statistics[channel_num].max; }
+	/*T Max(int channel_num = 0)const noexcept { return statistics[channel_num].max; }
 
 	T Min(int channel_num = 0)const noexcept { return statistics[channel_num].min; }
 
@@ -759,11 +765,11 @@ public:
 
 	float nMAD(int channel_num = 0)const noexcept { return 1.4826f * statistics[channel_num].mad; }
 
-	float BWMV(int channel_num = 0)const noexcept { return statistics[channel_num].bwmv; }
+	float BWMV(int channel_num = 0)const noexcept { return statistics[channel_num].bwmv; }*/
 
 
 	void getRGB(int el, T& R, T& G, T& B)const {
-			R = m_red[el];
+		R = m_red[el];
 		G = m_green[el];
 		B = m_blue[el];
 	}
@@ -908,13 +914,13 @@ public:
 	}
 
 
-	void CreateWeightMap() {
+	/*void CreateWeightMap() {
 		weight_map = std::vector<bool>(m_total, true);
 	}
 
 	int Weight_At(int x, int y) { return weight_map[y * m_cols + x]; }
 
-	void Set_Weight_At(int x, int y, bool val) { weight_map[y * m_cols + x] = val; }
+	void Set_Weight_At(int x, int y, bool val) { weight_map[y * m_cols + x] = val; }*/
 
 
 	void CopyTo(Image& dest) const {
@@ -1017,44 +1023,26 @@ public:
 	}
 
 	void Normalize() {
-		T max_val = (is_float()) ? 1 : std::numeric_limits<T>::max();
-
-		T max = std::numeric_limits<T>::min();
-		T min = std::numeric_limits<T>::max();
-
-		for (T& pixel : *this) {
-			if (pixel > max) max = pixel;
-			if (pixel < min) min = pixel;
-		}
-
-		if (min < 0 || max > max_val)
-			for (auto& pixel : *this)
-				pixel = (pixel - min) / (max - min);
-
-	}
-
-	void AutoRescale() {
-		if (!is_float())
-			return;
-
 		T max, min;
+
 		ComputeMinMax(min, max);
 
-		if (max > 1.0f || min < 0.0f)
+		if (min < Pixel<T>::min() || Pixel<T>::max() < max)
 			Rescale(min, max);
+
 	}
 
 	void Rescale(T a, T b) {
 		if (b == a)
 			return;
 
-		float dba = 1.0 / (b - a);
+		float dba = m_max_val / float(b - a);
 
 		for (T& pixel : *this) {
 			if (pixel < a)
 				pixel = 0;
 			else if (pixel > b)
-				pixel = 1;
+				pixel = m_max_val;
 			else
 				pixel = (pixel - a) * dba;
 		}
@@ -1065,15 +1053,15 @@ public:
 		if (b == a)
 			return;
 
-		float dba = 1.0 / (b - a);
+		float dba = m_max_val / float(b - a);
 
-		for (auto pixel = begin(ch); pixel != end(ch); ++pixel) {
-			if (*pixel < a)
-				*pixel = 0;
-			else if (*pixel > b)
-				*pixel = 1;
+		for (T& pixel : image_channel(*this, ch)) {
+			if (pixel < a)
+				pixel = 0;
+			else if (pixel > b)
+				pixel = m_max_val;
 			else
-				*pixel = (*pixel - a) * dba;
+				pixel = T((pixel - a) * dba);
 		}
 	}
 
@@ -1124,7 +1112,9 @@ public:
 			float median = statistics[ch].median = histogram.Median<T>(clip);
 			float mean = statistics[ch].mean = meansum / count;
 
-			histogram.ZeroHistogram();
+			for (int i = 0; i < histogram.Size(); ++i)
+				histogram[i] = 0;
+
 			double avgDevsum = 0;
 
 			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
@@ -1174,10 +1164,10 @@ private:
 		double sum = 0;
 		int count = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			if (isClippedVal(*pixel))
+		for (const T& pixel : image_channel(*this, ch)) {
+			if (isClippedVal(pixel))
 				continue;
-			sum += *pixel;
+			sum += pixel;
 			count++;
 		}
 
@@ -1189,10 +1179,10 @@ private:
 		double d, var = 0;
 		int count = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			if (isClippedVal(*pixel))
+		for (const T& pixel : image_channel(*this, ch)) {
+			if (isClippedVal(pixel))
 				continue;
-			d = *pixel - mean;
+			d = pixel - mean;
 			var += d * d;
 			count++;
 		}
@@ -1205,10 +1195,10 @@ private:
 		double sum = 0;
 		int count = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			if (isClippedVal(*pixel))
+		for (const T& pixel : image_channel(*this, ch)) {
+			if (isClippedVal(pixel))
 				continue;
-			sum += fabs(*pixel - median);
+			sum += fabs(pixel - median);
 			count++;
 		}
 
@@ -1234,11 +1224,11 @@ public:
 		max = Pixel<T>::min();
 		min = Pixel<T>::max();
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			if (*pixel > max)
-				max = *pixel;
-			else if (*pixel < min)
-				min = *pixel;
+		for (const T& pixel : image_channel(*this, ch)) {
+			if (pixel > max)
+				max = pixel;
+			else if (pixel < min)
+				min = pixel;
 		}
 	}
 
@@ -1246,9 +1236,9 @@ public:
 
 		T max = std::numeric_limits<T>::min();
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-			if (*pixel > max)
-				max = *pixel;
+		for (const T& pixel : image_channel(*this, ch))
+			if (pixel > max)
+				max = pixel;
 
 		return max;
 	}
@@ -1257,9 +1247,9 @@ public:
 
 		T min = std::numeric_limits<T>::max();
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-			if (*pixel < min)
-				min = *pixel;
+		for (const T& pixel : image_channel(*this, ch))
+			if (pixel < min)
+				min = pixel;
 
 		return min;
 	}
@@ -1271,15 +1261,14 @@ public:
 
 		double sum = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-			sum += *pixel;
-
+		for (const T& pixel : image_channel(*this, ch))
+			sum += pixel;
+		
 		return sum / m_pixel_count;
 	}
 
 	T ComputeMedian(int ch, bool clip = false)const {
 		Histogram histogram(*this, ch);
-		//histogram.Med<T>(clip);
 		return histogram.Median<T>(clip);
 	}
 
@@ -1290,8 +1279,8 @@ public:
 
 		double d, var = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			d = *pixel - mean;
+		for (const T& pixel : image_channel(*this, ch)) {
+			d = pixel - mean;
 			var += d * d;
 		}
 
@@ -1300,18 +1289,9 @@ public:
 
 	float ComputeStdDev(int ch, bool clip = false)const {
 
-		if (clip)
-			return ComputeStdDev_Clipped(ch, ComputeMean_Clipped(ch));
+		float mean = ComputeMean(ch, clip);
 
-		double d, var = 0;
-		float mean = ComputeMean(ch);
-
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-			d = *pixel - mean;
-			var += d * d;
-		}
-
-		return sqrt(var / m_pixel_count);
+		return ComputeStdDev(ch, mean, clip);
 
 	}
 
@@ -1322,8 +1302,8 @@ public:
 
 		double sum = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-			sum += fabs(*pixel - median);
+		for (const T& pixel : image_channel(*this, ch))
+			sum += fabs(pixel - median);
 
 
 		return sum / m_pixel_count;
@@ -1333,15 +1313,8 @@ public:
 
 		T median = ComputeMedian(ch, clip);
 
-		if (clip)
-			return ComputeAvgDev_Clipped(ch, median);
+		return ComputeAvgDev(ch, median, clip);
 
-		double sum = 0;
-
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel)
-			sum += fabs(*pixel - median);
-
-		return sum / m_pixel_count;
 	}
 
 	T ComputeMAD(int ch, T median, bool clip = false)const {
@@ -1368,48 +1341,29 @@ public:
 		double Y, a;
 		int count = 0;
 
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
+		for (const T& pixel : image_channel(*this, ch)) {
 
-			if (clip && isClippedVal(*pixel)) continue;
+			if (clip && isClippedVal(pixel)) continue;
 
-			Y = (*pixel - median) * x9mad;
+			Y = (pixel - median) * x9mad;
 
 			(abs(Y) < 1) ? a = 1 : a = 0;
 
 			Y *= Y;
 
-			sum1 += (a * pow(*pixel - median, 2) * pow(1 - Y, 4));
+			sum1 += (a * pow(pixel - median, 2) * pow(1 - Y, 4));
 			sum2 += (a * (1 - Y) * (1 - 5 * Y));
 			count++;
 		}
+
 		return sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
 	}
 
 	float ComputeBWMV(int ch, bool clip = false)const {
 
 		T median = ComputeMedian(ch, clip);
-		T mad = ComputeMAD(ch, median, clip);
 
-		double x9mad = 1 / (9 * mad);
-		double sum1 = 0, sum2 = 0;
-		double Y, a;
-		int count = 0;
-
-		for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
-
-			if (clip && isClippedVal(*pixel)) continue;
-
-			Y = (*pixel - median) * x9mad;
-
-			(abs(Y) < 1) ? a = 1 : a = 0;
-
-			Y *= Y;
-
-			sum1 += (a * pow(*pixel - median, 2) * pow(1 - Y, 4));
-			sum2 += (a * (1 - Y) * (1 - 5 * Y));
-			count++;
-		}
-		return sqrt((count * sum1) / (abs(sum2) * abs(sum2)));
+		return ComputeBWMV(ch, median, clip);
 	}
 
 
@@ -1504,6 +1458,53 @@ typedef Image<float> Image32;
 typedef Image<uint16_t> Image16;
 typedef Image<uint8_t> Image8;
 
+
+template <typename T>
+class ImageChannel {
+	Image<T>::Iterator b = Image<T>().begin();
+	Image<T>::Iterator e = Image<T>().end();
+
+public:
+
+	ImageChannel(Image<T>& img, int ch) {
+		b = img.begin(ch);
+		e = img.end(ch);
+	}
+
+	Image<T>::Iterator begin() { return b; }
+	Image<T>::Iterator end() { return e; }
+
+};
+
+template <typename T>
+class ConstImageChannel {
+	Image<T>::ConstIterator cb = Image<T>().cbegin();
+	Image<T>::ConstIterator ce = Image<T>().cend();
+
+public:
+
+	ConstImageChannel(const Image<T>& img, int ch) {
+		cb = img.cbegin(ch);
+		ce = img.cend(ch);
+	}
+
+	Image<T>::ConstIterator begin()const { return cb; }
+	Image<T>::ConstIterator end()const { return ce; }
+
+};
+
+template <class T>
+ImageChannel<T>
+image_channel(Image<T>& img, int channel) {
+	return ImageChannel<T>(img, channel);
+}
+
+template <class T>
+ConstImageChannel<T>
+image_channel(const Image<T>& img, int channel) {
+	return ConstImageChannel<T>(img, channel);
+}
+
 typedef std::vector<Image32> ImageVector;
 typedef std::vector<Image8> Image8Vector;
 typedef std::vector<bool> WeightMap;
@@ -1523,14 +1524,9 @@ void GetImageStackFromTemp(FileVector& light_files, ImageVector& img_stack);
 
 namespace FileOP {
 
-	void TiffRead(std::filesystem::path file, Image32& img);
-
 	bool FitsRead(const std::filesystem::path file, Image32& img);
 
 	//void XISFRead(std::string file, Image32& img);
 
-	void FitsWrite(Image32& img, const std::filesystem::path& file_path, bool overwrite = true);
-
-	void TiffWrite(Image32& img, std::string filename);
 }
 

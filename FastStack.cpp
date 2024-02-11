@@ -3,63 +3,75 @@
 #include "ImageWindow.h"
 #include "Image.h"
 #include "Maths.h"
+#include "FITS.h"
 
 FastStack::FastStack(QWidget *parent)
     : QMainWindow(parent)
 { 
     ui.setupUi(this);
-    //this->menuBar()->addMenu()
-    // 
-    //QMenu* fileMenu = menuBar()->addMenu(tr("& File"));
+
     
     //will need to be apart of mainwindow/faststack as it needs access to image
     //or create temp image in menubar
     m_menubar = new MenuBar(this);
+
+
+
     this->setMenuBar(m_menubar);
     this->setWindowTitle("FastStack");
-    this->resize(this->screen()->geometry().width()/2, this->screen()->geometry().height() / 2);
-    this->resize(1386, 921);
-    this->resize(1108, 736);
 
-    //this->setWindowState(Qt::WindowMaximized);
-    QString mss = "background: #708090";
-    this->setStyleSheet(mss);
+    this->resize(this->screen()->availableSize());
+    this->setWindowState(Qt::WindowState::WindowMaximized);
+
+    workspace = new Workspace(this);
+    this->setCentralWidget(workspace);
+
+    connect(workspace, &Workspace::sendOpen, m_menubar, &MenuBar::onWindowOpen);
+    connect(workspace, &Workspace::sendClose, m_menubar, &MenuBar::onWindowClose);
+
+    QPalette pal = palette();
+    QColor("#708090");
+    QColor("#696969");
+    //pal.setColor(QPalette::Window, QColor(173,3,252));
+    //this->setPalette(pal);
+    //this->set
+    //QString mss = "background: #708090";
+    //this->setStyleSheet(mss);
     //this->insertToolBar();
 
-    QPushButton* button = new QPushButton("Stretch",this);
-    QRect bs = { 0,22,50,50 };
-    button->setGeometry(bs);
+    //QPushButton* button = new QPushButton("Stretch",this);
+   // QRect bs = { 0,22,50,50 };
+    //button->setGeometry(bs);
     QString pbss = "QPushButton {background-color: rgb(220,0,0);"
         "border-radius: 6px;}"
         "QPushButton:hover {background-color: rgb(255,0,0);}"
         "QPushButton:pressed {background-color:rgb(200,0,0)}";
 
+    
     Image32 img;
     std::filesystem::path orion = "C:\\Users\\Zack\\Desktop\\Fits Files\\Vixen80\\orion.fts";
     std::filesystem::path test = "C:\\Users\\Zack\\Desktop\\test.fits";
-    FileOP::FitsRead(test, img);
-    ImageWindow* iw = new ImageWindow(img);
+    //FileOP::FitsRead(test, img);
+    FITS fits;
+    fits.Open(test);
+    fits.Read(img);
 
-    /*QImage qim(img.Cols(), img.Rows(), QImage::Format::Format_Grayscale8);
-    for (int el = 0; el < img.Total(); ++el)
-        qim.bits()[el] = img[el] * 255;
+    //work on window and scrollbar style
+    //ImageWindow32* iw32 = new ImageWindow(img, "test", workspace);
+    //workspace->addSubWindow(iw32);
+    //QString ss = "QMdiSubWindow { border-width: 4px; border-style: solid; border-color: purple;} QMdiSubWindow::title{color:purple; height:28px;}";
 
-    QLabel* lab = new QLabel(this);
-    QPixmap pixmap;
-    pixmap.convertFromImage(qim);
-    //pixmap.fromImage(qim);
-    lab->setGeometry(QRect(50, 50, 550, 550));
-    lab->setPixmap(pixmap);*/
-    //QString  path = "C:\\Users\\Zack\\Desktop\\Gina\\IMG_20230119_153938_HDR.jpg";
-    //QPixmap pixmap(path);
+    //QString ss = "QMdiSubWindow {border-bottom-width: 6px; border-style: solid; border-color: white; }";
+    //workspace->currentSubWindow()->setStyleSheet(ss);
+    //workspace->currentSubWindow()->setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    //workspace->currentSubWindow()->show();
     
-    //QSize s = { 50,50 };
-    //pixmap.scaled(s);
-    //button->setIcon(QIcon(pixmap));
-    //button->setIconSize(pixmap.rect().size());
-    button->setStyleSheet(pbss);
-    QMenu* processMenu = menuBar()->addMenu(tr(" & Process"));
+    //fits.Open(orion);
 
+    //button->setStyleSheet(pbss);
+    //QMenu* processMenu = menuBar()->addMenu(tr(" & Process"));
+    //HistogramTransformationWidget* widget = new HistogramTransformationWidget(this);
+    //processMenu->addAction()
     //QMenu* pm = menuBar()->addMenu();
     //QAction* open = fileMenu->addAction(tr("&Open"), this, &FastStack::open);
     //open->setShortcut(QKeySequence::Open);

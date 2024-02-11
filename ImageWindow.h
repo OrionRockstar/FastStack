@@ -1,119 +1,186 @@
 #pragma once
 
+#include "HistogramTransformation.h"
 #include <QMainWindow>
 #include "ui_ImageWindow.h"
 #include "Image.h"
 #include <QWheelEvent>
+#include <QCloseEvent>
 
-//template <typename T>
-class ImageWindow : public QMainWindow
-{
+
+class IWSS: public QMdiSubWindow {
 	Q_OBJECT
 
 public:
-	ImageWindow(Image8& img, QWidget* parent = nullptr);
+	IWSS() {}
+	~IWSS() {}
 
-	ImageWindow(Image16& img, QWidget* parent = nullptr);
+public slots:
 
-	ImageWindow(Image32& img, QWidget* parent = nullptr);
+signals:
+	void sendWindowClose();
 
-	~ImageWindow();
+	void sendWindowOpen();
+};
+
+
+class ScrollBar : public QScrollBar {
+	Q_OBJECT
+
+public:
+	ScrollBar(QWidget* parent = nullptr) {}
+
+	signals:
+	void wheelEvent(QWheelEvent* event);
+
+};
+
+
+template<typename T>
+class ImageWindow:public QWidget {
+	//Q_OBJECT
+	QWidget* m_parent;
+
+	int m_drows = 0;
+	int m_dcols = 0;
+	int m_dchannels = 0;
+
+	QString m_name;
+
+public:
+	Image<T> source;
+	IWSS* iws;
 
 private:
-	Ui::ImageWindowClass ui;
-	int m_rows = 0;
-	int m_cols = 0;
-	int m_channels = 0;
 
-	Image32 source;
-	Image8 source8;
-
+	HistogramTransformation stf;
+	bool m_stf = false;
+	bool compute_stf = true;
 
 	QLabel* label;
 	QImage display;
 	QPixmap output;
 
 	QScrollArea* sa;
-	QScrollBar* sbh;
-	QScrollBar* sbv;
-	
-	int m_min_factor_poll = -4;
+	ScrollBar* sbh;
+	ScrollBar* sbv;
+
+	int m_min_factor_poll = -10;
 	int m_max_factor_poll = 15;
+	int m_factor_poll = -4;
 
-	float m_factor = 1.0 / abs(m_min_factor_poll);//0.25;
-	float m_old_factor = m_factor;
+	double m_factor = 1.0 / abs(m_factor_poll);//0.25;
+	double m_old_factor = m_factor;
+	double m_initial_factor = m_factor;
 
-	int m_factor_poll = m_min_factor_poll;
-	
-	int m_page_step = 1;
-	float m_initial_factor = m_factor;
+	//Qt::WindowState m_state = Qt::WindowState::WindowNoState;
 
-	int offsetx = 0;
-	int offsety = 0;
+	int m_winRows = 0;
+	int m_winCols = 0;
 
-	int mouse_offx = 0;
-	int mouse_offy = 0;
+	double m_sourceOffX = 0;
+	double m_sourceOffY = 0;
 
-	int scrollbar_offx = 0;
-	int scrollbar_offy = 0;
+	int m_mouseX = 0;
+	int m_mouseY = 0;
 
-public slots:
-	void setSliderX() {
-		scrollbar_offx = sbh->value() / -m_initial_factor;
-	}
+	int m_scrollbarX = 0;
+	int m_scrollbarY = 0;
 
-	void setSliderY() {
-		scrollbar_offy = sbv->value() / -m_initial_factor;
-	}
+	bool m_open = false;
 
-	void sliderPanX(int value) {
-		value /= -m_initial_factor;
-		if (value == scrollbar_offx)
-			return;
-		
-		Pan_SliderX(value);// (m_initial_factor / m_factor), 0);
-	}
+public:
 
-	void sliderPanY(int value) {
-		value /= -m_initial_factor;
-		if (value == scrollbar_offy)
-			return;
+	ImageWindow() = default;
 
-		Pan_SliderY(value);// (m_initial_factor / m_factor), 0);
-	}
+	ImageWindow(Image<T>& img, QString name, QWidget* parent = nullptr);
 
+	~ImageWindow() {}
 
-protected:
-	virtual void wheelEvent(QWheelEvent* event);
+	int Rows()const { return m_drows; }
 
-	virtual void mousePressEvent(QMouseEvent* event);
+	int Cols()const { return m_dcols; }
 
-	virtual void mouseMoveEvent(QMouseEvent* event);
+	int Bitdepth()const { return source.Bitdepth(); }
+
+	QString ImageName()const { return m_name; }
 
 private:
+
+	void sliderPressedX();
+
+	void sliderPressedY();
+
+	void sliderPanX(int value);
+
+	void sliderPanY(int value);
+
+	void sliderArrowX(int action);
+
+	void sliderArrowY(int action);
+
+	void sliderWheelX(QWheelEvent* event);
+
+	void sliderWheelY(QWheelEvent* event);
+
+
+	void wheelEvent(QWheelEvent* event);
+
+	void mousePressEvent(QMouseEvent* event);
+
+	void mouseMoveEvent(QMouseEvent* event);
+
+	void closeEvent(QCloseEvent* close);
+
+	//called when window opens
+	//when window min/max
+	//when window resizes
+	void resizeEvent(QResizeEvent* event);
+
+	//make it dependent on size of workspace
+	int IdealFactor() {
+		int width = screen()->availableSize().width();
+		int height = screen()->availableSize().height();
+
+		double ratio = double(width) / height;
+
+		int factor = 1;
+		for (; factor < 5; ++factor) {
+
+			int new_cols = source.Cols() / factor;
+			int new_rows = source.Rows() / factor;
+
+			if (new_cols < 0.55 * width || new_rows < 0.7 * height)
+				break;
+		}
+
+		m_factor_poll =	(factor == 1) ? factor : - factor;
+		m_initial_factor = m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
+
+		return factor;
+	}
+
+	void ResizeWindowtoNormal();
+
+	void ResizeDisplay();
+
+	void DisplayImage();
+
+
 	void InstantiateScrollBars();
+
+	void ShowHorizontalScrollBar();
+
+	void HideHorizontalScrollBar();
+
+	void ShowVerticalScrollBar();
+
+	void HideVerticalScrollBar();
 
 	void ShowScrollBars();
 
-	void HideScrollBars();
-
-	bool IsInWindow(int x, int y) { return 0 <= x && x < m_cols && 0 <= y && y < m_rows; }
-
-	void BinToWindow(int x_start, int y_start, int factor);
-
-
-	void BinToWindowBilinear(int x_start, int y_start, int factor);
-
-	void BinToWindowBilinearRGB(int x_start, int y_start, int factor);
-
-	void UpsampleToWindow(int x_start, int y_start, int factor);
 
 	void Zoom(int x, int y);
-
-	//decrease mouse sensitivity at higher zooms
-	//withour increasing jitter
-	//make offsetx and y float??
-	int DeltaMouseAdjustment(float dm);
 
 	void Pan(int x, int y);
 
@@ -121,4 +188,20 @@ private:
 
 	void Pan_SliderY(int y);
 
+
+	void BinToWindow_RGB(int x_start, int y_start, int factor);
+
+	void BinToWindow(int x_start, int y_start, int factor);
+
+	void BinToWindow2(int x_start, int y_start, int factor);
+
+
+	void UpsampleToWindow_RGB(double x_start, double y_start, int factor);
+
+	void UpsampleToWindow(double x_start, double y_start, int factor);
+
 };
+
+typedef ImageWindow<uint8_t> ImageWindow8;
+typedef ImageWindow<uint16_t> ImageWindow16;
+typedef ImageWindow<float> ImageWindow32;

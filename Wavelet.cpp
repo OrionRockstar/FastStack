@@ -1,13 +1,13 @@
 #include "pch.h"
 #include "Wavelet.h"
 
-float Wavelet::Histogram::Median(bool mad) {
+float Wavelet::WaveletHistogram::Median() {
 	int occurrences = 0;
 	int median1 = 0, median2 = 0;
 	int medianlength = m_count / 2;
 
 	for (int i = 0; i < m_size; ++i) {
-		occurrences += data[i];
+		occurrences += histogram[i];
 		if (occurrences > medianlength) {
 			median1 = i;
 			median2 = i;
@@ -17,7 +17,7 @@ float Wavelet::Histogram::Median(bool mad) {
 		else if (occurrences == medianlength) {
 			median1 = i;
 			for (int j = i + 1; j < m_size; ++j) {
-				if (data[j] > 0) {
+				if (histogram[j] > 0) {
 					median2 = j;
 					break;
 				}
@@ -28,23 +28,21 @@ float Wavelet::Histogram::Median(bool mad) {
 
 	float med = (median1 + median2) / 2.0;
 
-	if (data[med] == 0) {
-		float k1 = float(medianlength - (occurrences - data[median1])) / data[median1];
-		float k2 = float(medianlength - occurrences) / data[median2];
+	if (histogram[med] == 0) {
+		float k1 = float(medianlength - (occurrences - histogram[median1])) / histogram[median1];
+		float k2 = float(medianlength - occurrences) / histogram[median2];
 		med += (k1 + k2) / 2;
-
-		if (!mad)
-			med -= 65535;
 
 		return med / 65535;
 	}
 
-	med += float(medianlength - (occurrences - data[median1])) / data[med];
+	med += float(medianlength - (occurrences - histogram[median1])) / histogram[med];
 
-	if (!mad)
-		med -= 65535;
+	return (med - 65535) / 65535;
+}
 
-	return med / 65535;
+float Wavelet::WaveletHistogram::MAD() {
+	return Median() + 1;
 }
 
 std::vector<float> Wavelet::GetScalingFunction(ScalingFunction sf) {
@@ -128,14 +126,14 @@ void Wavelet::LinearNoiseReduction(float threshold, float amount) {
 
 	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
 
-		Histogram histogram(wavelet, ch);
+		WaveletHistogram histogram(wavelet, ch);
 		float median = histogram.Median();
-		histogram = Histogram(wavelet, ch, median);
-		threshold *= (histogram.Median(true) / 0.6745);
+		histogram = WaveletHistogram(wavelet, ch, median);
+		threshold *= histogram.MAD() / 0.6745;
 
-		for (auto w = wavelet.begin(ch); w != wavelet.end(ch); ++w) {
-			float val = fabsf(*w);
-			*w = (val < threshold) ? *w * amount : GetSign(*w) * (val - threshold);
+		for (float& w : image_channel(wavelet, ch)) {
+			float val = fabsf(w);
+			w = (val < threshold) ? w * amount : GetSign(w) * (val - threshold);
 		}
 	}
 }
@@ -146,13 +144,13 @@ void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 
 	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
 
-		Histogram histogram(wavelet, ch);
+		WaveletHistogram histogram(wavelet, ch);
 		float median = histogram.Median();
-		histogram = Histogram(wavelet, ch, median);
-		threshold *= histogram.Median(true) / 0.6745;
+		histogram = WaveletHistogram(wavelet, ch, median);
+		threshold *= histogram.MAD() / 0.6745;
 
-		for (auto w = wavelet.begin(ch); w != wavelet.end(ch); ++w)
-			*w = (abs(*w) < threshold) ? *w * amount : *w;
+		for (float& w : image_channel(wavelet, ch))
+			w = (abs(w) < threshold) ? w * amount : w;
 
 	}
 
@@ -332,10 +330,11 @@ void Wavelet::B3WaveletTransform_Trinerized(const Image32& img, Image8Vector& wa
 		Atrous(i, ScalingFunction::b3spline_5);
 
 		wavelet.Normalize();
-		wavelet.ComputeAvgDev(true);
+		float median = wavelet.ComputeMedian(0, true);
+		float avgdev = wavelet.ComputeAvgDev(0, median, true);
 
 		Image8 tri_wavelet(img.Rows(), img.Cols());
-		TrinerizeImage(wavelet, tri_wavelet, wavelet.Median() + thresh_mult * wavelet.AvgDev());
+		TrinerizeImage(wavelet, tri_wavelet, median + thresh_mult * avgdev);
 
 		wavelet_vector.emplace_back(std::move(tri_wavelet));
 	}

@@ -34,14 +34,12 @@ protected:
 		m_px_count = other.m_px_count;
 	}
 
+private:
 	void SetBuffer() {
 
 		m_count = m_cols;
 
-		if (m_bitdepth == 16)
-			m_count *= 2;
-		else if (m_bitdepth == -32)
-			m_count *= 4;
+		m_count *= SizeofBitdepth(m_bitdepth);
 
 		m_count = (m_count > 4096) ? m_count : 4096;
 
@@ -50,7 +48,11 @@ protected:
 
 	}
 
-	void ResizeBuffer(std::streamsize count) {
+protected:
+	void ResizeBuffer(std::streamsize count = 0) {
+
+		if (count == 0)
+			return SetBuffer();
 
 		if (count == m_count)
 			return;
@@ -58,6 +60,19 @@ protected:
 		m_count = count;
 		m_stream_buffer = std::make_unique<char[]>(m_count);
 		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), m_count);
+	}
+
+	uint32_t SizeofBitdepth(int bitdepth)const noexcept {
+		switch (bitdepth) {
+		case 8:
+			return 1;
+		case 16:
+			return 2;
+		case -32:
+			return 4;
+		default:
+			return 4;
+		}
 	}
 
 	virtual void Open(std::filesystem::path path) {

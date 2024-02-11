@@ -12,47 +12,42 @@ class FITS : public ImageFile {
 
 		FITSHeader() = default;
 
-		FITSHeader(int bitpix, std::array<int, 3> axis) {
-			AddKeyWord("SIMPLE", "T          /complies with fits standard");
-			AddKeyWord("BITPIX", std::to_string(bitpix) + "          /bitdepth of image");
+		FITSHeader(int bitpix, std::array<int, 3> axis, bool end = true) {
+			AddLogicalKeyword("SIMPLE", true, "FASTStck FITS");
+			AddIntegerKeyword("BITPIX", bitpix, "bitdepth of image");
+
 			int naxis = 2;
 			if (axis[2] == 3)
 				naxis = 3;
-			AddKeyWord("NAXIS", std::to_string(naxis) + "          /number of axis");
-			AddKeyWord("NAXIS1", std::to_string(axis[1]) + "          /columns");
-			AddKeyWord("NAXIS2", std::to_string(axis[0]) + "          /rows");
+
+			AddIntegerKeyword("NAXIS", naxis, "number of axis");
+			AddIntegerKeyword("NAXIS1", axis[1]);
+			AddIntegerKeyword("NAXIS2", axis[0]);
 
 			if (naxis == 3)
-				AddKeyWord("NAXIS3", std::to_string(axis[2]) + "          /channels");
-		}
-
-		template<typename Image>
-		FITSHeader(Image& img, bool end = true) {
-
-			AddKeyWord("SIMPLE", "T          /complies with fits standard");
-			AddKeyWord("BITPIX", std::to_string(img.Bitdepth()) + "          /bitdepth of image");
-			int naxis = 2;
-			if (img.Channels() == 3)
-				naxis = 3;
-			AddKeyWord("NAXIS", std::to_string(naxis) + "          /number of axis");
-			AddKeyWord("NAXIS1", std::to_string(img.Cols()) + "          /columns");
-			AddKeyWord("NAXIS2", std::to_string(img.Rows()) + "          /rows");
-
-			if (naxis == 3)
-				AddKeyWord("NAXIS3", std::to_string(img.Channels()) + "          /channels");
+				AddIntegerKeyword("NAXIS3", axis[2], "number of axis");
 
 			if (end)
 				EndHeader();
 		}
 
+	private:
+		void AddKW(const std::string& keyword, char* hbp, int& iter);
 
-		void AddKeyWord(const std::string& keyword, const std::string& data);
+		void AddKWC(const std::string& comment, char* hbp, int& iter);
 
-		std::string GetKeyWordValue(const std::string& keyword);
+	public:
+		void AddLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment = "");
+
+		void AddIntegerKeyword(const std::string& keyword, int integer, const std::string& comment = "");
+
+		void AddStringKeyword(const std::string& keword, const std::string& value);
 
 		void AddCommentKeyword(const std::string& data);
 
 		void AddHistoryKeyword(const std::string& data);
+
+		std::string GetKeyWordValue(const std::string& keyword);
 
 		void ResizeHeaderBlock() {
 			header_block.resize(header_block.size() + 36);
@@ -94,14 +89,14 @@ private:
 		return std::stoi(m_fits_header.GetKeyWordValue(keyword));
 	}
 
-	template<typename Image>
-	void WritePixels_8(Image& src, float bscale);
+	template<typename T>
+	void WritePixels_8(const Image<T>& src);
 
-	template<typename Image>
-	void WritePixels_16(Image& src, float bscale);
+	template<typename T>
+	void WritePixels_16(const Image<T>& src);
 
-	template<typename Image>
-	void WritePixels_float(Image& src, float bscale);
+	template<typename T>
+	void WritePixels_float(const Image<T>& src);
 
 public:
 
@@ -132,6 +127,6 @@ public:
 
 	void ReadAny(Image32& dst);
 
-	template <typename Image>
-	void Write(Image& img, int new_bit_depth);
+	template <typename T>
+	void Write(const Image<T>& img, int new_bit_depth);
 };

@@ -95,6 +95,30 @@ static T AverageMAD(Image<T>& img) {
 
 
 template<typename T>
+void HistogramTransformation::ComputeSTFCurve(Image<T>& img){
+	ModifyMidtone(Component::rgb_k, 0.25);
+
+	float median = 0, nMAD = 0;
+	for (int ch = 0; ch < img.Channels(); ++ch) {
+		T cm = img.ComputeMedian(ch, true);
+		median += cm;
+		nMAD += img.ComputeMAD(ch, cm, true);
+	}
+
+	median = Pixel<float>::toType(T(median / img.Channels()));
+	nMAD = Pixel<float>::toType(T(1.4826f * (nMAD / img.Channels())));
+
+	float shadow = (median > 2.8 * nMAD) ? median - 2.8f * nMAD : 0;
+	float midtone = RGB_K.MTF(median - shadow);
+
+	RGB_K.ModifyShadow(shadow);
+	RGB_K.ModifyMidtone(midtone);
+}
+template void HistogramTransformation::ComputeSTFCurve(Image8&);
+template void HistogramTransformation::ComputeSTFCurve(Image16&);
+template void HistogramTransformation::ComputeSTFCurve(Image32&);
+
+template<typename T>
 void HistogramTransformation::STFStretch(Image<T>& img) {
 	ModifyMidtone(Component::rgb_k, 0.25);
 
@@ -113,6 +137,7 @@ void HistogramTransformation::STFStretch(Image<T>& img) {
 
 	RGB_K.ModifyShadow(shadow);
 	RGB_K.ModifyMidtone(midtone);
+
 	Apply(img);
 
 }

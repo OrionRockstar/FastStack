@@ -34,8 +34,9 @@
     <QtModules>core;gui;widgets</QtModules>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
-    <QtInstall>6.2.4_msvc2019_64</QtInstall>
+    <QtInstall>6.6.1_msvc2019_64</QtInstall>
     <QtModules>core;gui;widgets</QtModules>
+    <QMakeCodeLines>$(QMakeCodeLines)</QMakeCodeLines>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
     <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
@@ -124,6 +125,7 @@
     </ClCompile>
     <ClCompile Include="StarDetector.cpp" />
     <ClCompile Include="StarMatching.cpp" />
+    <ClCompile Include="TIFF.cpp" />
     <ClCompile Include="Wavelet.cpp" />
     <QtRcc Include="FastStack.qrc" />
     <QtUic Include="FastStack.ui" />
@@ -141,7 +143,7 @@
     <QtMoc Include="MenuBar.h" />
     <ClInclude Include="FITS.h" />
     <ClInclude Include="GaussianFilter.h" />
-    <ClInclude Include="HistogramTransformation.h" />
+    <QtMoc Include="HistogramTransformation.h" />
     <ClInclude Include="Homography.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="ImageFile.h" />
@@ -153,9 +155,11 @@
     <ClInclude Include="Matrix.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RGBColorSpace.h" />
+    <QtMoc Include="SaveFileOptionsWindows.h" />
     <ClInclude Include="Star.h" />
     <ClInclude Include="StarDetector.h" />
     <ClInclude Include="StarMatching.h" />
+    <ClInclude Include="TIFF.h" />
     <ClInclude Include="Wavelet.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

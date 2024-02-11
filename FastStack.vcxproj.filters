@@ -91,6 +91,9 @@
     <ClCompile Include="FITS.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TIFF.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="StarMatching.h">
@@ -135,9 +138,6 @@
     <ClInclude Include="Wavelet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HistogramTransformation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="CurveInterpolation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -156,20 +156,29 @@
     <ClInclude Include="FITS.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TIFF.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="ImageWindow.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
     <QtMoc Include="MenuBar.h">
       <Filter>Header Files</Filter>
     </QtMoc>
+    <QtMoc Include="ImageWindow.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="SaveFileOptionsWindows.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HistogramTransformation.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
-    <QtUic Include="ImageWindow.ui">
+    <QtUic Include="MenuBar.ui">
       <Filter>Form Files</Filter>
     </QtUic>
-    <QtUic Include="MenuBar.ui">
+    <QtUic Include="ImageWindow.ui">
       <Filter>Form Files</Filter>
     </QtUic>
   </ItemGroup>

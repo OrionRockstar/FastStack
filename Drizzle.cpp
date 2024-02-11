@@ -58,7 +58,7 @@ void Drizzle::DrizzlePixel(Image32& input, Pointi source, Image32& output, Point
 
 			else lx = 1;
 
-			output(x_f + i, y_f + j) = AddPixel(input(source.x, source.y), output(x_f + i, y_f + j), lx * ly / m_new_drop_area, input.Weight_At(source.x, source.y));
+			output(x_f + i, y_f + j);// = AddPixel(input(source.x, source.y), output(x_f + i, y_f + j), lx * ly / m_new_drop_area, input.Weight_At(source.x, source.y));
 		}
 	}
 }

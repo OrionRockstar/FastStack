@@ -4,6 +4,7 @@
 #include <QtWidgets>
 #include <QMenu>
 #include <QMenuBar>
+#
 #include <QFileDialog>
 #include <QPalette>
 
@@ -15,5 +16,5 @@
 #include <algorithm>
 #include <iostream>
 #include "omp.h"
-#include "tiffio.h"
-#include "cfitsio/fitsio.h"
+//#include "tiffio.h"
+//#include "cfitsio/fitsio.h"
