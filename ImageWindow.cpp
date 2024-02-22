@@ -45,7 +45,9 @@ ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : QWid
     else if (m_dchannels == 3)
         display = QImage(m_dcols, m_drows, QImage::Format::Format_RGB888);
 
-    HistogramTransformation().STFStretch(source);
+    //HistogramTransformation().STFStretch(source);
+    //RTP_ImageWindow<T>* r;// = new RTP_ImageWindow<T>(this);
+    //rtp = new RTP_ImageWindow<T>(this);
 
     BinToWindow(0, 0, 1/m_factor);
     
@@ -402,7 +404,12 @@ void ImageWindow<T>::DisplayImage() {
     label->setPixmap(output);
 }
 
-
+template<typename T>
+void ImageWindow<T>::ShowRTP() {
+    if (rtp == nullptr) {
+        rtp = new RTP_ImageWindow<T>(this);
+    }
+}
 
 template<typename T>
 void ImageWindow<T>::InstantiateScrollBars() {
@@ -507,8 +514,6 @@ void ImageWindow<T>::ShowScrollBars() {
         ShowVerticalScrollBar();  
 
 }
-
-
 
 template<typename T>
 void ImageWindow<T>::Zoom(int x, int y) {

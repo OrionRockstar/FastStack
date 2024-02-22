@@ -106,20 +106,33 @@ public:
 
 };
 
-class HistogramTransformationWidget : public QDialog {
+
+class HistogramTransformationDialog : public QDialog {
 	Q_OBJECT
 
 	HistogramTransformation ht;
+	QSlider* m_smh_slider;
 
 public:
-	HistogramTransformationWidget(QWidget* parent = nullptr) :QDialog(parent) {
+	HistogramTransformationDialog(QWidget* parent = nullptr) :QDialog(parent) {
 
 		this->setGeometry(400, 400, 300, 300);
 		this->setAttribute(Qt::WA_DeleteOnClose);
+		QStyle::CC_Slider;
+		
+		m_smh_slider = new QSlider(Qt::Horizontal, this);
 		//this->setFixedSize(300, 300);
 			//this->setSizePolicy(QSizePolicy::Policy::Maximum, QSizePolicy::Policy::Maximum)
 		this->show();
 
 	}
 
+
+	void closeEvent(QCloseEvent* close) {
+		onClose();
+		close->accept();
+	}
+
+signals:
+	void onClose();
 };

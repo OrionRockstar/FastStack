@@ -4,6 +4,9 @@
 #include "ui_MenuBar.h"
 #include "ImageWindow.h"
 
+#include"ASinhStretch.h"
+#include"LocalHistogramEqualization.h"
+
 class BackgroundExtraction : public QMenu {
 public:
     BackgroundExtraction(QWidget* parent) : QMenu(parent) {
@@ -27,47 +30,66 @@ private:
 };
 
 class ImageTransformations : public QMenu {
+    Q_OBJECT
+
 public:
     ImageTransformations(QWidget* parent) : QMenu(parent) {
         this->setTitle("Image Transformations");
+        this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
         this->addAction(tr("&Historgram TransFormation"), this, &ImageTransformations::HistogramTransformation);
         this->addAction(tr("&ArcSinH Stretch"), this, &ImageTransformations::ArcSinhStretch);
         this->addAction(tr("&Curves Transformation"), this, &ImageTransformations::CurvesTransformation);
         this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformations::LocalHistogramEqualization);
     }
 
+private slots:
+    void onHistogramTransformationClose() {
+        htw = nullptr;
+    }
+
+    void onASinhStretchDialogClose() {
+        m_ashd = nullptr;
+    }
+
+    void onLocalHistogramEqualizationDialogClose() {
+        m_lhed = nullptr;
+    }
+
 private:
+    HistogramTransformationDialog* htw = nullptr;
+    ASinhStretchDialog* m_ashd = nullptr;
+    LocalHistogramEqualizationDialog* m_lhed = nullptr;
+
     void HistogramTransformation() {
-        HistogramTransformationWidget* htw = new HistogramTransformationWidget(this);
+        if (htw == nullptr) {
+            htw = new HistogramTransformationDialog(parentWidget());
+            connect(htw, &HistogramTransformationDialog::onClose, this, &ImageTransformations::onHistogramTransformationClose);
+        }
     }
 
     void ArcSinhStretch() {
+        if (m_ashd == nullptr) {
+            m_ashd = new ASinhStretchDialog(parentWidget());
+            connect(m_ashd, &ASinhStretchDialog::onClose, this, &ImageTransformations::onASinhStretchDialogClose);
+        }
     }
 
     void CurvesTransformation() {}
 
-    void LocalHistogramEqualization() {}
+    void LocalHistogramEqualization() {
+        if (m_lhed == nullptr) {
+            m_lhed = new LocalHistogramEqualizationDialog(parentWidget());
+            connect(m_lhed, &LocalHistogramEqualizationDialog::onClose, this, &ImageTransformations::onLocalHistogramEqualizationDialogClose);
+        }
+    }
 
 };
 
 class ProcessMenu : public QMenu {
-    //QWidget* m_parent;
 
     QMenu* m_image_trans;
     QMenu* morphology;
     QMenu* m_abg_extraction;
-
-    void CreateProcessMenu() {
-
-        m_abg_extraction = new BackgroundExtraction(this);
-        this->addMenu(m_abg_extraction);
-
-        m_image_trans = new ImageTransformations(this);
-        this->addMenu(m_image_trans);
-
-        morphology = new Morphology(this);
-        this->addMenu(morphology);
-    }
 
 public:
 
@@ -75,20 +97,28 @@ public:
         this->setTitle("Process");
         CreateProcessMenu();
     }
+
+    void CreateProcessMenu() {
+
+        m_abg_extraction = new BackgroundExtraction(this);
+        this->addMenu(m_abg_extraction);
+
+        m_image_trans = new ImageTransformations(parentWidget());
+        this->addMenu(m_image_trans);
+
+        morphology = new Morphology(this);
+        this->addMenu(morphology);
+    }
 };
 
-class MenuBar: public QMenuBar
-{
+class MenuBar: public QMenuBar {
     Q_OBJECT
-
     //Ui::MenuBarClass ui;
-
 public:
-	MenuBar(QWidget*parent);
+    MenuBar(QWidget* parent);
 	~MenuBar() {}
 
-    //FastStack* fsp;
-    QWidget* m_parent;
+    QMainWindow* m_parent;
 
 	QMenu* filemenu;// = addMenu(tr("&File"));
 	QAction* open;
@@ -96,9 +126,6 @@ public:
     QAction* save_as;
 
     QMenu* m_process;
-    //QMenu* processmenu;
-    //QMenu* stretch_image;
-    //QAction* histogram_transformation;
 
     uint32_t image_counter = 0;
 
@@ -106,8 +133,6 @@ public:
         "FITS file(*.fits *.fts *.fit);;"
         "XISF file(*.xisf);;"
         "TIFF file(*.tiff *tif)";
-
-    void HT();
 
     void Open();
 

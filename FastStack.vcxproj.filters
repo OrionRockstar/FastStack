@@ -94,6 +94,15 @@
     <ClCompile Include="TIFF.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ASinhStretch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LocalHistogramEqualization.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Toolbar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="StarMatching.h">
@@ -171,6 +180,15 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="HistogramTransformation.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ASinhStretch.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="LocalHistogramEqualization.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="Toolbar.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

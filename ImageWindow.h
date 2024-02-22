@@ -41,15 +41,18 @@ class ImageWindow:public QWidget {
 	//Q_OBJECT
 	QWidget* m_parent;
 
+private:
 	int m_drows = 0;
 	int m_dcols = 0;
 	int m_dchannels = 0;
 
 	QString m_name;
 
+
 public:
 	Image<T> source;
 	IWSS* iws;
+	QDialog* rtp = nullptr;
 
 private:
 
@@ -105,6 +108,15 @@ public:
 
 	QString ImageName()const { return m_name; }
 
+public:
+	void onRTPClose() {
+		rtp = nullptr;
+	}
+
+	bool rtpExists() {
+		return (rtp != nullptr) ? true : false;
+	}
+
 private:
 
 	void sliderPressedX();
@@ -137,6 +149,7 @@ private:
 	//when window resizes
 	void resizeEvent(QResizeEvent* event);
 
+public:
 	//make it dependent on size of workspace
 	int IdealFactor() {
 		int width = screen()->availableSize().width();
@@ -159,14 +172,16 @@ private:
 
 		return factor;
 	}
-
+private:
 	void ResizeWindowtoNormal();
 
 	void ResizeDisplay();
 
+public:
 	void DisplayImage();
 
-
+	void ShowRTP();
+private:
 	void InstantiateScrollBars();
 
 	void ShowHorizontalScrollBar();
@@ -178,7 +193,6 @@ private:
 	void HideVerticalScrollBar();
 
 	void ShowScrollBars();
-
 
 	void Zoom(int x, int y);
 
@@ -205,3 +219,141 @@ private:
 typedef ImageWindow<uint8_t> ImageWindow8;
 typedef ImageWindow<uint16_t> ImageWindow16;
 typedef ImageWindow<float> ImageWindow32;
+
+//have parent be current subwindow and current process???
+template <typename T>
+class RTP_ImageWindow: public QDialog {
+
+	ImageWindow<T>* m_parent;
+
+private:
+	int m_bin_factor = 1;
+	int m_drows = 0;
+	int m_dcols = 0;
+	int m_dchannels = 0;
+
+	QString m_name = "Real-Time Preview: ";
+
+public:
+	Image<T> source;
+	Image<T> modified;
+	IWSS* iws;
+
+private:
+	QLabel* label;
+	QImage display;
+	QPixmap output;
+
+public:
+	RTP_ImageWindow(QWidget* parent = nullptr) : QDialog(parent) {
+
+		m_parent = reinterpret_cast<ImageWindow<T>*>(parent);
+		m_bin_factor = m_parent->IdealFactor();
+
+		m_drows = m_parent->source.Rows() / m_bin_factor;
+		m_dcols = m_parent->source.Cols() / m_bin_factor;
+		m_dchannels = m_parent->source.Channels();
+
+
+		source = Image<T>(m_drows, m_dcols, m_dchannels);
+		modified = Image<T>(m_drows, m_dcols, m_dchannels);
+
+		label = new QLabel(this);
+		label->setGeometry(0, 0, m_dcols, m_drows);
+
+		iws = new IWSS();
+
+		if (m_dchannels == 1)
+			display = QImage(m_dcols, m_drows, QImage::Format::Format_Grayscale8);
+
+		else if (m_dchannels == 3)
+			display = QImage(m_dcols, m_drows, QImage::Format::Format_RGB888);
+
+		connect(iws, &IWSS::sendWindowClose, m_parent, &ImageWindow<T>::onRTPClose);
+
+		UpdatefromParent();
+
+		CopyFromTo(source, display);
+
+		output.convertFromImage(display);
+		label->setPixmap(output);
+
+		this->setWindowTitle(m_name);
+		setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
+		setAttribute(Qt::WA_DeleteOnClose);
+		show();
+	}
+
+	RTP_ImageWindow() = default;
+
+	void sendClose();
+
+	void closeEvent(QCloseEvent* close) {
+		iws->sendWindowClose();
+		close->accept();
+	}
+
+	QString Name()const { return m_name; }
+
+	void BinImage(Image<T>& src, Image<T>& dst, int factor) {
+		int factor2 = factor * factor;
+
+		for (int ch = 0; ch < m_dchannels; ++ch) {
+			for (int y = 0, y_s = 0; y < m_drows; ++y, y_s += factor) {
+				for (int x = 0, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+					double pix = 0;
+
+					for (int j = 0; j < factor; ++j)
+						for (int i = 0; i < factor; ++i)
+							pix += src(x_s + i, y_s + j, ch);
+
+					dst(x, y, ch) = pix / factor2;
+				}
+			}
+		}
+	}
+
+	void UpdatefromParent() {
+
+		int factor = m_bin_factor;
+		int factor2 = factor * factor;
+
+		for (int ch = 0; ch < m_dchannels; ++ch) {
+			for (int y = 0, y_s = 0; y < m_drows; ++y, y_s += factor) {
+				for (int x = 0, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+					double pix = 0;
+
+					for (int j = 0; j < factor; ++j)
+						for (int i = 0; i < factor; ++i)
+							pix += m_parent->source(x_s + i, y_s + j, ch);
+
+					source(x, y, ch) = pix / factor2;
+				}
+			}
+		}
+		source.CopyTo(modified);
+	}
+
+	void CopyFromTo(Image<T>& src, QImage& dst) {
+		for (int ch = 0; ch < m_dchannels; ++ch) 
+			for (int y = 0; y < m_drows; ++y) 
+				for (int x = 0; x < m_dcols; ++x) 
+					display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(src(x,y, ch));
+
+
+	}
+
+	void DisplayImage() {
+		CopyFromTo(modified, display);
+		output.convertFromImage(display);
+		label->setPixmap(output);
+		source.CopyTo(modified);
+	}
+};
+
+typedef RTP_ImageWindow<uint8_t> RTP_ImageWindow8;
+typedef RTP_ImageWindow<uint16_t> RTP_ImageWindow16;
+typedef RTP_ImageWindow<float> RTP_ImageWindow32;
+

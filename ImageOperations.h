@@ -11,8 +11,6 @@ namespace ImageOP {
 	void AlignImageStack(ImageVector& img_stack, Interpolate interp_type);
 
 
-	//void DrizzleImageStack(std::vector<std::filesystem::path> light_files, Image32& output, float drop_size, ScaleEstimator scale_estimator);
-
 	template<typename Image>
 	extern void RotateImage(Image& img, float theta_degrees, Interpolate interp_type);
 
@@ -190,7 +188,4 @@ namespace ImageOP {
 
 	template<typename Image>
 	extern void AdaptiveStretch(Image& img, float thresh_coef = 1.0f, int thresh_exp = -3, float contrast_coef = 0.0f, int contrast_exp = -2, int num_data_points = 1'000'000);
-
-	template<typename Image>
-	extern void LocalHistogramEqualization(Image& img, int kernel_radius = 64, float contrast_limit = 1.5f, float amount = 1.0f, bool circular = false, int hist_res = 8);
 }

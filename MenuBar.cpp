@@ -8,7 +8,7 @@
 #include "SaveFileOptionsWindows.h"
 
 void MenuBar::onWindowClose() {
-	if (reinterpret_cast<FastStack*>(m_parent)->workspace->subWindowList().size() == 1)
+	if (reinterpret_cast<FastStack*>(parentWidget())->workspace->subWindowList().size() == 1)
 		save_as->setEnabled(false);
 }
 
@@ -18,7 +18,7 @@ void MenuBar::onWindowOpen() {
 
 MenuBar::MenuBar(QWidget *parent): QMenuBar(parent) {
 
-	m_parent = parent;
+	m_parent = reinterpret_cast<FastStack*>(parent);
 
 	this->setStyleSheet(" QMenuBar::item:selected{background: #696969}; background-color: #D3D3D3; color:black;");
 
@@ -80,7 +80,7 @@ void MenuBar::Open() {
 		}
 
 
-		auto wptr = reinterpret_cast<FastStack*>(m_parent)->workspace;
+		auto wptr = reinterpret_cast<FastStack*>(parentWidget())->workspace;
 		if (img8.Exists()) {
 			ImageWindow8* iw8 = new ImageWindow8(img8, filename.c_str(), wptr);
 			//connect(iw8->iws, &IWSS::sendWindowClose, this, &MenuBar::onWindowClose);	
@@ -127,9 +127,8 @@ void MenuBar::SaveAs() {
 	else if (bitdepth == -32)
 		iw32 = reinterpret_cast<ImageWindow32*>(obj);
 
-	if (ext == ".fits") {
-		FITSWindow* fw = new FITSWindow(bitdepth);
-
+	if (ext == ".fits" || ext == ".fit") {
+		FITSWindow* fw = new FITSWindow(m_parent, bitdepth);
 		int bd = -8;
 		if (fw->exec() == QDialog::Accepted)
 			bd = fw->getNewBitdepth();
@@ -190,13 +189,9 @@ void MenuBar::AddFileMenu() {
 
 }
 
-void MenuBar::HT() {
-	HistogramTransformationWidget* htw = new HistogramTransformationWidget(this);
-
-}
-
 void MenuBar::AddProcessMenu() {
-	m_process = new ProcessMenu(this);
+
+	m_process = new ProcessMenu(parentWidget());
 	m_process->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
 
 	this->addMenu(m_process);

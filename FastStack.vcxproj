@@ -106,11 +106,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ASinhStretch.cpp" />
     <ClCompile Include="Bitmap.cpp" />
     <ClCompile Include="CurveInterpolation.cpp" />
     <ClCompile Include="CurvesTransformation.cpp" />
     <ClCompile Include="Drizzle.cpp" />
     <ClCompile Include="FITS.cpp" />
+    <ClCompile Include="LocalHistogramEqualization.cpp">
+      <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
+      <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
+      <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
+      <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
+    </ClCompile>
     <ClCompile Include="MenuBar.cpp" />
     <ClCompile Include="HistogramTransformation.cpp" />
     <ClCompile Include="Homography.cpp" />
@@ -126,6 +133,7 @@
     <ClCompile Include="StarDetector.cpp" />
     <ClCompile Include="StarMatching.cpp" />
     <ClCompile Include="TIFF.cpp" />
+    <ClCompile Include="Toolbar.cpp" />
     <ClCompile Include="Wavelet.cpp" />
     <QtRcc Include="FastStack.qrc" />
     <QtUic Include="FastStack.ui" />
@@ -136,6 +144,7 @@
     <QtUic Include="MenuBar.ui" />
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="ASinhStretch.h" />
     <ClInclude Include="Bitmap.h" />
     <ClInclude Include="CurveInterpolation.h" />
     <ClInclude Include="CurvesTransformation.h" />
@@ -151,6 +160,7 @@
     <ClInclude Include="ImageStacking.h" />
     <QtMoc Include="ImageWindow.h" />
     <ClInclude Include="Interpolator.h" />
+    <QtMoc Include="LocalHistogramEqualization.h" />
     <ClInclude Include="Maths.h" />
     <ClInclude Include="Matrix.h" />
     <ClInclude Include="pch.h" />
@@ -160,6 +170,7 @@
     <ClInclude Include="StarDetector.h" />
     <ClInclude Include="StarMatching.h" />
     <ClInclude Include="TIFF.h" />
+    <QtMoc Include="Toolbar.h" />
     <ClInclude Include="Wavelet.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

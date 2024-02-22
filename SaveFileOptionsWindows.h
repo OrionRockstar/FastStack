@@ -15,24 +15,24 @@ class FITSWindow : public QDialog {
     int new_bitdepth = 8;
 
 public:
-    FITSWindow(int bitdepth) : new_bitdepth(bitdepth) {
-        window = new QDialog;
-        layout = new QVBoxLayout;
+    FITSWindow(QWidget* parent, int bitdepth) : QDialog(parent), new_bitdepth(bitdepth) {
+        window = new QDialog(this);
+        layout = new QVBoxLayout(this);
 
         //window->setWindowIcon
 
         window->resize(200, 100);
         window->setWindowTitle("FITS Save Options");
 
-        bd8 = new QRadioButton;
+        bd8 = new QRadioButton(this);
         bd8->setText("8-bit unsigned int");
         layout->addWidget(bd8);
 
-        bd16 = new QRadioButton;
+        bd16 = new QRadioButton(this);
         bd16->setText("16-bit unsigned int");
         layout->addWidget(bd16);
 
-        bd32 = new QRadioButton;
+        bd32 = new QRadioButton(this);
         bd32->setText("32-bit floating point");
         layout->addWidget(bd32);
 
@@ -48,7 +48,7 @@ public:
             break;
         }
 
-        save = new QPushButton;
+        save = new QPushButton(this);
         save->setText("Save");
         layout->addWidget(save);
 

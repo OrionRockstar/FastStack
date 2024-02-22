@@ -4,6 +4,7 @@
 #include "Image.h"
 #include "Maths.h"
 #include "FITS.h"
+#include "LocalHistogramEqualization.h"
 
 FastStack::FastStack(QWidget *parent)
     : QMainWindow(parent)
@@ -13,18 +14,17 @@ FastStack::FastStack(QWidget *parent)
     
     //will need to be apart of mainwindow/faststack as it needs access to image
     //or create temp image in menubar
-    m_menubar = new MenuBar(this);
-
-
-
-    this->setMenuBar(m_menubar);
-    this->setWindowTitle("FastStack");
 
     this->resize(this->screen()->availableSize());
     this->setWindowState(Qt::WindowState::WindowMaximized);
 
     workspace = new Workspace(this);
     this->setCentralWidget(workspace);
+
+    std::cout << this << "\n";
+    m_menubar = new MenuBar(this);
+    this->setMenuBar(m_menubar);
+    this->setWindowTitle("FastStack");
 
     connect(workspace, &Workspace::sendOpen, m_menubar, &MenuBar::onWindowOpen);
     connect(workspace, &Workspace::sendClose, m_menubar, &MenuBar::onWindowClose);
@@ -57,7 +57,6 @@ FastStack::FastStack(QWidget *parent)
     fits.Read(img);
 
     //work on window and scrollbar style
-    //ImageWindow32* iw32 = new ImageWindow(img, "test", workspace);
     //workspace->addSubWindow(iw32);
     //QString ss = "QMdiSubWindow { border-width: 4px; border-style: solid; border-color: purple;} QMdiSubWindow::title{color:purple; height:28px;}";
 

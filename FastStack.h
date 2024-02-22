@@ -13,6 +13,8 @@ class Workspace : public QMdiArea {
     Q_OBJECT
 
 public:
+    //QDialog* rtp = nullptr;
+
     int m_offsetx = 0;
     int m_offsety = 0;
 
