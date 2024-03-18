@@ -2,9 +2,10 @@
 #include "FastStack.h"
 #include "ImageWindow.h"
 #include "Image.h"
-#include "Maths.h"
 #include "FITS.h"
-#include "LocalHistogramEqualization.h"
+#include "CurvesTransformation.h"
+//#include "LocalHistogramEqualization.h"
+//#include "AdaptiveStretch.h"
 
 FastStack::FastStack(QWidget *parent)
     : QMainWindow(parent)
@@ -56,7 +57,13 @@ FastStack::FastStack(QWidget *parent)
     fits.Open(test);
     fits.Read(img);
 
+    //LocalHistogramEqualizationDialog* lhed = new LocalHistogramEqualizationDialog(this);
+    //AdaptiveStretchDialog* asd = new AdaptiveStretchDialog(this);
+    //ASinhStretchDialog* ashd = new ASinhStretchDialog(this);
+    //HistogramTransformationDialog* ht = new HistogramTransformationDialog(this);
+    //CurveTransformDialog* ct = new CurveTransformDialog(this);
     //work on window and scrollbar style
+    //ImageWindow32* iw32 = new ImageWindow32(img, "test", workspace);
     //workspace->addSubWindow(iw32);
     //QString ss = "QMdiSubWindow { border-width: 4px; border-style: solid; border-color: purple;} QMdiSubWindow::title{color:purple; height:28px;}";
 

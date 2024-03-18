@@ -103,6 +103,9 @@
     <ClCompile Include="Toolbar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AdaptiveStretch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="StarMatching.h">
@@ -150,9 +153,6 @@
     <ClInclude Include="CurveInterpolation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CurvesTransformation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -189,6 +189,12 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="Toolbar.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="AdaptiveStretch.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="CurvesTransformation.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

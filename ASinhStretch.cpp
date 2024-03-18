@@ -123,14 +123,17 @@ template void ASinhStretch::Apply(Image32&);
 
 
 
-//disable slider movement from arrow key
-ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): QDialog(parent) {
+ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): ProcessDialog("ASinhStretch", parent) {
 
-	m_workspace = reinterpret_cast<FastStack*>(parentWidget())->workspace;
-
-	this->setWindowTitle("ArcSinh Stretch");
+	this->setWindowTitle(Name());
 	this->setGeometry(400, 400, 500, 175);
-	m_tb = new Toolbar(this);
+	this->setFocus();
+
+	m_timer = new Timer(500, this);
+	connect(m_timer, &QTimer::timeout, this, &ASinhStretchDialog::ApplytoPreview);
+
+	setWorkspace(reinterpret_cast<FastStack*>(parentWidget())->workspace);
+	setToolbar(new Toolbar(this));
 
 	connect(m_tb, &Toolbar::sendApply, this, &ASinhStretchDialog::Apply);
 	connect(m_tb, &Toolbar::sendPreview, this, &ASinhStretchDialog::showPreview);
@@ -141,6 +144,7 @@ ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): QDialog(parent) {
 	m_bp_comp->move(62, 110);
 	m_bp_comp->setAutoDefault(false);
 	connect(m_bp_comp, &QPushButton::pressed, this, &ASinhStretchDialog::computeBlackpoint);
+	connect(m_bp_comp, &QPushButton::pressed, this, &ASinhStretchDialog::ApplytoPreview);
 
 	AddStretchFactorInputs();
 	AddBlackpointInputs();
@@ -150,44 +154,66 @@ ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): QDialog(parent) {
 	m_rgb_cb->setChecked(true);
 	m_rgb_cb->move(300, 112);
 
-	setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint); 
+	this->setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint); 
 	this->setAttribute(Qt::WA_DeleteOnClose);
 	this->show();
 }
 
 void ASinhStretchDialog::actionSlider_sf(int action) {
-	if (action == 1 || action == 2)
-		repositionSlider_sf();
+	if (action == 3 || action == 4) {
+		m_sf_le->setText(QString::number(pow(1.024, m_sf_slider->sliderPosition()), 'f'));
+		m_sf_le->removeEndDecimal();
+		ApplytoPreview();
+	}
 }
 
 void ASinhStretchDialog::repositionSlider_sf() {
-	m_sf_slider->setSliderPosition(log10(m_sf_le->text().toFloat()) / log10(1.024) + 0.5);
+
+	int new_pos = log10(m_sf_le->text().toFloat()) / log10(1.024) + 0.5;
+	if (new_pos == m_sf_slider->sliderPosition())
+		return;
+
+	m_sf_slider->setSliderPosition(new_pos);
 	ApplytoPreview();
 }
 
 void ASinhStretchDialog::sliderMoved_sf(int value) {
-	std::string val = std::to_string(pow(1.024, value));
-	m_sf_le->setText(((val[3] == '.') ? val.substr(0, 3) : val.substr(0, 4)).c_str());
-	ApplytoPreview();
+	m_sf_le->setText(QString::number(pow(1.024, value), 'f'));
+	m_sf_le->removeEndDecimal();
+
+	m_timer->start();
+	//ApplytoPreview();
 }
 
 
 void ASinhStretchDialog::actionSlider_bp(int action) {
-	if (action == 1 || action == 2)
-		repositionSlider_bp();
+	if (action == 3 || action == 4) {
+		m_bp_le->setText(QString::number(m_bp_slider->sliderPosition() / 1000.0, 'f'));
+		ApplytoPreview();
+	}
 }
 
 void ASinhStretchDialog::repositionSlider_bp() {
-	m_bp_slider->setSliderPosition(m_bp_le->text().toFloat() * 1000);
 
+	int new_pos = m_bp_le->text().toFloat() * 1000;
+	if (new_pos == m_bp_slider->sliderPosition())
+		return;
+
+	m_bp_slider->setSliderPosition(new_pos);
 	ApplytoPreview();
 }
 
 void ASinhStretchDialog::sliderMoved_bp(int value) {
-	std::string str = std::to_string(value / 1000.0);
-	m_bp_le->setText(str.c_str());
 
-	ApplytoPreview();
+	m_bp_le->setText(QString::number(value/1000.0,'f'));
+	m_timer->start();
+	//ApplytoPreview();
+}
+
+
+void ASinhStretchDialog::actionSlider_ft(int action) {
+	if (action == 3 || action == 4)
+		m_fine_tune->setValue(0);
 }
 
 void ASinhStretchDialog::sliderPressed_ft() {
@@ -202,16 +228,18 @@ void ASinhStretchDialog::sliderMoved_ft(int value) {
 
 	double new_bp = m_current_bp + value / 1'000'000.0;
 
-	if (new_bp < m_bpdv->bottom())
-		new_bp = m_bpdv->bottom();
+	auto vp = m_bp_le->Validator();
+	if (new_bp < vp->bottom())
+		new_bp = vp->bottom();
 
-	if (new_bp > m_bpdv->top())
-		new_bp = m_bpdv->top();
+	if (new_bp > vp->top())
+		new_bp = vp->top();
 	
 	m_bp_le->setText(QString::number(new_bp,'f', 6));
 	m_bp_slider->setValue(new_bp * 1000);
 
-	ApplytoPreview();
+	m_timer->start();
+	//ApplytoPreview();
 }
 
 void ASinhStretchDialog::sliderReleased_ft() {
@@ -226,24 +254,18 @@ void ASinhStretchDialog::AddStretchFactorInputs() {
 	m_sf_label = new QLabel("Stretch Factor:", this);
 	m_sf_label->move(25, dy);
 
+	m_sf_le = new DoubleLineEdit("1.00", new DoubleValidator(1.00, 375, 2, this), this);
+	m_sf_le->setGeometry(135, dy, 70, 25);
+	m_sf_le->setMaxLength(4);
+
 	m_sf_slider = new QSlider(Qt::Horizontal, this);
 	m_sf_slider->setRange(0, 250);
 	m_sf_slider->setFixedWidth(250);
 	m_sf_slider->move(225, dy);
 
-
-	m_sfdv = new QDoubleValidator(1.00, 375, 2, this);
-
-	m_sf_le = new QLineEdit(this);
-
-	m_sf_le->setGeometry(135, dy, 70, 25);
-	m_sf_le->setValidator(m_sfdv);
-	m_sf_le->setMaxLength(4);
-	m_sf_le->setText("1.00");
-
+	connect(m_sf_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::repositionSlider_sf);
 	connect(m_sf_slider, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_sf);
 	connect(m_sf_slider, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_sf);
-	connect(m_sf_le, &QLineEdit::returnPressed, this, &ASinhStretchDialog::repositionSlider_sf);
 }
 
 void ASinhStretchDialog::AddBlackpointInputs() {
@@ -258,18 +280,13 @@ void ASinhStretchDialog::AddBlackpointInputs() {
 	m_bp_slider->setFixedWidth(250);
 	m_bp_slider->move(225,dy);
 
-	m_bpdv = new QDoubleValidator(0.0, 0.2, 6, this);
-
-	m_bp_le = new QLineEdit(this);
-
+	m_bp_le = new DoubleLineEdit("0.000000", new DoubleValidator(0.0, 0.2, 6, this), this);
 	m_bp_le->setGeometry(135, dy, 70, 25);
-	m_bp_le->setValidator(m_bpdv);
 	m_bp_le->setMaxLength(8);
-	m_bp_le->setText("0.000000");
 
+	connect(m_bp_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::repositionSlider_bp);
 	connect(m_bp_slider, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_bp);
 	connect(m_bp_slider, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_bp);
-	connect(m_bp_le, &QLineEdit::returnPressed, this, &ASinhStretchDialog::repositionSlider_bp);
 }
 
 void ASinhStretchDialog::AddFinetuneInputs() {
@@ -279,6 +296,8 @@ void ASinhStretchDialog::AddFinetuneInputs() {
 	m_fine_tune->setFixedWidth(340);
 	m_fine_tune->setRange(-500, 500);
 	m_fine_tune->setValue(0);
+
+	connect(m_fine_tune, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_ft);
 	connect(m_fine_tune, &QSlider::sliderPressed, this, &ASinhStretchDialog::sliderPressed_ft);
 	connect(m_fine_tune, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_ft);
 	connect(m_fine_tune, &QSlider::sliderReleased, this, &ASinhStretchDialog::sliderReleased_ft);
@@ -325,28 +344,7 @@ void ASinhStretchDialog::resetDialog() {
 
 void ASinhStretchDialog::showPreview() {
 
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-
-	switch (iwptr->source.Bitdepth()) {
-	case 8: {
-		iwptr->ShowRTP();
-		break;
-	}
-	case 16: {
-		reinterpret_cast<ImageWindow16*>(iwptr)->ShowRTP();
-		break;
-	}
-	case -32: {
-		reinterpret_cast<ImageWindow32*>(iwptr)->ShowRTP();
-		break;
-	}
-	}
-	iwptr->rtp->setWindowTitle("Real-Time Preview: " + m_name);
-
+	ProcessDialog::showPreview();
 	ApplytoPreview();
 }
 
@@ -388,11 +386,6 @@ void ASinhStretchDialog::Apply() {
 		iw32->DisplayImage();
 		if (iw32->rtpExists()) {
 			reinterpret_cast<RTP_ImageWindow32*>(iw32->rtp)->UpdatefromParent();
-
-			//if (iwptr->rtp->windowTitle().sliced(19, iwptr->rtp->windowTitle().length() - 19).compare(m_name) != 0)
-				//reinterpret_cast<RTP_ImageWindow32*>(iwptr->rtp)->DisplayImage();
-				//send signal to upate with current process instance preview, eg local hist eq
-			//else
 			ApplytoPreview();
 		}
 		break;
@@ -420,19 +413,23 @@ void ASinhStretchDialog::ApplytoPreview() {
 
 	switch (iwptr->source.Bitdepth()) {
 	case 8: {
-		ash.Apply(reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp)->modified);
+		auto iw8 = reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp);
+		iw8->UpdatefromParent();
+		ash.Apply(iw8->source);
 		iwptr->DisplayImage();
 		break;
 	}
 	case 16: {
 		auto iw16 = reinterpret_cast<RTP_ImageWindow16*>(iwptr->rtp);
-		ash.Apply(iw16->modified);
+		iw16->UpdatefromParent();
+		ash.Apply(iw16->source);
 		iw16->DisplayImage();
 		break;
 	}
 	case -32: {
 		auto iw32 = reinterpret_cast<RTP_ImageWindow32*>(iwptr->rtp);
-		ash.Apply(iw32->modified);
+		iw32->UpdatefromParent();
+		ash.Apply(iw32->source);
 		iw32->DisplayImage();
 		break;
 	}

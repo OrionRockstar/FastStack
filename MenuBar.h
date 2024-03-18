@@ -5,6 +5,7 @@
 #include "ImageWindow.h"
 
 #include"ASinhStretch.h"
+#include"CurvesTransformation.h"
 #include"LocalHistogramEqualization.h"
 
 class BackgroundExtraction : public QMenu {
@@ -55,26 +56,36 @@ private slots:
         m_lhed = nullptr;
     }
 
+    void onCurveTransformationDialogClose() {
+        m_ctd = nullptr;
+    }
+
 private:
     HistogramTransformationDialog* htw = nullptr;
     ASinhStretchDialog* m_ashd = nullptr;
     LocalHistogramEqualizationDialog* m_lhed = nullptr;
+    CurveTransformDialog* m_ctd = nullptr;
 
     void HistogramTransformation() {
         if (htw == nullptr) {
             htw = new HistogramTransformationDialog(parentWidget());
-            connect(htw, &HistogramTransformationDialog::onClose, this, &ImageTransformations::onHistogramTransformationClose);
+            connect(htw, &ProcessDialog::onClose, this, &ImageTransformations::onHistogramTransformationClose);
         }
     }
 
     void ArcSinhStretch() {
         if (m_ashd == nullptr) {
             m_ashd = new ASinhStretchDialog(parentWidget());
-            connect(m_ashd, &ASinhStretchDialog::onClose, this, &ImageTransformations::onASinhStretchDialogClose);
+            connect(m_ashd, &ProcessDialog::onClose, this, &ImageTransformations::onASinhStretchDialogClose);
         }
     }
 
-    void CurvesTransformation() {}
+    void CurvesTransformation() {
+        if (m_ctd == nullptr) {
+            m_ctd = new CurveTransformDialog(parentWidget());
+            connect(m_ctd, &ProcessDialog::onClose, this, &ImageTransformations::onCurveTransformationDialogClose);
+        }
+    }
 
     void LocalHistogramEqualization() {
         if (m_lhed == nullptr) {

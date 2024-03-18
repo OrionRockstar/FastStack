@@ -74,27 +74,24 @@ public:
 
 
 
-class LocalHistogramEqualizationDialog : public QDialog {
+class LocalHistogramEqualizationDialog : public ProcessDialog {
 	Q_OBJECT
 
-	QString m_name = "LocalHistogramEqualization";
-
 	LocalHistogramEqualization m_lhe;
-	QMdiArea* m_workspace;
 
-	QLabel* m_kernelradius_label;
-	QLineEdit* m_kernelradius_le;
-	QIntValidator* m_kernelradius_iv;
-	QSlider* m_kernelradius_slider;
+	//kernel radius
+	QLabel* m_kr_label;
+	QLineEdit* m_kr_le;
+	QSlider* m_kr_slider;
 
-	QLabel* m_contrastlimit_label;
-	QLineEdit* m_contrastlimit_le;
-	QDoubleValidator* m_contrastlimit_dv;
-	QSlider* m_contrastlimit_slider;
+	//contrast limit
+	QLabel* m_cl_label;
+	DoubleLineEdit* m_cl_le;
+	QSlider* m_cl_slider;
 
+	//amount
 	QLabel* m_amount_label;
-	QLineEdit* m_amount_le;
-	QDoubleValidator* m_amount_dv;
+	DoubleLineEdit* m_amount_le;
 	QSlider* m_amount_slider;
 
 	QCheckBox* m_circular;
@@ -104,48 +101,26 @@ class LocalHistogramEqualizationDialog : public QDialog {
 	std::array<int, 3> m_res = { 8,10,12 };
 	QLabel* m_hr_label;
 
-	QPushButton* apply;
-
-	Toolbar* tb;
-
 public:
 	LocalHistogramEqualizationDialog(QWidget* parent = nullptr);
 
-	void closeEvent(QCloseEvent* close) {
-		onClose();
-		close->accept();
-	}
-
-	signals:
-	void onClose();
-
 private:
-	//work on textbox inputs
+	void actionSlider_kr(int action);
 
-	void sliderMoved_kernelradius(int value) {
-		m_kernelradius_le->setText(QString::number((value / 2) * 2));
+	void sliderMoved_kr(int value);
 
-		//ApplytoPreview();
-	}
 
-	void sliderMoved_contrastlimit(int value) {
-		if (value < 20)
-			m_contrastlimit_le->setText(QString::number(value / 2.0, 'f', 1));
-		else
-			m_contrastlimit_le->setText(QString::number(value - 10));
+	void actionSlider_cl(int action);
 
-		//ApplytoPreview();
-	}
+	void sliderMoved_cl(int value);
 
-	void sliderMoved_amount(int value) {
-		m_amount_le->setText(QString::number(value / 100.0, 'f', 3));
-		//ApplytoPreview();
-	}
 
-	void itemSelected(int index) {
-		//m_lhe.setHistogramResolution(m_res[index]);
-		ApplytoPreview();
-	}
+	void actionSlider_amount(int action);
+
+	void sliderMoved_amount(int value);
+
+
+	void itemSelected(int index);
 
 	void AddKernelRadiusInputs();
 

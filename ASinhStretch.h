@@ -45,25 +45,18 @@ public:
 
 
 
-class ASinhStretchDialog : public QDialog {
+class ASinhStretchDialog : public ProcessDialog {
 	Q_OBJECT
 
-	QString m_name = "ASinhStretch";
-
 	ASinhStretch ash;
-	QMdiArea* m_workspace;
-
-	Toolbar* m_tb;
 
 	QLabel* m_sf_label;
 	QSlider* m_sf_slider;
-	QLineEdit* m_sf_le;
-	QDoubleValidator* m_sfdv;
+	DoubleLineEdit* m_sf_le;
 
 	QLabel* m_bp_label;
 	QSlider* m_bp_slider;
-	QLineEdit* m_bp_le;
-	QDoubleValidator* m_bpdv;
+	DoubleLineEdit* m_bp_le;
 
 	float m_current_bp = 0;
 	QSlider* m_fine_tune;
@@ -75,60 +68,24 @@ class ASinhStretchDialog : public QDialog {
 public:
 	ASinhStretchDialog(QWidget* parent = nullptr);
 
-signals:
+/*signals:
 	void onClose();
 
 private:
-	//validate line edits when loosing focus nad repos slider
-	//add preview window, only one preview exists for all images/ process instances
-	//make it qdialog and make it child of image window//only current sub window
+
 	void closeEvent(QCloseEvent* close) {
+		for (auto sw : m_workspace->subWindowList()) {
+			auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget())->rtp;
+			QString str = ptr->windowTitle();
+			str.remove(m_name);
+			ptr->setWindowTitle(str);
+		}
 		onClose();
 		close->accept();
-	}
-
-	void keyPressEvent(QKeyEvent* event) {
-		//stretch factor
-		QString str = m_sf_le->text();
-		double val = m_sf_le->text().toDouble();
-		int pos = 0;
-
-		if (m_sfdv->validate(str, pos) == QValidator::Intermediate) {
-			if (val > m_sfdv->top())
-				val = m_sfdv->top();
-			else if (val < m_sfdv->bottom())
-				val = m_sfdv->bottom();
-		}
-
-		str.setNum(val, 10, 2);
-		m_sf_le->setText(str);
-
-		if ((m_sf_le->text())[3] == '.')
-			m_sf_le->setText(m_sf_le->text().removeLast());
-
-		m_sf_le->returnPressed();
-
-		//black_point
-		str = m_bp_le->text();
-		pos = 0;
-		val = m_bp_le->text().toDouble();
-
-
-		if (m_bpdv->validate(str, pos) == QValidator::Intermediate) {
-			if (val > m_bpdv->top())
-				val = m_bpdv->top();
-			else if (val < m_bpdv->bottom())
-				val = m_bpdv->bottom();
-		}
-
-		str.setNum(val, 10, 6);
-		m_bp_le->setText(str);
-
-		m_bp_le->returnPressed();
-	}
+	}*/
 
 //private slots:
-
+private:
 	void actionSlider_sf(int action);
 
 	void repositionSlider_sf();
@@ -141,6 +98,9 @@ private:
 	void repositionSlider_bp();
 
 	void sliderMoved_bp(int value);
+
+
+	void actionSlider_ft(int action);
 
 	void sliderPressed_ft();
 

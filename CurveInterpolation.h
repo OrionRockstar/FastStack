@@ -11,18 +11,25 @@ enum class CurveType {
 
 typedef std::vector<Pointf> Pointsf;
 
-//typedef std::vector < std::array<double, 4>> SplineCoefs;
 struct Curve {
+private:
 	typedef std::vector < std::array<double, 4>> SplineCoefs;
 
-	Pointsf points = { {0, 0}, {1, 1} };
+	std::vector<QPointF> m_points;// = std::vector<Pointf>(0);//{ Pointf(0,0), Pointf(1, 1) };
 	SplineCoefs splc;
-	CurveType type = CurveType::akima_spline;
-	bool do_interpolation = false;
+	CurveType m_type = CurveType::akima_spline;
+	bool is_identity = true;
 
+	static bool ComaparePoints(QPointF a, QPointF b) { return (a.x() < b.x()); }
+
+public:
 	Curve() = default;
 
 	Curve(bool color_saturation);
+
+	void SetInterpolationCurve(CurveType type) { m_type = type; }
+
+	void SetCoeffecients();
 
 	template<typename T, int Offset>
 	struct MyVector {
@@ -45,6 +52,7 @@ struct Curve {
 
 	bool IsIdentity();
 
+private:
 	bool OutRange(double val, double low = 0.0, double high = 1.0);
 
 	void CubicSplineCurve();
@@ -54,7 +62,6 @@ struct Curve {
 	void LinearCurve();
 
 public:
-	void SetCoeffecients();
 
 	double Interpolate(double pixel);
 
@@ -66,14 +73,11 @@ private:
 	double LinearInterpolator(double pixel);
 
 public:
-	bool InsertPoints(Pointsf& other);
+	void InsertDataPoints(std::vector<QPointF> pts) {
 
-	bool InsertPoints_CS(Pointsf& other);
+		m_points.resize(pts.size());
+		memcpy(&m_points[0], &pts[0], m_points.size() * sizeof(QPointF));
 
-	bool InesrtPoint(Pointf other);
-
-	bool InesrtPoint_CS(Pointf other);
-
-	bool RemovePoint(int el);
+	}
 };
 

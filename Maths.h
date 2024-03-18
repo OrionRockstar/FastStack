@@ -126,9 +126,11 @@ struct Point {
     T y = 0;
 
     Point() = default;
+
     Point(T x, T y) : x(x), y(y) {}
 
     bool operator()(Point& a, Point& b) { return (a.x < b.x); }
+
 };
 typedef Point<int> Pointi;
 typedef Point<float> Pointf;

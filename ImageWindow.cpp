@@ -4,7 +4,6 @@
 #include "FastStack.h"
 #include "FITS.h"
 
-
 //change parent to faststack???
 template<typename T>
 ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : QWidget(parent) {
@@ -30,11 +29,11 @@ ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : QWid
     sa->setBackgroundRole(QPalette::ColorRole::Dark);
     sa->setAutoFillBackground(true);
 
-    QString corner = "QAbstractScrollArea::corner{background-color: transparent; }";    
+    QString corner = "QAbstractScrollArea::corner{background-color: light gray; }";    
     sa->setStyleSheet(corner);
 
 
-    label = new QLabel(sa);
+    label = new QLabel(this);
     label->setGeometry(0, 0, m_winCols, m_winRows);
 
     InstantiateScrollBars();
@@ -255,7 +254,11 @@ void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
         m_open = true;
         auto ptr = reinterpret_cast<Workspace*>(m_parent);
 
-        ptr->currentSubWindow()->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols + 15 / devicePixelRatio(), m_winRows + 45 / devicePixelRatio());//15, 45 for native window
+        //ptr->currentSubWindow()->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols + 15 / devicePixelRatio(), m_winRows + 45 / devicePixelRatio());//15, 45 for native window
+        //ptr->currentSubWindow()
+        ptr->currentSubWindow()->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols+10, m_winRows+35);
+        //ptr->currentSubWindow()->setStyleSheet("QMdiSubWindow:Title {background: green;}");
+        //ptr->currentSubWindow()->setStyleSheet("QMdiSubWindow::")
         ptr->UpdateOffsets();
 
         connect(iws, &IWSS::sendWindowOpen, ptr, &Workspace::receiveOpen);
@@ -334,6 +337,7 @@ void ImageWindow<T>::ResizeDisplay() {
 
     //size().width() changes depending on scaling factor
     //std::cout << size().width() << " " << m_winCols << "\n";
+    //std::cout << sbv->width();
 
     if (sbv->isVisible() && !sbh->isVisible()) {
         if (m_winCols > m_dcols + sbv->width()) {
@@ -387,7 +391,6 @@ void ImageWindow<T>::ResizeDisplay() {
     int dc = (sbv->isVisible()) ? sbv->width() : 0;
 
     label->setGeometry((m_winCols - (m_dcols + dc)) / 2, (m_winRows - (m_drows + dr)) / 2, m_dcols, m_drows);
-
     display = QImage(m_dcols, m_drows, display.format());
 }
 
@@ -409,11 +412,15 @@ void ImageWindow<T>::ShowRTP() {
     if (rtp == nullptr) {
         rtp = new RTP_ImageWindow<T>(this);
     }
+    else {
+        reinterpret_cast<RTP_ImageWindow<T>*>(rtp)->UpdatefromParent();
+        reinterpret_cast<RTP_ImageWindow<T>*>(rtp)->DisplayImage();
+    }
 }
 
 template<typename T>
 void ImageWindow<T>::InstantiateScrollBars() {
-    int val = 25 / devicePixelRatio();
+    int val = 25 * devicePixelRatio();
 
     sbh = new ScrollBar;
     sa->setHorizontalScrollBar(sbh);
@@ -421,7 +428,7 @@ void ImageWindow<T>::InstantiateScrollBars() {
     connect(sbh, &ScrollBar::sliderMoved, this, &ImageWindow::sliderPanX);
     connect(sbh, &ScrollBar::actionTriggered, this, &ImageWindow::sliderArrowX);
     connect(sbh, &ScrollBar::wheelEvent, this, &ImageWindow::sliderWheelX);
-    sbh->setFixedHeight(val);
+    sbh->setFixedHeight(20);
 
     sbv = new ScrollBar;
     sa->setVerticalScrollBar(sbv);
@@ -429,7 +436,7 @@ void ImageWindow<T>::InstantiateScrollBars() {
     connect(sbv, &ScrollBar::sliderMoved, this, &ImageWindow::sliderPanY);
     connect(sbv, &ScrollBar::actionTriggered, this, &ImageWindow::sliderArrowY);
     connect(sbv, &ScrollBar::wheelEvent, this, &ImageWindow::sliderWheelY);
-    sbv->setFixedWidth(val);
+    sbv->setFixedWidth(20);
 }
 
 template<typename T>
@@ -475,33 +482,8 @@ void ImageWindow<T>::HideVerticalScrollBar() {
     sa->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
 
-//use has inspiration/derivation
 template<typename T>
 void ImageWindow<T>::ShowScrollBars() {
-
-    QString ss = "QScrollBar:horizontal{"
-        "border: 2px solid grey;"
-        "background: #32CC99;"
-        "height: 20px;"
-        "margin: 0px 20px 0px 20px; }"
-
-        "QScrollBar::handle:horizontal{ "
-        "background: white;"
-        "min - width: 20px; }"
-
-        "QScrollBar::add - line : horizontal{"
-        "border: 2px solid grey;"
-        "background: #32CC99;"
-        "width: 20px;"
-        "subcontrol - position: right;"
-        "subcontrol - origin: margin; }"
-
-        "QScrollBar::sub - line:horizontal{"
-        "border: 2px solid grey;"
-        "background: #32CC99;"
-        "width: 20px;"
-        "subcontrol - position: left;"
-        "subcontrol - origin: margin; }";
 
     if (m_winCols > source.Cols() * m_factor)
         HideHorizontalScrollBar();
@@ -666,7 +648,7 @@ void ImageWindow<T>::BinToWindow2(int x_start, int y_start, int factor) {
 
     if (m_stf) {
         if (compute_stf) {
-            stf.ComputeSTFCurve(source);
+            //stf.ComputeSTFCurve(source);
             compute_stf = false;
         }
     }
@@ -684,8 +666,8 @@ void ImageWindow<T>::BinToWindow2(int x_start, int y_start, int factor) {
                         pix += source(x_s + i, y_s + j, ch);
                 pix = pix / factor2;
 
-                if (m_stf)
-                    pix = Pixel<T>::toType(stf.RGB_K.TransformPixel(Pixel<float>::toType(T(pix))));
+                //if (m_stf)
+                    //pix = Pixel<T>::toType(stf.RGB_K.TransformPixel(Pixel<float>::toType(T(pix))));
 
                 display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(T(pix));
             }

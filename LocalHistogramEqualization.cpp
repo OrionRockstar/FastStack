@@ -252,11 +252,22 @@ template void LHE::Apply(Image32&);
 
 
 using LHED = LocalHistogramEqualizationDialog;
-LHED::LocalHistogramEqualizationDialog(QWidget* parent) : QDialog(parent) {
+LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHistogramEqualization", parent) {
 
-	m_workspace = reinterpret_cast<FastStack*>(parentWidget())->workspace;
-
+	this->setWindowTitle(Name());
 	this->resize(500, 170);
+	this->setFocus();
+
+	m_timer = new Timer(500, this);
+	connect(m_timer, &QTimer::timeout, this, &LHED::ApplytoPreview);
+
+	setWorkspace(reinterpret_cast<FastStack*>(parentWidget())->workspace);
+	setToolbar(new Toolbar(this));
+
+	connect(m_tb, &Toolbar::sendApply, this, &LHED::Apply);
+	connect(m_tb, &Toolbar::sendPreview, this, &LHED::showPreview);
+	connect(m_tb, &Toolbar::sendReset, this, &LHED::resetDialog);
+
 
 	AddKernelRadiusInputs();
 	AddContrastLimitInputs();
@@ -284,66 +295,112 @@ LHED::LocalHistogramEqualizationDialog(QWidget* parent) : QDialog(parent) {
 	//apply->icon();
 	//apply->setStyleSheet("QIcon {color : blue;}");
 
-	tb = new Toolbar(this);
-	connect(tb, &Toolbar::sendApply, this, &LHED::Apply);
-	connect(tb, &Toolbar::sendPreview, this, &LHED::showPreview);
-	connect(tb, &Toolbar::sendReset, this, &LHED::resetDialog);
-
 	setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
 	this->setAttribute(Qt::WA_DeleteOnClose);
 	this->show();
+}
+
+void LHED::actionSlider_kr(int action) {
+	if (action == 3 || action == 4) {
+		m_kr_le->setText(QString::number((m_kr_slider->sliderPosition() / 2) * 2));
+		ApplytoPreview();
+	}
+}
+
+void LHED::sliderMoved_kr(int value) {
+	m_kr_le->setText(QString::number((value / 2) * 2));
+	m_timer->start();
+	//ApplytoPreview();
+}
+
+
+void LHED::actionSlider_cl(int action) {
+	if (action == 3 || action == 4) {
+		int value = m_cl_slider->sliderPosition();
+
+		if (value < 20)
+			m_cl_le->setText(QString::number(value / 2.0, 'f', 1));
+		else
+			m_cl_le->setText(QString::number(value - 10));
+
+		ApplytoPreview();
+	}
+}
+
+void LHED::sliderMoved_cl(int value) {
+	if (value < 20)
+		m_cl_le->setText(QString::number(value / 2.0, 'f', 1));
+	else
+		m_cl_le->setText(QString::number(value - 10));
+	m_timer->start();
+	//ApplytoPreview();
+}
+
+
+void LHED::actionSlider_amount(int action) {
+	if (action == 3 || action == 4) {
+		m_amount_le->setText(QString::number(m_amount_slider->sliderPosition() / 100.0, 'f'));
+		ApplytoPreview();
+	}
+}
+
+void LHED::sliderMoved_amount(int value) {
+	m_amount_le->setText(QString::number(value / 100.0, 'f'));
+	m_timer->start();
+	//ApplytoPreview();
+}
+
+
+void LHED::itemSelected(int index) {
+	ApplytoPreview();
 }
 
 void LHED::AddKernelRadiusInputs() {
 
 	int dy = 15;
 
-	m_kernelradius_label = new QLabel(this);
-	m_kernelradius_label->setText("Kernel Radius: ");
-	m_kernelradius_label->move(30, dy);
+	m_kr_label = new QLabel(this);
+	m_kr_label->setText("Kernel Radius: ");
+	m_kr_label->move(30, dy);
 
-	m_kernelradius_iv = new QIntValidator(16, 512, this);
 
-	m_kernelradius_le = new QLineEdit(this);
-	m_kernelradius_le->setGeometry(150, dy, 65, 25);
-	m_kernelradius_le->setText("64");
-	m_kernelradius_le->setMaxLength(3);
-	m_kernelradius_le->setValidator(m_kernelradius_iv);
+	m_kr_le = new QLineEdit("64", this);
+	m_kr_le->setGeometry(150, dy, 65, 25);
+	m_kr_le->setMaxLength(3);
+	m_kr_le->setValidator(new QIntValidator(16, 512, this));
 
-	m_kernelradius_slider = new QSlider(Qt::Horizontal, this);
-	m_kernelradius_slider->setRange(16, 512);
-	m_kernelradius_slider->setValue(64);
-	m_kernelradius_slider->setFixedWidth(250);
-	m_kernelradius_slider->move(225, dy);
+	m_kr_slider = new QSlider(Qt::Horizontal, this);
+	m_kr_slider->setRange(16, 512);
+	m_kr_slider->setValue(64);
+	m_kr_slider->setFixedWidth(250);
+	m_kr_slider->move(225, dy);
 
-	connect(m_kernelradius_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_kernelradius);
-	connect(m_kernelradius_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	connect(m_kr_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_kr);
+	connect(m_kr_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_kr);
+	//connect(m_kr_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
 }
 
 void LHED::AddContrastLimitInputs() {
 
 	int dy = 45;
 
-	m_contrastlimit_label = new QLabel(this);
-	m_contrastlimit_label->setText("Contrast Limit: ");
-	m_contrastlimit_label->move(30, dy);
+	m_cl_label = new QLabel(this);
+	m_cl_label->setText("Contrast Limit: ");
+	m_cl_label->move(30, dy);
 
-	m_contrastlimit_dv = new QDoubleValidator(1.0, 64, 1, this);
+	m_cl_le = new DoubleLineEdit("2.0", new DoubleValidator(1.0, 64, 1, this), this);
+	m_cl_le->setGeometry(150, dy, 65, 25);
+	m_cl_le->setMaxLength(3);
 
-	m_contrastlimit_le = new QLineEdit(this);
-	m_contrastlimit_le->setGeometry(150, dy, 65, 25);
-	m_contrastlimit_le->setText("2.0");
-	m_contrastlimit_le->setMaxLength(3);
-	m_contrastlimit_le->setValidator(m_contrastlimit_dv);
+	m_cl_slider = new QSlider(Qt::Horizontal, this);
+	m_cl_slider->setRange(2, 74);
+	m_cl_slider->setValue(4);
+	m_cl_slider->setFixedWidth(250);
+	m_cl_slider->move(225, dy);
 
-	m_contrastlimit_slider = new QSlider(Qt::Horizontal, this);
-	m_contrastlimit_slider->setRange(2, 74);
-	m_contrastlimit_slider->setValue(4);
-	m_contrastlimit_slider->setFixedWidth(250);
-	m_contrastlimit_slider->move(225, dy);
-
-	connect(m_contrastlimit_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_contrastlimit);
-	connect(m_contrastlimit_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	connect(m_cl_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_cl);
+	connect(m_cl_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_cl);
+	//connect(m_cl_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
 }
 
 void LHED::AddAmountInputs() {
@@ -354,13 +411,10 @@ void LHED::AddAmountInputs() {
 	m_amount_label->setText("Amount: ");
 	m_amount_label->move(30, dy);
 
-	m_amount_dv = new QDoubleValidator(0.0, 1.0, 3, this);
 
-	m_amount_le = new QLineEdit(this);
+	m_amount_le = new DoubleLineEdit("1.000", new DoubleValidator(0.0, 1.0, 3, this), this);
 	m_amount_le->setGeometry(150, dy, 65, 25);
-	m_amount_le->setText("1.000");
 	m_amount_le->setMaxLength(5);
-	m_amount_le->setValidator(m_amount_dv);
 
 	m_amount_slider = new QSlider(Qt::Horizontal, this);
 	m_amount_slider->setRange(0, 100);
@@ -368,43 +422,24 @@ void LHED::AddAmountInputs() {
 	m_amount_slider->setFixedWidth(250);
 	m_amount_slider->move(225, dy);
 
+	connect(m_amount_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_amount);
 	connect(m_amount_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_amount);
-	connect(m_amount_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	//connect(m_amount_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
 }
 
 void LHED::showPreview() {
 	
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->source.Bitdepth()) {
-	case 8: {
-		iwptr->ShowRTP();
-		break;
-	}
-	case 16: {
-		reinterpret_cast<ImageWindow16*>(iwptr)->ShowRTP();
-		break;
-	}
-	case -32: {
-		reinterpret_cast<ImageWindow32*>(iwptr)->ShowRTP();
-		break;
-	}
-	}
-
-	iwptr->rtp->setWindowTitle("Real-Time Preview: " + m_name);
+	ProcessDialog::showPreview();
 	ApplytoPreview();
 }
 
 void LHED::resetDialog() {
 
-	m_kernelradius_le->setText("64");
-	m_kernelradius_slider->setValue(64);
+	m_kr_le->setText("64");
+	m_kr_slider->setValue(64);
 
-	m_contrastlimit_le->setText("2.0");
-	m_contrastlimit_slider->setValue(4);
+	m_cl_le->setText("2.0");
+	m_cl_slider->setValue(4);
 
 	m_amount_le->setText("1.000");
 	m_amount_slider->setValue(100);
@@ -418,8 +453,8 @@ void LHED::Apply() {
 		return;
 
 	m_lhe.setHistogramResolution(m_res[m_histogram_resolution->currentIndex()]);
-	m_lhe.setContrastLimit(m_contrastlimit_le->text().toFloat());
-	m_lhe.setKernelRadius(m_kernelradius_le->text().toInt());
+	m_lhe.setContrastLimit(m_cl_le->text().toFloat());
+	m_lhe.setKernelRadius(m_kr_le->text().toInt());
 	m_lhe.setAmount(m_amount_le->text().toFloat());
 	m_lhe.setCircularKernel(m_circular->isChecked());
 
@@ -467,29 +502,33 @@ void LHED::ApplytoPreview() {
 		return;
 
 	m_lhe.setHistogramResolution(m_res[m_histogram_resolution->currentIndex()]);
-	m_lhe.setContrastLimit(m_contrastlimit_le->text().toFloat());
+	m_lhe.setContrastLimit(m_cl_le->text().toFloat());
 	m_lhe.setAmount(m_amount_le->text().toFloat());
 	m_lhe.setCircularKernel(m_circular->isChecked());
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	m_lhe.setKernelRadius(m_kernelradius_le->text().toInt() / iwptr->IdealFactor());
+	m_lhe.setKernelRadius(m_kr_le->text().toInt() / iwptr->IdealFactor());
 
 	switch (iwptr->source.Bitdepth()) {
 	case 8: {
-		m_lhe.Apply(reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp)->modified);
+		auto iw8 = reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp);
+		iw8->UpdatefromParent();
+		m_lhe.Apply(iw8->source);
 		iwptr->DisplayImage();
 		break;
 	}
 	case 16: {
 		auto iw16 = reinterpret_cast<RTP_ImageWindow16*>(iwptr->rtp);
-		m_lhe.Apply(iw16->modified);
+		iw16->UpdatefromParent();
+		m_lhe.Apply(iw16->source);
 		iw16->DisplayImage();
 		break;
 	}
 	case -32: {
 		auto iw32 = reinterpret_cast<RTP_ImageWindow32*>(iwptr->rtp);
-		m_lhe.Apply(iw32->modified);
+		iw32->UpdatefromParent();
+		m_lhe.Apply(iw32->source);
 		iw32->DisplayImage();
 		break;
 	}
