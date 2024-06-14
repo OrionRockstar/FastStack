@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Wavelet.h"
+#include "MorphologicalTransformation.h"
 
 float Wavelet::WaveletHistogram::Median() {
 	int occurrences = 0;
@@ -94,7 +95,7 @@ void Wavelet::Atrous(int scale_num, ScalingFunction sf) {
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += source.MirrorEdgePixel(x + d, y, ch) * sfv[i];
+					sum += source.At_mirrored(x + d, y, ch) * sfv[i];
 
 				wavelet(x, y, ch) = sum / sfv_sum;
 			}
@@ -106,14 +107,13 @@ void Wavelet::Atrous(int scale_num, ScalingFunction sf) {
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += wavelet.MirrorEdgePixel(x, y + d, ch) * sfv[i];
+					sum += wavelet.At_mirrored(x, y + d, ch) * sfv[i];
 
 				convolved(x, y, ch) = sum / sfv_sum;
 			}
 	}
 
 	GetWaveletLayer();
-
 }
 
 const int Wavelet::GetSign(float val) {
@@ -153,18 +153,6 @@ void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 			w = (abs(w) < threshold) ? w * amount : w;
 
 	}
-
-}
-
-void Wavelet::TrinerizeImage(const Image32& input, Image8& output, float threshold) {
-
-	for (int el = 0; el < input.Total(); ++el)
-		output[el] = (input[el] >= threshold) ? 1 : 0;
-
-	for (int y = 1; y < output.Rows() - 1; ++y)
-		for (int x = 1; x < output.Cols() - 1; ++x)
-			if (output(x, y) == 1)
-				if (output(x - 1, y) != 0 && output(x + 1, y) != 0 && output(x, y - 1) != 0 && output(x, y + 1) != 0) output(x, y) = 2;
 
 }
 
@@ -250,10 +238,14 @@ void Wavelet::MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num) {
 	source.CopyTo(convolved);
 
 	Image32 result(img.Rows(), img.Cols(), img.Channels());
+	GaussianFilter gf;
 
 	for (int i = 0; i < scale_num; ++i) {
 
-		GaussianFilter(2 * int(pow(2, i)) + 1).ApplyGaussianBlur(convolved, wavelet);
+		gf.setKernelDimension(2 * int(pow(2, i)) + 1);
+		gf.Apply(convolved);
+
+		//GaussianFilter(2 * int(pow(2, i)) + 1).ApplyGaussianBlur(convolved, wavelet);
 		GetWaveletLayer();
 
 		if (i < nrvector.size() && nrvector[i].layer)
@@ -286,7 +278,11 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 	for (int i = 0; i < scale_num; ++i) {
 
 		source.CopyTo(convolved);
-		ImageOP::Morphology(2 * (i + 1) + 1).Median(convolved);
+		
+		MorphologicalTransformation mt(2 * (i + 1) + 1);
+		mt.setMorphologicalFilter(MorphologicalFilter::median);
+		mt.Apply(convolved);
+		//ImageOP::Morphology(2 * (i + 1) + 1).Median(convolved);
 		GetWaveletLayer();
 
 
@@ -307,35 +303,44 @@ template void Wavelet::MultiscaleMedianNR(Image8&, NRVector, int);
 template void Wavelet::MultiscaleMedianNR(Image16&, NRVector, int);
 template void Wavelet::MultiscaleMedianNR(Image32&, NRVector, int);
 
-void Wavelet::B3WaveletTransform_Trinerized(const Image32& img, Image8Vector& wavelet_vector, float thresh_mult, bool median_blur, int scale_num) {
-	if (!img.Exists())
-		return;
+Image8Vector Wavelet::StuctureMaps(const Image32& src, float K, bool median_blur, int num_layers) {
 
-	wavelet_vector.reserve(scale_num);
+	Image8Vector star_imgs;
+	star_imgs.reserve(num_layers);
 
-	source = Image32(img.Rows(), img.Cols(), img.Channels());
-	img.CopyTo(source);
+	source = Image32(src.Rows(), src.Cols(), src.Channels());
 
-	if (source.Channels() == 3)
-		source.RGBtoGray();
+	src.CopyTo(source);
 
-	if (median_blur)
-		ImageOP::Morphology(3).Median(source);
+	if (median_blur) {
+		MorphologicalTransformation mt(3);
+		mt.setMorphologicalFilter(MorphologicalFilter::median);
+		mt.Apply(source);
+	}
 
-	convolved = Image32(img.Rows(), img.Cols());
-	wavelet = Image32(img.Rows(), img.Cols());
+	source.RGBtoGray();
 
-	for (int i = 0; i < scale_num; ++i) {
+	convolved = Image32(src.Rows(), src.Cols());
+	wavelet = Image32(src.Rows(), src.Cols());
+
+	for (int i = 0; i < num_layers; ++i) {
 
 		Atrous(i, ScalingFunction::b3spline_5);
 
 		wavelet.Normalize();
+
 		float median = wavelet.ComputeMedian(0, true);
 		float avgdev = wavelet.ComputeAvgDev(0, median, true);
+		float threshold = median + K * avgdev;
 
-		Image8 tri_wavelet(img.Rows(), img.Cols());
-		TrinerizeImage(wavelet, tri_wavelet, median + thresh_mult * avgdev);
+		Image8 bi_wavelet(src.Rows(), src.Cols());
 
-		wavelet_vector.emplace_back(std::move(tri_wavelet));
+		for (int el = 0; el < bi_wavelet.TotalPxCount(); ++el)
+			bi_wavelet[el] = (wavelet[el] >= threshold) ? 1 : 0;
+
+		star_imgs.emplace_back(std::move(bi_wavelet));
 	}
+
+	return star_imgs;
+
 }

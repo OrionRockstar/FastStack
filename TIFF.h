@@ -195,6 +195,7 @@ public:
     template<typename T>
     void Read(Image<T>& dst);
 
+    void ReadAny(Image32& dst);
 
     template< typename T>
     void WriteScanLine(T* buffer, uint32_t row, uint32_t channel = 0) {

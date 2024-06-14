@@ -3,12 +3,177 @@
 //#include "ImageWindow.h"
 #include "FITS.h"
 #include "TIFF.h"
-#include "QString"
+#include "Bitmap.h"
+
 #include"FastStack.h"
 #include "SaveFileOptionsWindows.h"
+#include "ImageFileReader.h"
+
+
+ImageGeometryMenu::ImageGeometryMenu(QWidget* parent) : QMenu(parent) {
+	this->setTitle("Image Geometry");
+	this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
+	this->addAction(tr("Rotation"), this, &ImageGeometryMenu::RotationSelection);
+	this->addAction(tr("Fast Rotation"), this, &ImageGeometryMenu::FastRotationSelection);
+	this->addAction(tr("Integer Resample"), this, &ImageGeometryMenu::IntegerResampleSelection);
+}
+
+void ImageGeometryMenu::RotationSelection() {
+	if (m_rd == nullptr) {
+		m_rd = new RotationDialog(parentWidget());
+		connect(m_rd, &ProcessDialog::onClose, [this]() {m_rd = nullptr; });
+	}
+}
+
+void ImageGeometryMenu::FastRotationSelection() {
+	if (m_frd == nullptr) {
+		m_frd = new FastRotationDialog(parentWidget());
+		connect(m_frd, &ProcessDialog::onClose, [this]() {m_frd = nullptr; });
+	}
+}
+
+void ImageGeometryMenu::IntegerResampleSelection() {
+	if (m_irs == nullptr) {
+		m_irs = std::make_unique<IntegerResampleDialog>(parentWidget());
+		//m_irs = std::unique_ptr<IntegerResampleDialog>(new IntegerResampleDialog(parentWidget()));
+		connect(m_irs.get(), &ProcessDialog::onClose, [this]() { m_irs.reset(); });
+	}
+}
+
+ImageTransformationsMenu::ImageTransformationsMenu(QWidget* parent) : QMenu(parent) {
+	this->setTitle("Image Transformations");
+	this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
+	this->addAction(tr("&Adaptive Stretch"), this, &ImageTransformationsMenu::AdaptiveStretchSelection);
+	this->addAction(tr("&AutoHistogram"), this, &ImageTransformationsMenu::AutoHistogramSelection);
+	this->addAction(tr("&Historgram Transformation"), this, &ImageTransformationsMenu::HistogramTransformationSelection);
+	this->addAction(tr("&ArcSinh Stretch"), this, &ImageTransformationsMenu::ArcSinhStretchSelection);
+	this->addAction(tr("&Curves Transformation"), this, &ImageTransformationsMenu::CurvesTransformationSelection);
+	this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformationsMenu::LocalHistogramEqualizationSelection);
+}
+
+void ImageTransformationsMenu::AdaptiveStretchSelection() {
+	if (m_asd == nullptr) {
+		m_asd = new AdaptiveStretchDialog(parentWidget());
+		connect(m_asd, &ProcessDialog::onClose, [this]() {m_asd = nullptr; });
+	}
+}
+
+void ImageTransformationsMenu::AutoHistogramSelection() {
+	if (m_ahd == nullptr) {
+		m_ahd = new AutoHistogramDialog(parentWidget());
+		connect(m_ahd, &ProcessDialog::onClose, [this]() {m_ahd = nullptr; });
+	}
+}
+
+void ImageTransformationsMenu::HistogramTransformationSelection() {
+	if (m_ht == nullptr) {
+		m_ht = new HistogramTransformationDialog(parentWidget());
+		connect(m_ht, &ProcessDialog::onClose, [this]() {m_ht = nullptr; });
+	}
+}
+
+void ImageTransformationsMenu::ArcSinhStretchSelection() {
+	if (m_ashd == nullptr) {
+		m_ashd = new ASinhStretchDialog(parentWidget());
+		connect(m_ashd, &ProcessDialog::onClose, [this]() {m_ashd = nullptr; });
+	}
+}
+
+void ImageTransformationsMenu::CurvesTransformationSelection() {
+	if (m_ctd == nullptr) {
+		m_ctd = new CurveTransformDialog(parentWidget());
+		connect(m_ctd, &ProcessDialog::onClose, [this]() {m_ctd = nullptr; });
+	}
+}
+
+void ImageTransformationsMenu::LocalHistogramEqualizationSelection() {
+	if (m_lhed == nullptr) {
+		m_lhed = new LocalHistogramEqualizationDialog(parentWidget());
+		connect(m_lhed, &LocalHistogramEqualizationDialog::onClose, [this]() {m_lhed = nullptr; });
+	}
+}
+
+
+
+
+
+MaskMenu::MaskMenu(QWidget* parent) : QMenu(parent) {
+	this->setTitle(tr("&Masks"));
+	this->addAction(tr("Range Mask"), this, &MaskMenu::RangeMaskSelection);
+}
+
+void MaskMenu::RangeMaskSelection() {
+	if (m_rmd == nullptr) {
+		m_rmd = new RangeMaskDialog(parentWidget());
+		connect(m_rmd, &ProcessDialog::onClose, [this]() { m_rmd = nullptr; });
+	}
+}
+
+
+
+
+
+MorphologyMenu::MorphologyMenu(QWidget* parent) : QMenu(parent) {
+	this->setTitle(tr("&Morphology"));
+	this->addAction(tr("Bilateral Filter"), this, &MorphologyMenu::BilateralFilterSelection);
+	this->addAction(tr("Gaussian Filter"), this, &MorphologyMenu::GaussianBlurSelection);
+	this->addAction(tr("Morphological Transformations"), this, &MorphologyMenu::MorphologicalTransformationsSelection);
+	this->addAction(tr("Sobel Edge Detection"), this, &MorphologyMenu::SobelSelection);
+}
+
+void MorphologyMenu::MorphologicalTransformationsSelection() {
+	if (m_mtd == nullptr) {
+		m_mtd = new MorphologicalTransformationDialog(parentWidget());
+		connect(m_mtd, &ProcessDialog::onClose, [this]() { m_mtd = nullptr; });
+	}
+}
+
+void MorphologyMenu::GaussianBlurSelection() {
+	if (m_gfd == nullptr) {
+		m_gfd = new GaussianFilterDialog(parentWidget());
+		connect(m_gfd, &ProcessDialog::onClose, [this]() { m_gfd = nullptr; });
+	}
+}
+
+void MorphologyMenu::BilateralFilterSelection() {
+	if (m_bfd == nullptr) {
+		m_bfd = new BilateralFilterDialog(parentWidget());
+		connect(m_bfd, &ProcessDialog::onClose, [this]() { m_bfd = nullptr; });
+	}
+}
+
+void MorphologyMenu::SobelSelection() {
+	if (m_sd == nullptr) {
+		m_sd = std::make_unique<SobelDialog>(parentWidget());
+		connect(m_sd.get(), &ProcessDialog::onClose, [this]() { m_sd.reset(); });
+	}
+}
+
+
+
+
+
+void ProcessMenu::CreateProcessMenu() {
+
+	m_abg_extraction = new BackgroundExtraction(parentWidget());
+	this->addMenu(m_abg_extraction);
+
+	m_image_geometry = new ImageGeometryMenu(parentWidget());
+	this->addMenu(m_image_geometry);
+
+	m_image_trans = new ImageTransformationsMenu(parentWidget());
+	this->addMenu(m_image_trans);
+
+	m_mask = new MaskMenu(parentWidget());
+	this->addMenu(m_mask);
+
+	m_morphology = new MorphologyMenu(parentWidget());
+	this->addMenu(m_morphology);
+}
+
 
 void MenuBar::onWindowClose() {
-	if (reinterpret_cast<FastStack*>(parentWidget())->workspace->subWindowList().size() == 1)
+	if (reinterpret_cast<FastStack*>(parentWidget())->m_workspace->subWindowList().size() == 1)
 		save_as->setEnabled(false);
 }
 
@@ -29,14 +194,18 @@ MenuBar::MenuBar(QWidget *parent): QMenuBar(parent) {
 
 void MenuBar::Open() {
 
-		Image8 img8;
-		Image16 img16;
-		Image32 img32;
-
 		std::filesystem::path f_path = QFileDialog::getOpenFileName(this, tr("Open File"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist).toStdString();
 
 		if (f_path == "") 
 			return;
+
+		ImageFileReader(reinterpret_cast<FastStack*>(parent())->m_workspace).Read(f_path);
+		/// <summary>
+		/// only need the following to read image and open window
+		/// </summary>
+		/*Image8 img8;
+		Image16 img16;
+		Image32 img32;
 
 		std::string ext = f_path.extension().string();
 		std::string filename = f_path.filename().string();
@@ -58,6 +227,7 @@ void MenuBar::Open() {
 					break;
 				}
 			}
+			fits.Close();
 		}
 
 		else if (ext == ".tif" || ext == ".tiff") {
@@ -77,29 +247,26 @@ void MenuBar::Open() {
 					break;
 				}
 			}
+			tiff.Close();
 		}
 
+		else if (ext == ".bmp") {
+			Bitmap bitmap;
+			bitmap.Open(f_path);
+			bitmap.Read(img8);
+			bitmap.Close();
+		}
 
-		auto wptr = reinterpret_cast<FastStack*>(parentWidget())->workspace;
-		if (img8.Exists()) {
+		auto wptr = reinterpret_cast<FastStack*>(parent())->workspace;
+
+		if (img8.Exists())
 			ImageWindow8* iw8 = new ImageWindow8(img8, filename.c_str(), wptr);
-			//connect(iw8->iws, &IWSS::sendWindowClose, this, &MenuBar::onWindowClose);	
-			//wptr->addSubWindow(iw8);// ->resize(iw8->Cols() + 12, iw8->Rows() + 36);
-		}
 
-		if (img16.Exists()) {
+		if (img16.Exists())
 			ImageWindow16* iw16 = new ImageWindow16(img16, filename.c_str(), wptr);
-			//connect(iw16->iws, &IWSS::sendWindowClose, this, &MenuBar::onWindowClose);
-			//wptr->addSubWindow(iw16);// ->resize(iw16->Cols() + 12, iw16->Rows() + 36);
-		}
 
-		if (img32.Exists()) {
-			ImageWindow32* iw32 = new ImageWindow32(img32, filename.c_str(), wptr);
-			//connect(iw32->iws, &IWSS::sendWindowClose, this, &MenuBar::onWindowClose);
-			//wptr->addSubWindow(iw32);// ->resize(iw32->Cols() + 12, iw32->Rows() + 36);
-		}
-		//wptr->currentSubWindow()->show();		
-		//save_as->setEnabled(true);
+		if (img32.Exists())
+			ImageWindow32* iw32 = new ImageWindow32(img32, filename.c_str(), wptr);*/
 }
 
 void MenuBar::Save() {
@@ -110,7 +277,7 @@ void MenuBar::SaveAs() {
 
 	auto fsp = reinterpret_cast<FastStack*>(m_parent);
 
-	ImageWindow8* obj = reinterpret_cast<ImageWindow8*>(fsp->workspace->currentSubWindow()->widget());
+	ImageWindow8* obj = reinterpret_cast<ImageWindow8*>(fsp->m_workspace->currentSubWindow()->widget());
 	int bitdepth = obj->Bitdepth();
 
 	std::filesystem::path file_path = QFileDialog::getSaveFileName(this, tr("Save Image As"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0].append("/" + obj->ImageName()), m_typelist, nullptr).toStdString();
@@ -128,9 +295,11 @@ void MenuBar::SaveAs() {
 		iw32 = reinterpret_cast<ImageWindow32*>(obj);
 
 	if (ext == ".fits" || ext == ".fit") {
+
 		FITSWindow* fw = new FITSWindow(m_parent, bitdepth);
 		int bd = -8;
-		if (fw->exec() == QDialog::Accepted)
+		
+		if (fw->exec() == QDialog::Accepted) 
 			bd = fw->getNewBitdepth();
 		else
 			return;
@@ -138,12 +307,12 @@ void MenuBar::SaveAs() {
 		FITS fits;
 		fits.Create(file_path);
 		if (bitdepth == 8)
-			fits.Write(iw8->source, bd);
+			fits.Write(iw8->Source(), bd);
 		else if (bitdepth == 16)
-			fits.Write(iw16->source, bd);
-		else if (bitdepth == -32)
-			fits.Write(iw32->source, bd);
-
+			fits.Write(iw16->Source(), bd);
+		else if (bitdepth == -32) 
+			fits.Write(iw32->Source(), bd);
+		
 	}
 
 	if (ext == ".tiff") {
@@ -162,14 +331,24 @@ void MenuBar::SaveAs() {
 		TIFF tiff;
 		tiff.Create(file_path);
 		if (bitdepth == 8)
-			tiff.Write(iw8->source, bd, planar_contiguous);
+			tiff.Write(iw8->Source(), bd, planar_contiguous);
 		else if (bitdepth == 16)
-			tiff.Write(iw16->source, bd, planar_contiguous);
+			tiff.Write(iw16->Source(), bd, planar_contiguous);
 		else if (bitdepth == -32)
-			tiff.Write(iw32->source, bd, planar_contiguous);
-
+			tiff.Write(iw32->Source(), bd, planar_contiguous);
 	}
 
+	if (ext == ".bmp") {
+		Bitmap bitmap;
+		bitmap.Create(file_path);
+		if (bitdepth == 8)
+			bitmap.Write(iw8->Source());
+		else if (bitdepth == 16)
+			bitmap.Write(iw16->Source());
+		else if (bitdepth == -32)
+			bitmap.Write(iw32->Source());
+
+	}
 
 
 }

@@ -2,22 +2,21 @@
 #include "Image.h"
 #include <array>
 
-enum class Interpolate {
-	nearest_neighbor,
-	bilinear,
-	catmull_rom,
-	bicubic_spline,
-	bicubic_b_spline,
-	cubic_b_spline,
-	lanczos3
-};
-
-template <typename Image>
 class Interpolator {
+public:
+	enum class Type {
+		nearest_neighbor,
+		bilinear,
+		bicubic_spline,
+		bicubic_b_spline,
+		cubic_b_spline,
+		catmull_rom,
+		lanczos3
+	};
 
 private:
-
-	std::array<float, 4> getKernelRow(Image& img, int x, int y, int channel) {
+	template <typename T>
+	std::array<float, 4> getKernelRow(const Image<T>& img, int x, int y, int channel) {
 		std::array<float, 4> pixrow;
 		pixrow[0] = img(x - 1, y, channel);
 		pixrow[1] = img(x, y, channel);
@@ -26,7 +25,8 @@ private:
 		return pixrow;
 	}
 
-	std::array<float, 6> getKernelRow6(Image& img, int x, int y, int channel) {
+	template <typename T>
+	std::array<float, 6> getKernelRow6(const Image<T>& img, int x, int y, int channel) {
 		std::array<float, 6> pixrow;
 		pixrow[0] = img(x - 2, y, channel);
 		pixrow[1] = img(x - 1, y, channel);
@@ -126,9 +126,8 @@ private:
 		return w;
 	}
 
-public:
-
-	float NearestNeighbor(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float NearestNeighbor(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		float dx = x_s - x_f;
@@ -142,7 +141,8 @@ public:
 
 	}
 
-	float Bilinear(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float Bilinear(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		float dx = x_s - x_f;
@@ -163,53 +163,8 @@ public:
 		return r1 * (1 - dy) + r2 * dy;
 	}
 
-	float Catmull_Rom(Image& img, double x_s, double y_s, int ch) {
-
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
-
-		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
-
-			x_f += (dx > .5) ? 1 : 0;
-			y_f += (dy > .5) ? 1 : 0;
-
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
-		}
-
-		std::array<float, 4> vecx;
-		std::array<float, 4> vecy;
-
-		dx++;
-		vecx[0] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
-		dx--;
-		vecx[1] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
-		dx = 1 - dx;
-		vecx[2] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
-		dx++;
-		vecx[3] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
-
-		dy++;
-		vecy[0] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
-		dy--;
-		vecy[1] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
-		dy = 1 - dy;
-		vecy[2] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
-		dy++;
-		vecy[3] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
-
-		std::array<float, 4> resxv;
-
-		resxv[0] = InterpolatePix(getKernelRow(img, x_f, y_f - 1, ch), vecx);
-		resxv[1] = InterpolatePix(getKernelRow(img, x_f, y_f, ch), vecx);
-		resxv[2] = InterpolatePix(getKernelRow(img, x_f, y_f + 1, ch), vecx);
-		resxv[3] = InterpolatePix(getKernelRow(img, x_f, y_f + 2, ch), vecx);
-
-		return InterpolatePix(resxv, vecy);
-	}
-
-	float Bicubic_Spline(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float Bicubic_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		double dx = x_s - x_f;
@@ -255,7 +210,8 @@ public:
 		return InterpolatePix(resxv, vecy);
 	}
 
-	float Bicubic_B_Spline(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float Bicubic_B_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		double dx = x_s - x_f;
@@ -302,7 +258,8 @@ public:
 
 	}
 
-	float Cubic_B_Spline(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float Cubic_B_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		double dx = x_s - x_f;
@@ -348,7 +305,55 @@ public:
 		return InterpolatePix(resxv, vecy);
 	}
 
-	float Lanczos3(Image& img, double x_s, double y_s, int ch) {
+	template <typename T>
+	float Catmull_Rom(const Image<T>& img, double x_s, double y_s, int ch) {
+
+		int x_f = (int)floor(x_s);
+		double dx = x_s - x_f;
+		int y_f = (int)floor(y_s);
+		double dy = y_s - y_f;
+
+		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
+
+			x_f += (dx > .5) ? 1 : 0;
+			y_f += (dy > .5) ? 1 : 0;
+
+			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+		}
+
+		std::array<float, 4> vecx;
+		std::array<float, 4> vecy;
+
+		dx++;
+		vecx[0] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
+		dx--;
+		vecx[1] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
+		dx = 1 - dx;
+		vecx[2] = float(9 * (dx * dx * dx) - 15 * (dx * dx) + 6) / 6;
+		dx++;
+		vecx[3] = float(-3 * (dx * dx * dx) + 15 * (dx * dx) - 24 * dx + 12) / 6;
+
+		dy++;
+		vecy[0] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
+		dy--;
+		vecy[1] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
+		dy = 1 - dy;
+		vecy[2] = float(9 * (dy * dy * dy) - 15 * (dy * dy) + 6) / 6;
+		dy++;
+		vecy[3] = float(-3 * (dy * dy * dy) + 15 * (dy * dy) - 24 * dy + 12) / 6;
+
+		std::array<float, 4> resxv;
+
+		resxv[0] = InterpolatePix(getKernelRow(img, x_f, y_f - 1, ch), vecx);
+		resxv[1] = InterpolatePix(getKernelRow(img, x_f, y_f, ch), vecx);
+		resxv[2] = InterpolatePix(getKernelRow(img, x_f, y_f + 1, ch), vecx);
+		resxv[3] = InterpolatePix(getKernelRow(img, x_f, y_f + 2, ch), vecx);
+
+		return InterpolatePix(resxv, vecy);
+	}
+
+	template <typename T>
+	float Lanczos3(const Image<T>& img, double x_s, double y_s, int ch) {
 
 		int x_f = (int)floor(x_s);
 		double dx = x_s - x_f;
@@ -405,22 +410,30 @@ public:
 		return InterpolatePix(resxv, vecy) / GetWeight(vecx, vecy);
 	}
 
-	float InterpolatePixel(Image& img, double x_s, double y_s, int ch, Interpolate type = Interpolate::Bicubic_Spline) {
-		using enum Interpolate;
+public:
+	template <typename T>
+	T InterpolatePixel(const Image<T>& img, double x_s, double y_s, int ch, Type type = Type::Bicubic_Spline) {
+		using enum Type;
 		
 		switch (type) {
 		case nearest_neighbor:
 			return NearestNeighbor(img, x_s, y_s, ch);
+
 		case bilinear:
 			return Bilinear(img, x_s, y_s, ch);
-		case catmull_rom:
-			return img.ClipPixel(Catmull_Rom(img, x_s, y_s, ch));
+
 		case bicubic_spline:
 			return img.ClipPixel(Bicubic_Spline(img, x_s, y_s, ch));
+
 		case bicubic_b_spline:
 			return img.ClipPixel(Bicubic_B_Spline(img, x_s, y_s, ch));
+
 		case cubic_b_spline:
 			return img.ClipPixel(Cubic_B_Spline(img, x_s, y_s, ch));
+
+		case catmull_rom:
+			return img.ClipPixel(Catmull_Rom(img, x_s, y_s, ch));
+
 		case lanczos3:
 			return img.ClipPixel(Lanczos3(img, x_s, y_s, ch));
 

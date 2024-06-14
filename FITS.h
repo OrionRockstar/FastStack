@@ -1,6 +1,7 @@
 #pragma once
 #include "ImageFile.h"
 #include "Image.h"
+#include "Maths.h"
 
 class FITS : public ImageFile {
 
@@ -72,12 +73,10 @@ public:
 	FITS(const FITS& fits) {}
 
 	FITS(FITS&& other) noexcept : ImageFile(std::move(other)) {
-
-		//move fits header???
 		m_data_pos = other.m_data_pos;
 	}
 
-	~FITS() {};
+	~FITS() {}
 
 private:
 
@@ -99,14 +98,6 @@ private:
 	void WritePixels_float(const Image<T>& src);
 
 public:
-
-	int Rows() const noexcept { return m_rows; }
-
-	int Cols() const noexcept { return m_cols; }
-
-	int Channels() const noexcept { return m_channels; }
-
-
 	bool is_FitsFile();
 
 	int GetFITSBitDepth();
@@ -123,7 +114,9 @@ public:
 	void Read(Image<T>& dst);
 
 	template<typename T>
-	void ReadSome(T* buffer, std::array<int, 3>& start_point, int num_elements);
+	void ReadSome(T* buffer, const Point<>& start_point, int num_elements);
+
+	void ReadSome_Any(float* dst, const Point<>& start_point, int num_elements);
 
 	void ReadAny(Image32& dst);
 

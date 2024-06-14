@@ -2,10 +2,25 @@
 #include "Matrix.h"
 #include "Maths.h"
 
+enum class ColorComponent {
+    red,
+    green,
+    blue,
+    rgb_k,
+    Lightness,
+    a,
+    b,
+    c,
+    hue,
+    saturation
+};
+
+
 class ColorSpace {
 private:
-    inline static const double _1_3 = 1.0 / 3.0;
-    inline static const double k = 24389.0 / 27.0;
+    static constexpr double _1_3 = 1.0 / 3.0;
+    static constexpr double _2_3 = 2.0 / 3.0;
+    static constexpr double k = 24389.0 / 27.0;
     inline static const double esp = 216.0 / 24389.0;
     inline static const double _16_116 = 16.0 / 116.0;
     inline static const double k_116 = k / 116.0;
@@ -135,6 +150,32 @@ public:
 
         if (H < 0) { H += 1; return; }//{ H += 1, S, V };
         if (H > 0) { H -= 1; return; }//{ H -= 1, S, V };
+    }
+
+private:
+    static double H_RGB(double v1, double v2, double H) {
+            if (H < 0) H += 1;
+            else if (H > 1) H -= 1;
+
+            if (6 * H < 1) return v1 + ((v2 - v1) * 6 * H);
+            if (2 * H < 1) return v2;
+            if (3 * H < 2) return v1 + (v2 - v1) * ((_2_3 - H) * 6);
+            return v1;
+        }
+
+public:
+    static void HSItoRGB(double H, double S, double I, double& R, double& G, double& B) {
+        if (S == 0) {
+            R = G = B = I;
+            return;
+        }
+
+        double v2 = (I < 0.5) ? I * (1 + S) : (I + S) - (I * S);
+        double v1 = 2 * I - v2;
+
+        R = H_RGB(v1, v2, H + _1_3);
+        G = H_RGB(v1, v2, H);
+        B = H_RGB(v1, v2, H - _1_3);
     }
 
     static double sRGBtoLinear(double pixel) {

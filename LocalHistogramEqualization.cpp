@@ -30,30 +30,31 @@ LHE::KernelHistogram::KernelHistogram(int resolution) {
 
 LHE::KernelHistogram::KernelHistogram(int resolution, int kernel_radius, bool circular) : KernelHistogram(resolution) {
 
-	m_kernel_radius = kernel_radius;
+	m_radius = kernel_radius;
 	m_is_circular = circular;
+	m_dimension = 2 * kernel_radius + 1;
 
-	int kernel_dimension = 2 * kernel_radius + 1;
-
+	int total = m_dimension * m_dimension;
 	if (m_is_circular) {
 
-		k_mask.resize(kernel_dimension * kernel_dimension, false);
-		back_pix.resize(kernel_dimension);
-		front_pix.resize(kernel_dimension);
+		k_mask.resize(total, false);
+		back_pix.resize(m_dimension);
+		front_pix.resize(m_dimension);
 
-		for (int j = 0; j < kernel_dimension; ++j) {
+		for (int j = 0; j < m_dimension; ++j) {
 
 			bool new_x = true;
-			for (int i = 0; i < kernel_dimension; ++i) {
+			for (int i = 0; i < m_dimension; ++i) {
 
 
 				int dx = i - kernel_radius;
 				int dy = j - kernel_radius;
-				int loc = j * kernel_dimension + i;
+				int loc = j * m_dimension + i;
 
-				if (sqrt(dx * dx + dy * dy) <= kernel_radius)
+				if (sqrt(dx * dx + dy * dy) <= kernel_radius) {
 					k_mask[loc] = true;
-
+					m_count++;
+				}
 
 				if (new_x && k_mask[loc]) {
 					back_pix[j] = dx;
@@ -63,43 +64,40 @@ LHE::KernelHistogram::KernelHistogram(int resolution, int kernel_radius, bool ci
 
 				else if (!new_x && k_mask[loc])
 					front_pix[j] = dx;
-
 			}
 		}
+
 	}
 
 	else {
-		k_mask.resize(kernel_dimension * kernel_dimension, true);
-		back_pix.resize(kernel_dimension, -kernel_radius);
-		front_pix.resize(kernel_dimension, kernel_radius);
+		k_mask.resize(total, true);
+		back_pix.resize(m_dimension, -kernel_radius);
+		front_pix.resize(m_dimension, kernel_radius);
+		m_count = total;
 	}
+
 }
 
 template<typename T>
 void LHE::KernelHistogram::Populate(Image<T>& img, int y) {
 
-	int kernel_dimension = 2 * m_kernel_radius + 1;
-	float pix;
-
-	for (int j = -m_kernel_radius, j_m = 0; j <= m_kernel_radius; ++j, ++j_m) {
+	for (int j = -m_radius, j_mask = 0; j <= m_radius; ++j, j_mask += m_dimension) {
 
 		int yy = y + j;
 		if (yy < 0)
 			yy = -yy;
-		if (yy >= img.Rows())
+		else if (yy >= img.Rows())
 			yy = 2 * img.Rows() - (yy + 1);
 
-		for (int i = -m_kernel_radius, i_m = 0; i <= m_kernel_radius; ++i, ++i_m) {
+		for (int i = -m_radius, i_m = 0; i <= m_radius; ++i, ++i_m) {
 
 			int xx = i;
 			if (xx < 0)
 				xx = -xx;
 
-			if (k_mask[j_m * kernel_dimension + i_m]) {
-				Pixel<T>::fromType(img(xx, yy), pix);
-				histogram[pix * m_multiplier]++;
-				pix_count++;
-			}
+			if (k_mask[j_mask + i_m]) 
+				histogram[Pixel<float>::toType(img(xx,yy)) * m_multiplier]++;
+			
 		}
 	}
 }
@@ -110,34 +108,29 @@ template void LHE::KernelHistogram::Populate(Image32&, int);
 template<typename T>
 void LHE::KernelHistogram::Update(Image<T>& img, int x, int y) {
 
-	float pix;
-
-	for (int j = -m_kernel_radius; j <= m_kernel_radius; ++j) {
+	for (int j = -m_radius, s = 0; j <= m_radius; ++j, ++s) {
 
 		int yy = y + j;
 		if (yy < 0)
 			yy = -yy;
-		if (yy >= img.Rows())
+		else if (yy >= img.Rows())
 			yy = 2 * img.Rows() - (yy + 1);
 
-		int xx = x + front_pix[j + m_kernel_radius];
+		//front
+		int xx = x + front_pix[s];
 
 		if (xx >= img.Cols())
 			xx = 2 * img.Cols() - (xx + 1);
 
-		Pixel<T>::fromType(img(xx, yy), pix);
+		histogram[Pixel<float>::toType(img(xx, yy)) * m_multiplier]++;
 
-		histogram[pix * m_multiplier]++;
-
-
-		xx = x + back_pix[j + m_kernel_radius] - 1;
+		//back
+		xx = x + back_pix[s] - 1;
 
 		if (xx < 0)
 			xx = -xx;
 
-		Pixel<T>::fromType(img(xx, yy), pix);
-
-		histogram[pix * m_multiplier]--;
+		histogram[Pixel<float>::toType(img(xx, yy)) * m_multiplier]--;
 	}
 }
 template void LHE::KernelHistogram::Update(Image8&, int, int);
@@ -187,16 +180,21 @@ void LHE::Apply(Image<T>& img) {
 	Image<T> temp(img);
 
 	if (img.Channels() == 3) {
+		m_ps->emitText("Getting CIE Luminance...");
 		img.RGBtoCIELab();
 		img.CopyTo(temp);
 	}
 
+	int sum = 0;
+	m_ps->emitText("CLAHE...");
+
 #pragma omp parallel for
 	for (int y = 0; y < img.Rows(); ++y) {
+
 		KernelHistogram k_hist(m_hist_res, m_kernel_radius, m_is_circular);
 		k_hist.Populate(img, y);
 
-		int limit = (m_contrast_limit * k_hist.pix_count) / (k_hist.m_size - 1);
+		int limit = (m_contrast_limit * k_hist.Count()) / (k_hist.Size() - 1);
 
 		if (limit == 0)
 			limit = 1;
@@ -228,14 +226,24 @@ void LHE::Apply(Image<T>& img) {
 				sum += k_hist_cl[el];
 
 			temp(x, y) = Pixel<T>::toType((original_amount * pixel) + (m_amount * float(cdf - min) / (sum - min)));
-			//Pixel::fromFloat((original_amount * pixel) + (m_amount * float(cdf - min) / (sum - min)), temp(x,y));
 		}
 
+#pragma omp atomic
+		++sum;
+
+		if (omp_get_thread_num() == 0) 
+			m_ps->emitProgress((sum * 100) / img.Rows());
+		
 	}
+
+	m_ps->emitProgress(100);
+
 	img = std::move(temp);
 
-	if (img.Channels() == 3)
+	if (img.Channels() == 3) {
+		m_ps->emitText("CIE Lab to RGB...");
 		img.CIELabtoRGB();
+	}
 }
 template void LHE::Apply(Image8&);
 template void LHE::Apply(Image16&);
@@ -249,25 +257,17 @@ template void LHE::Apply(Image32&);
 
 
 
-
-
+//move labels to be align by colons
+//ensure kernel size is not bigger than image
 using LHED = LocalHistogramEqualizationDialog;
-LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHistogramEqualization", parent) {
+LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHistogramEqualization", QSize(475, 170), *reinterpret_cast<FastStack*>(parent)->m_workspace, parent) {
 
 	this->setWindowTitle(Name());
-	this->resize(500, 170);
-	this->setFocus();
 
-	m_timer = new Timer(500, this);
-	connect(m_timer, &QTimer::timeout, this, &LHED::ApplytoPreview);
+	setTimer(500, this, &LHED::ApplytoPreview);
 
-	setWorkspace(reinterpret_cast<FastStack*>(parentWidget())->workspace);
-	setToolbar(new Toolbar(this));
-
-	connect(m_tb, &Toolbar::sendApply, this, &LHED::Apply);
-	connect(m_tb, &Toolbar::sendPreview, this, &LHED::showPreview);
-	connect(m_tb, &Toolbar::sendReset, this, &LHED::resetDialog);
-
+	connect(this, &ProcessDialog::processDropped, this, &LHED::Apply);
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &LHED::Apply, &LHED::showPreview, &LHED::resetDialog);
 
 	AddKernelRadiusInputs();
 	AddContrastLimitInputs();
@@ -276,10 +276,12 @@ LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHi
 	m_circular = new QCheckBox(this);
 	m_circular->move(300, 115);
 	m_circular->setChecked(true);
+	m_lhe.setCircularKernel(m_circular->isChecked());
+	//connect(m_circular, &QCheckBox::clicked, [this](bool val) {m_lhe.setCircularKernel(val); ApplytoPreview(); });
+	connect(m_circular, &QCheckBox::clicked, this, &LHED::checked);
 
-	m_circular_label = new QLabel(this);
-	m_circular_label->setText("Circular Kernel");
-	m_circular_label->move(325, 113);
+	QLabel* circular_label = new QLabel("Circular Kernel", this);
+	circular_label->move(325, 113);
 
 	m_histogram_resolution = new QComboBox(this);
 	m_histogram_resolution->move(50, 110);
@@ -287,144 +289,146 @@ LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHi
 	connect(m_histogram_resolution, &QComboBox::activated, this, &LHED::itemSelected);
 	
 
-	m_hr_label = new QLabel(this);
-	m_hr_label->setText("Histogram Resolution");
-	m_hr_label->move(125, 113);
+	QLabel* hr_label = new QLabel("Histogram Resolution", this);
+	hr_label->move(125, 113);
+
 	//apply->setIcon(QStyle::standardIcon(QStyle::SP_MediaPlay));
 	//apply->setIcon(apply->style()->standardIcon(QStyle::SP_MediaPlay));
 	//apply->icon();
 	//apply->setStyleSheet("QIcon {color : blue;}");
 
-	setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
-	this->setAttribute(Qt::WA_DeleteOnClose);
 	this->show();
 }
 
 void LHED::actionSlider_kr(int action) {
-	if (action == 3 || action == 4) {
-		m_kr_le->setText(QString::number((m_kr_slider->sliderPosition() / 2) * 2));
-		ApplytoPreview();
-	}
+	int val = (m_kr_slider->sliderPosition() / 2) * 2;
+	m_lhe.setKernelRadius(val);
+	m_kr_le->setText(QString::number(val));
+	startTimer();
 }
 
-void LHED::sliderMoved_kr(int value) {
-	m_kr_le->setText(QString::number((value / 2) * 2));
-	m_timer->start();
-	//ApplytoPreview();
+void LHED::editingFinished_kr() {
+	int val = m_kr_le->text().toInt();
+	m_lhe.setKernelRadius(val);
+	m_kr_slider->setSliderPosition((val / 2) * 2);
+
+	ApplytoPreview();
 }
 
 
 void LHED::actionSlider_cl(int action) {
-	if (action == 3 || action == 4) {
-		int value = m_cl_slider->sliderPosition();
+	int value = m_cl_slider->sliderPosition();
 
-		if (value < 20)
-			m_cl_le->setText(QString::number(value / 2.0, 'f', 1));
-		else
-			m_cl_le->setText(QString::number(value - 10));
+	if (value < 20)
+		m_cl_le->setValue(value / 2.0);
+	else
+		m_cl_le->setValue(value - 10);
 
-		ApplytoPreview();
-	}
+	m_lhe.setContrastLimit(m_cl_le->text().toFloat());
+	startTimer();
 }
 
-void LHED::sliderMoved_cl(int value) {
-	if (value < 20)
-		m_cl_le->setText(QString::number(value / 2.0, 'f', 1));
+void LHED::editingFinished_cl() {
+	float val = m_cl_le->text().toFloat();
+	m_lhe.setContrastLimit(val);
+
+	if (val < 10)
+		m_cl_slider->setSliderPosition(val * 2);
 	else
-		m_cl_le->setText(QString::number(value - 10));
-	m_timer->start();
-	//ApplytoPreview();
+		m_cl_slider->setSliderPosition(val + 10);
+
+	ApplytoPreview();
 }
 
 
 void LHED::actionSlider_amount(int action) {
-	if (action == 3 || action == 4) {
-		m_amount_le->setText(QString::number(m_amount_slider->sliderPosition() / 100.0, 'f'));
-		ApplytoPreview();
-	}
+	float val = m_amount_slider->sliderPosition() / 100.0;
+	m_amount_le->setValue(val);
+	m_lhe.setAmount(val);
+	startTimer();	
 }
 
-void LHED::sliderMoved_amount(int value) {
-	m_amount_le->setText(QString::number(value / 100.0, 'f'));
-	m_timer->start();
-	//ApplytoPreview();
+void LHED::editingFinished_amount() {
+	float val = m_amount_le->text().toFloat();
+	m_lhe.setAmount(val);
+	m_amount_slider->setSliderPosition(val * 100);
+
+	ApplytoPreview();
 }
 
 
 void LHED::itemSelected(int index) {
+	m_lhe.setHistogramResolution(m_res[index]);
+
 	ApplytoPreview();
 }
+
+void LHED::checked(bool val) {
+	m_lhe.setCircularKernel(val); 
+	ApplytoPreview();
+}
+
 
 void LHED::AddKernelRadiusInputs() {
 
 	int dy = 15;
 
-	m_kr_label = new QLabel(this);
-	m_kr_label->setText("Kernel Radius: ");
-	m_kr_label->move(30, dy);
-
-
-	m_kr_le = new QLineEdit("64", this);
-	m_kr_le->setGeometry(150, dy, 65, 25);
+	//m_kr_le = new QLineEdit("64", this);
+	m_kr_le = new DoubleLineEdit(new DoubleValidator(16, 512, 0), this);
+	m_kr_le->setValue(64);
+	m_kr_le->setGeometry(125, dy, 65, 25);
 	m_kr_le->setMaxLength(3);
-	m_kr_le->setValidator(new QIntValidator(16, 512, this));
+	m_kr_le->addLabel(new QLabel("Kernel Radius:   ", this));
+	//m_kr_le->setValidator(new QIntValidator(16, 512, this));
 
 	m_kr_slider = new QSlider(Qt::Horizontal, this);
-	m_kr_slider->setRange(16, 512);
+	m_kr_slider->setRange(16, 256);
 	m_kr_slider->setValue(64);
+	m_kr_slider->setSingleStep(2);
 	m_kr_slider->setFixedWidth(250);
-	m_kr_slider->move(225, dy);
+	m_kr_le->addSlider(m_kr_slider);
 
 	connect(m_kr_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_kr);
-	connect(m_kr_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_kr);
-	//connect(m_kr_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	connect(m_kr_le, &QLineEdit::editingFinished, this, &LHED::editingFinished_kr);
 }
 
 void LHED::AddContrastLimitInputs() {
 
 	int dy = 45;
 
-	m_cl_label = new QLabel(this);
-	m_cl_label->setText("Contrast Limit: ");
-	m_cl_label->move(30, dy);
-
-	m_cl_le = new DoubleLineEdit("2.0", new DoubleValidator(1.0, 64, 1, this), this);
-	m_cl_le->setGeometry(150, dy, 65, 25);
+	m_cl_le = new DoubleLineEdit("2.0", new DoubleValidator(1.0, 64, 1), this);
+	m_cl_le->setGeometry(125, dy, 65, 25);
 	m_cl_le->setMaxLength(3);
+	m_cl_le->addLabel(new QLabel("Contrast Limit:   ", this));
 
 	m_cl_slider = new QSlider(Qt::Horizontal, this);
 	m_cl_slider->setRange(2, 74);
 	m_cl_slider->setValue(4);
 	m_cl_slider->setFixedWidth(250);
-	m_cl_slider->move(225, dy);
+	m_cl_slider->setPageStep(4);
+	m_cl_le->addSlider(m_cl_slider);
 
 	connect(m_cl_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_cl);
-	connect(m_cl_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_cl);
-	//connect(m_cl_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	connect(m_cl_le, &QLineEdit::editingFinished, this, &LHED::editingFinished_cl);
 }
 
 void LHED::AddAmountInputs() {
 
 	int dy = 75;
 
-	m_amount_label = new QLabel(this);
-	m_amount_label->setText("Amount: ");
-	m_amount_label->move(30, dy);
-
-
-	m_amount_le = new DoubleLineEdit("1.000", new DoubleValidator(0.0, 1.0, 3, this), this);
-	m_amount_le->setGeometry(150, dy, 65, 25);
+	m_amount_le = new DoubleLineEdit("1.000", new DoubleValidator(0.0, 1.0, 3), this);
+	m_amount_le->setGeometry(125, dy, 65, 25);
 	m_amount_le->setMaxLength(5);
+	m_amount_le->addLabel(new QLabel("Amount:   ", this));
 
 	m_amount_slider = new QSlider(Qt::Horizontal, this);
 	m_amount_slider->setRange(0, 100);
 	m_amount_slider->setValue(100);
 	m_amount_slider->setFixedWidth(250);
-	m_amount_slider->move(225, dy);
+	m_amount_le->addSlider(m_amount_slider);
 
 	connect(m_amount_slider, &QSlider::actionTriggered, this, &LHED::actionSlider_amount);
-	connect(m_amount_slider, &QSlider::sliderMoved, this, &LHED::sliderMoved_amount);
-	//connect(m_amount_slider, &QSlider::sliderReleased, this, &LHED::ApplytoPreview);
+	connect(m_amount_le, &QLineEdit::editingFinished, this, &LHED::editingFinished_amount);
 }
 
 void LHED::showPreview() {
@@ -449,48 +453,39 @@ void LHED::resetDialog() {
 
 void LHED::Apply() {
 
+	m_lhe.setKernelRadius(m_kr_le->text().toInt());
+
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	m_lhe.setHistogramResolution(m_res[m_histogram_resolution->currentIndex()]);
-	m_lhe.setContrastLimit(m_cl_le->text().toFloat());
-	m_lhe.setKernelRadius(m_kr_le->text().toInt());
-	m_lhe.setAmount(m_amount_le->text().toFloat());
-	m_lhe.setCircularKernel(m_circular->isChecked());
+	setEnabledAll(false);
+
+	std::unique_ptr<ProgressDialog> pd(std::make_unique<ProgressDialog>(m_lhe.progressSignal()));
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	switch (iwptr->source.Bitdepth()) {
+
+	switch (iwptr->Bitdepth()) {
 	case 8: {
-		m_lhe.Apply(iwptr->source);
-		iwptr->DisplayImage();
-		if (iwptr->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp)->UpdatefromParent();
-			ApplytoPreview();
-		}
+		iwptr->UpdateImage(m_lhe, &LHE::Apply);
 		break;
 	}
 	case 16: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		m_lhe.Apply(iw16->source);
-		iw16->DisplayImage();
-		if (iw16->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow16*>(iw16->rtp)->UpdatefromParent();
-			ApplytoPreview();
-		}
+		iw16->UpdateImage(m_lhe, &LHE::Apply);
 		break;
 	}
 	case -32: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		m_lhe.Apply(iw32->source);
-		iw32->DisplayImage();
-		if (iw32->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow32*>(iw32->rtp)->UpdatefromParent();
-			ApplytoPreview();
-		}
+		iw32->UpdateImage(m_lhe, &LHE::Apply);
 		break;
 	}
 	}
+	
+	setEnabledAll(true);
+
+	ApplytoPreview();
+
 }
 
 void LHED::ApplytoPreview() {
@@ -498,39 +493,28 @@ void LHED::ApplytoPreview() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	if (!reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->rtpExists())
-		return;
-
-	m_lhe.setHistogramResolution(m_res[m_histogram_resolution->currentIndex()]);
-	m_lhe.setContrastLimit(m_cl_le->text().toFloat());
-	m_lhe.setAmount(m_amount_le->text().toFloat());
-	m_lhe.setCircularKernel(m_circular->isChecked());
-
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	m_lhe.setKernelRadius(m_kr_le->text().toInt() / iwptr->IdealFactor());
+	if (!iwptr->previewExists())
+		return;
 
-	switch (iwptr->source.Bitdepth()) {
+	if (!PreviewProcessNameMatches(iwptr->Preview()->windowTitle()))
+		return;
+
+	m_lhe.setKernelRadius(m_kr_le->text().toInt() / iwptr->IdealZoomFactor());
+
+	switch (iwptr->Bitdepth()) {
 	case 8: {
-		auto iw8 = reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp);
-		iw8->UpdatefromParent();
-		m_lhe.Apply(iw8->source);
-		iwptr->DisplayImage();
-		break;
+		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
+		return iw8->UpdatePreview(m_lhe, &LHE::Apply);
 	}
 	case 16: {
-		auto iw16 = reinterpret_cast<RTP_ImageWindow16*>(iwptr->rtp);
-		iw16->UpdatefromParent();
-		m_lhe.Apply(iw16->source);
-		iw16->DisplayImage();
-		break;
+		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
+		return iw16->UpdatePreview(m_lhe, &LHE::Apply);
 	}
 	case -32: {
-		auto iw32 = reinterpret_cast<RTP_ImageWindow32*>(iwptr->rtp);
-		iw32->UpdatefromParent();
-		m_lhe.Apply(iw32->source);
-		iw32->DisplayImage();
-		break;
+		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
+		return iw32->UpdatePreview(m_lhe, &LHE::Apply);
 	}
 	}
 }

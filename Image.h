@@ -3,6 +3,7 @@
 #include "RGBColorSpace.h"
 #include<filesystem>
 #include <fstream>
+#include "Histogram.h"
 
 struct Stats {
 	float max = std::numeric_limits<float>::min();
@@ -16,171 +17,6 @@ struct Stats {
 
 };
 
-struct Histogram {
-
-	std::unique_ptr<uint32_t[]> histogram;
-	int m_size = 0;
-	int m_max_val = m_size - 1;
-	int m_count = 0;
-
-	uint32_t& operator[](int val) { return histogram[val]; }
-
-	//buids full image histogramogram
-	template<typename Image>
-	Histogram(Image& img) {
-
-		m_count = img.TotalPxCount();
-
-		if (Image::is_uint16() || Image::is_uint8()) {
-
-			m_size = (Image::is_uint16()) ? 65536 : 256;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(m_size);
-
-			for (auto pixel : img)
-				histogram[pixel]++;
-
-			return;
-		}
-
-		if (Image::is_float()) {
-			m_size = 65536;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(m_size);
-
-			for (auto pixel : img)
-				histogram[pixel * 65535]++;
-
-		}
-	}
-
-	//builds histogram on per channel basis
-	template<typename Image>
-	Histogram(Image& img, int ch) {
-
-		m_count = img.PxCount();
-
-		if (Image::is_uint16() || Image::is_uint8()) {
-
-			m_size = (Image::is_uint16()) ? 65536 : 256;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(m_size);
-
-			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel)
-				histogram[*pixel]++;
-
-			return;
-		}
-
-		if (Image::is_float()) {
-
-			m_size = 65536;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(m_size);
-
-			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel)
-				histogram[*pixel * 65535]++;
-
-			return;
-		}
-	}
-
-	//builds mad histogram
-	template<typename Image>
-	Histogram(Image& img, int ch, float median, bool clip = false) {
-
-		if (Image::is_uint16() || Image::is_uint8()) {
-
-			m_size = (Image::is_uint16()) ? 65536 : 256;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(m_size);
-
-			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel) {
-				if (clip && img.isClippedVal(*pixel))
-					continue;
-				histogram[abs(*pixel - median)]++;
-				m_count++;
-			}
-			return;
-		}
-
-		if (Image::is_float()) {
-
-			m_size = 65536;
-			m_max_val = m_size - 1;
-
-			histogram = std::make_unique<uint32_t[]>(65536);
-
-			for (auto pixel = img.cbegin(ch); pixel != img.cend(ch); ++pixel) {
-				if (clip && img.isClippedVal(*pixel))
-					continue;
-				histogram[abs(*pixel - median) * 65535]++;
-				m_count++;
-			}
-		}
-	}
-
-	int Size()const { return m_size; }
-
-	int Count()const { return m_count; }
-
-	int Max()const { return m_max_val; }
-
-	template <typename T>
-	T Median(bool clip = false) {
-
-		int occurrences = 0;
-		int median1 = 0, median2 = 0;
-		int medianlength = m_count / 2;
-
-		int cl = 0, cu = m_size;
-		if (clip) { cl = 1; cu -= 1; medianlength = (m_count - histogram[0] - histogram[m_size - 1]) / 2; }
-
-		for (int i = cl; i < cu; ++i) {
-			occurrences += histogram[i];
-			if (occurrences > medianlength) {
-				median1 = i;
-				median2 = i;
-
-				break;
-			}
-			else if (occurrences == medianlength) {
-				median1 = i;
-				for (int j = i + 1; j < cu; ++j) {
-					if (histogram[j] > 0) {
-						median2 = j;
-						break;
-					}
-				}
-				break;
-			}
-		}
-
-		T med = (median1 + median2) / 2;
-
-		/*if (histogram[med] == 0) {
-
-			float k1 = float(medianlength - (occurrences - histogram[median1])) / histogram[median1];
-			float k2 = float(medianlength - occurrences) / histogram[median2];
-			med += (k1 + k2) / 2;
-			return med;
-		}*/
-
-		if (std::is_same<T, float>::value) {
-			med += float(medianlength - (occurrences - histogram[median1])) / histogram[med];
-			med /= 65535;
-		}
-
-		return med;
-	}
-
-};
-
 template<typename T>
 class Pixel {
 };
@@ -188,6 +24,10 @@ class Pixel {
 template<>
 class Pixel<double> {
 public:
+	static double max() { return 1.0f; }
+
+	static double min() { return 0.0f; }
+
 	static double toType(uint8_t pixel) {
 		return pixel / 255.0;
 	}
@@ -204,20 +44,20 @@ public:
 		return pixel;
 	}
 
-	static void fromType(double pixel, uint8_t& a) {
-		a = pixel * 255;
+	static void fromType(double a, uint8_t& pixel) {
+		pixel = a * 255;
 	}
 
-	static void fromType(double pixel, uint16_t& a) {
-		a = pixel * 65535;
+	static void fromType(double a, uint16_t& pixel) {
+		pixel = a * 65535;
 	}
 
-	static void fromType(double pixel, float& a) {
-		a = float(pixel);
+	static void fromType(double a, float& pixel) {
+		pixel = float(a);
 	}
 
-	static void fromType(double pixel, double& a) {
-		a = pixel;
+	static void fromType(double a, double& pixel) {
+		pixel = a;
 	}
 };
 
@@ -244,22 +84,23 @@ public:
 		return float(pixel);
 	}
 
-	static void fromType(float pixel, uint8_t& a) {
-		a = pixel * 255;
+	static void fromType(float a, uint8_t& pixel) {
+		pixel = a * 255;
 	}
 
-	static void fromType(float pixel, uint16_t& a) {
-		a = pixel * 65535;
+	static void fromType(float a, uint16_t& pixel) {
+		pixel = a * 65535;
 	}
 
-	static void fromType(float pixel, float& a) {
-		a = pixel;
+	static void fromType(float a, float& pixel) {
+		pixel = a;
 	}
 
-	static void fromType(float pixel, double& a) {
-		a = double(pixel);
+	static void fromType(float a, double& pixel) {
+		pixel = double(a);
 	}
 };
+typedef Pixel<float> Pixelf;
 
 template<>
 class Pixel<uint16_t> {
@@ -284,20 +125,20 @@ public:
 		return pixel * 65535;
 	}
 
-	static void fromType(uint16_t pixel, uint8_t& a) {
-		a = pixel / 257;
+	static void fromType(uint16_t a, uint8_t& pixel) {
+		pixel = a / 257;
 	}
 
-	static void fromType(uint16_t pixel, uint16_t& a) {
-		a = pixel;
+	static void fromType(uint16_t a, uint16_t& pixel) {
+		pixel = a;
 	}
 
-	static void fromType(uint16_t pixel, float& a) {
-		a = pixel / 65535.0f;
+	static void fromType(uint16_t a, float& pixel) {
+		pixel = a / 65535.0f;
 	}
 
-	static void fromType(uint16_t pixel, double& a) {
-		a = pixel / 65535.0;
+	static void fromType(uint16_t a, double& pixel) {
+		pixel = a / 65535.0;
 	}
 };
 
@@ -324,22 +165,23 @@ public:
 		return pixel * 255.0;
 	}
 
-	static void fromType(uint8_t pixel, uint8_t& a) {
-		a = pixel;
+	static void fromType(uint8_t a, uint8_t& pixel) {
+		pixel = a;
 	}
 
-	static void fromType(uint8_t pixel, uint16_t& a) {
-		a = pixel * 257;
+	static void fromType(uint8_t a, uint16_t& pixel) {
+		pixel = a * 257;
 	}
 
-	static void fromType(uint8_t pixel, float& a) {
-		a = pixel / 255.0f;
+	static void fromType(uint8_t a, float& pixel) {
+		pixel = a / 255.0f;
 	}
 
-	static void fromType(uint8_t pixel, double& a) {
-		a = pixel / 255.0;
+	static void fromType(uint8_t a, double& pixel) {
+		pixel = a / 255.0;
 	}
 };
+
 
 template <typename T>
 class Image {
@@ -350,13 +192,11 @@ private:
 	int m_pixel_count = m_rows * m_cols;
 	int m_total_pixel_count = m_pixel_count * m_channels;
 
-	int m_total = m_rows * m_cols;
-	int m_total_image = m_total * m_channels;
+	//int m_total = m_rows * m_cols;
+	//int m_total_image = m_total * m_channels;
 	int16_t m_bitdepth = 0;
 
 	std::vector<Stats> statistics;
-
-	T m_max_val = 1;
 
 	T* m_red = nullptr;
 	T* m_green = nullptr;
@@ -379,21 +219,17 @@ public:
 		data = std::make_unique<T[]>(r * c * ch);
 
 		if (m_channels == 3) {
-			statistics.resize(3, Stats());
 			m_red = data.get();
-			m_green = data.get() + m_total;
-			m_blue = data.get() + 2 * m_total;
+			m_green = data.get() + m_pixel_count;
+			m_blue = data.get() + 2 * m_pixel_count;
 		}
-		else
-			statistics.resize(1, Stats());
 
-		m_max_val = (m_bitdepth == 32) ? 1 : std::numeric_limits<T>::max();
 	}
 
 	Image(Image<T>& other, bool copy = false) {
 		*this = Image<T>(other.m_rows, other.m_cols, other.m_channels);
 		if (copy)
-			memcpy(this->data.get(), other.data.get(), other.m_total_image * sizeof(T));
+			memcpy(this->data.get(), other.data.get(), other.m_total_pixel_count * sizeof(T));
 	}
 
 	Image() = default;
@@ -407,18 +243,14 @@ public:
 		m_pixel_count = other.m_pixel_count;
 		m_total_pixel_count = other.m_total_pixel_count;
 
-		m_total = other.m_total;
-		m_total_image = other.m_total_image;
-		statistics = other.statistics;
-
-		m_max_val = other.m_max_val;
+		//statistics = other.statistics;
 
 		m_red = other.m_red;
 		m_green = other.m_green;
 		m_blue = other.m_blue;
 
 		homography = other.homography;
-		memcpy(data.get(), other.data.get(), m_total_image * sizeof(T));
+		memcpy(data.get(), other.data.get(), m_total_pixel_count * sizeof(T));
 		//weight_map = other.weight_map;
 	}
 
@@ -432,11 +264,7 @@ public:
 		m_pixel_count = other.m_pixel_count;
 		m_total_pixel_count = other.m_total_pixel_count;
 
-		m_total = other.m_total;
-		m_total_image = other.m_total_image;
-		statistics = std::move(other.statistics);
-
-		m_max_val = other.m_max_val;
+		//statistics = std::move(other.statistics);
 
 		m_red = other.m_red;
 		m_green = other.m_green;
@@ -516,7 +344,7 @@ public:
 	};
 
 	struct ConstIterator {
-		using ValueType = const T;
+		using ValueType = T;
 		using PointerType = const ValueType*;
 		using ReferenceType = const ValueType&;
 		using difference_type = ptrdiff_t;
@@ -590,12 +418,10 @@ public:
 			m_bitdepth = other.m_bitdepth;
 			m_pixel_count = other.m_pixel_count;
 			m_total_pixel_count = other.m_total_pixel_count;
-			m_total = other.m_total;
-			m_total_image = other.m_total_image;
 
-			statistics = std::move(other.statistics);
+			//statistics = std::move(other.statistics);
 
-			m_max_val = other.m_max_val;
+			//m_max_val = other.m_max_val;
 
 			m_red = other.m_red;
 			m_green = other.m_green;
@@ -614,7 +440,7 @@ public:
 	}
 
 	Image& operator+=(const Image& other) {
-		for (int i = 0; i < m_total_image; ++i)
+		for (int i = 0; i < m_total_pixel_count; ++i)
 			data[i] += other[i];
 		return *this;
 	}
@@ -626,7 +452,7 @@ public:
 	}
 
 	Image& operator-=(const Image& other) {
-		for (int i = 0; i < m_total_image; ++i)
+		for (int i = 0; i < m_total_pixel_count; ++i)
 			data[i] -= other[i];
 		return *this;
 	}
@@ -638,7 +464,7 @@ public:
 	}
 
 	Image& operator*=(const Image& other) {
-		for (int i = 0; i < m_total_image; ++i)
+		for (int i = 0; i < m_total_pixel_count; ++i)
 			data[i] *= other[i];
 		return *this;
 	}
@@ -650,7 +476,7 @@ public:
 	}
 
 	Image& operator/=(const Image& other) {
-		for (int i = 0; i < m_total_image; ++i)
+		for (int i = 0; i < m_total_pixel_count; ++i)
 			data[i] /= other[i];
 		return *this;
 	}
@@ -672,11 +498,11 @@ public:
 	}
 
 	T& operator()(int x, int y, int ch) {
-		return data[ch * m_total + y * m_cols + x];
+		return data[ch * m_pixel_count + y * m_cols + x];
 	}
 
 	const T& operator()(int x, int y, int ch) const {
-		return data[ch * m_total + y * m_cols + x];
+		return data[ch * m_pixel_count + y * m_cols + x];
 	}
 
 	Iterator begin() {
@@ -736,39 +562,33 @@ public:
 
 	int Cols()const { return m_cols; }
 
-	int Total()const { return m_total; }
+	int PxCount()const { return m_pixel_count; }
 
-	int PxCount()const noexcept { return m_pixel_count; }
-
-	int TotalPxCount()const noexcept { return m_total_pixel_count; }
-
-	int TotalImage()const { return m_total_image; }
+	int TotalPxCount()const { return m_total_pixel_count; }
 
 	int Channels()const { return m_channels; }
 
-	int16_t Bitdepth()const noexcept { return m_bitdepth; }
+	int16_t Bitdepth()const { return m_bitdepth; }
 
-
-	/*T Max(int channel_num = 0)const noexcept { return statistics[channel_num].max; }
-
-	T Min(int channel_num = 0)const noexcept { return statistics[channel_num].min; }
-
-	T Median(int channel_num = 0)const noexcept { return statistics[channel_num].median; }
-
-	float Mean(int channel_num = 0)const noexcept { return statistics[channel_num].mean; }
-
-	float StdDev(int channel_num = 0)const noexcept { return statistics[channel_num].stdev; }
-
-	float AvgDev(int channel_num = 0)const noexcept { return statistics[channel_num].avgDev; }
-
-	float MAD(int channel_num = 0)const noexcept { return statistics[channel_num].mad; }
-
-	float nMAD(int channel_num = 0)const noexcept { return 1.4826f * statistics[channel_num].mad; }
-
-	float BWMV(int channel_num = 0)const noexcept { return statistics[channel_num].bwmv; }*/
+	bool isSame(const Image<T>& other)const {
+		if (m_rows != other.m_rows)
+			return false;
+		if (m_cols != other.m_cols)
+			return false;
+		if (m_channels != other.m_channels)
+			return false;
+		return true;
+	}
 
 
 	void getRGB(int el, T& R, T& G, T& B)const {
+		R = m_red[el];
+		G = m_green[el];
+		B = m_blue[el];
+	}
+
+	void getRGB(int x, int y, T& R, T& G, T& B)const {
+		int el = y * m_cols + x;
 		R = m_red[el];
 		G = m_green[el];
 		B = m_blue[el];
@@ -780,28 +600,28 @@ public:
 		m_blue[el] = B;
 	}
 
-	void toRGBFloat(int el, float& R, float& G, float& B)const {
+	void getRGBf(int el, float& R, float& G, float& B)const {
 		R = Pixel<float>::toType(m_red[el]);
 		G = Pixel<float>::toType(m_green[el]);
 		B = Pixel<float>::toType(m_blue[el]);
 	}
 
-	void toRGBDouble(int el, double& R, double& G, double& B)const {
+	void getRGB(int el, double& R, double& G, double& B)const {
 		R = Pixel<double>::toType(m_red[el]);
 		G = Pixel<double>::toType(m_green[el]);
 		B = Pixel<double>::toType(m_blue[el]);
 	}
-
-	void fromRGBFloat(int el, float R, float G, float B) {
-		Pixel<float>::fromType(R, m_red[el]);
-		Pixel<float>::fromType(G, m_green[el]);
-		Pixel<float>::fromType(B, m_blue[el]);
+	
+	void setRGBf(int el, float R, float G, float B) {
+		m_red[el] = Pixel<T>::toType(R);
+		m_green[el] = Pixel<T>::toType(G);
+		m_blue[el] = Pixel<T>::toType(B);
 	}
 
-	void fromRGBDouble(int el, double R, double G, double B) {
-		Pixel<double>::fromType(R, m_red[el]);
-		Pixel<double>::fromType(G, m_green[el]);
-		Pixel<double>::fromType(B, m_blue[el]);
+	void setRGB(int el, double R, double G, double B) {
+		m_red[el] = Pixel<T>::toType(R);
+		m_green[el] = Pixel<T>::toType(G);
+		m_blue[el] = Pixel<T>::toType(B);
 	}
 
 
@@ -813,7 +633,7 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double R, G, B;
-			toRGBDouble(el, R, G, B);
+			getRGB(el, R, G, B);
 
 			Pixel<double>::fromType(ColorSpace::CIEL(R, G, B), data[el]);
 		}
@@ -834,9 +654,9 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double R, G, B, L, a, b;
-			toRGBDouble(el, R, G, B);
+			getRGB(el, R, G, B);
 			ColorSpace::RGBtoCIELab(R, G, B, L, a, b);
-			fromRGBDouble(el, L, a, b);
+			setRGB(el, L, a, b);
 		}
 
 	}
@@ -849,9 +669,9 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double L, a, b, R, G, B;
-			toRGBDouble(el, L, a, b);
+			getRGB(el, L, a, b);
 			ColorSpace::CIELabtoRGB(L, a, b, R, G, B);
-			fromRGBDouble(el, R, G, B);
+			setRGB(el, R, G, B);
 		}
 	}
 
@@ -863,9 +683,9 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double R, G, B, L, c, h;
-			toRGBDouble(el, R, G, B);
+			getRGB(el, R, G, B);
 			ColorSpace::RGBtoCIELch(R, G, B, L, c, h);
-			fromRGBDouble(el, L, c, h);
+			setRGB(el, L, c, h);
 		}
 
 	}
@@ -878,9 +698,9 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double L, c, h, R, G, B;
-			toRGBDouble(el, L, c, h);
+			getRGB(el, L, c, h);
 			ColorSpace::CIELchtoRGB(L, c, h, R, G, B);
-			fromRGBDouble(el, R, G, B);
+			setRGB(el, R, G, B);
 		}
 	}
 
@@ -892,9 +712,9 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double R, G, B, H, S, I;
-			toRGBDouble(el, R, G, B);
+			getRGB(el, R, G, B);
 			ColorSpace::RGBtoHSI(R, G, B, H, S, I);
-			fromRGBDouble(el, H, S, I);
+			setRGB(el, H, S, I);
 		}
 
 	}
@@ -907,12 +727,11 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < m_pixel_count; ++el) {
 			double H, S, I, R, G, B;
-			toRGBDouble(el, H, S, I);
+			getRGB(el, H, S, I);
 			ColorSpace::HSItoRGB(H, S, I, R, G, B);
-			fromRGBDouble(el, R, G, B);
+			setRGB(el, R, G, B);
 		}
 	}
-
 
 	/*void CreateWeightMap() {
 		weight_map = std::vector<bool>(m_total, true);
@@ -923,41 +742,31 @@ public:
 	void Set_Weight_At(int x, int y, bool val) { weight_map[y * m_cols + x] = val; }*/
 
 
-	void CopyTo(Image& dest) const {
+	void CopyTo(Image<T>& dest)const {
 		if (dest.m_rows != m_rows || dest.m_bitdepth != m_bitdepth)
 			dest = Image<T>(m_rows, m_cols, m_channels);
-		memcpy(dest.data.get(), data.get(), m_total * m_channels * sizeof(T));
+		memcpy(dest.data.get(), data.get(), m_total_pixel_count * sizeof(T));
 	}
 
-	void MoveTo(Image& dest) {
+	void MoveTo(Image<T>& dest) {
 		dest = std::move(*this);
 	}
 
-	void CopyToFloat(Image<float>& dest, bool normalize = false) {
-		if (!this->Matches(dest))
-			dest = Image<float>(m_rows, m_cols, m_channels);
-
-		if (this->is_float())
-			memcpy(dest.data.get(), data.get(), m_total_image * sizeof(float));
-
-		else if (normalize)
-			for (int el = 0; el < m_total_image; ++el)
-				dest[el] = ToFloat(data[el]);
-		else
-			for (int el = 0; el < m_total_image; ++el)
-				dest[el] = data[el];
+	void Swap(Image<T>& other) {
+		std::swap(*this, other);
 	}
 
-	void MoveStatsFrom(Image& src) {
+
+	void MoveStatsFrom(Image<T>& src) {
 		statistics = std::move(src.statistics);
 	}
 
 
-	static bool is_uint8() { return std::is_same<T, uint8_t>::value; }
+	bool is_uint8()const { return std::is_same<T, uint8_t>::value; }
 
-	static bool is_uint16() { return std::is_same<T, uint16_t>::value; }
+	bool is_uint16()const { return std::is_same<T, uint16_t>::value; }
 
-	static bool is_float() { return std::is_same<T, float>::value; }
+	bool is_float()const { return std::is_same<T, float>::value; }
 
 
 	bool IsInBounds(int x, int y)const {
@@ -968,7 +777,29 @@ public:
 		return(buffer <= y && y < m_rows - buffer && buffer <= x && x < m_cols - buffer);
 	}
 
-	T MirrorEdgePixel(int x, int y, int ch) {
+	//rename
+	/*T MirroredEdgePixel(int x, int y, int ch)const {
+		if (y < 0)
+			y = -y;
+		else if (y >= m_rows)
+			y = 2 * m_rows - (y + 1);
+
+		if (x < 0)
+			x = -x;
+		else if (x >= m_cols)
+			x = 2 * m_cols - (x + 1);
+
+		return (*this)(x, y, ch);
+	}*/
+
+	T At(int x, int y, int ch)const {
+		if (IsInBounds(x, y))
+			return (*this)(x, y, ch);
+		else
+			return 0;
+	}
+
+	T At_mirrored(int x, int y, int ch)const {
 		if (y < 0)
 			y = -y;
 		else if (y >= m_rows)
@@ -982,10 +813,9 @@ public:
 		return (*this)(x, y, ch);
 	}
 
-
-	float ClipPixel(float pixel) noexcept {
-		if (pixel > m_max_val)
-			return m_max_val;
+	T ClipPixel(float pixel)const {
+		if (pixel > Pixel<T>::max())
+			return Pixel<T>::max();
 		else if (pixel < 0)
 			return 0;
 		return pixel;
@@ -1036,13 +866,13 @@ public:
 		if (b == a)
 			return;
 
-		float dba = m_max_val / float(b - a);
+		float dba = 1 / float(b - a);
 
 		for (T& pixel : *this) {
 			if (pixel < a)
 				pixel = 0;
 			else if (pixel > b)
-				pixel = m_max_val;
+				pixel = b;
 			else
 				pixel = (pixel - a) * dba;
 		}
@@ -1053,13 +883,13 @@ public:
 		if (b == a)
 			return;
 
-		float dba = m_max_val / float(b - a);
+		float dba = 1 / float(b - a);
 
 		for (T& pixel : image_channel(*this, ch)) {
 			if (pixel < a)
 				pixel = 0;
 			else if (pixel > b)
-				pixel = m_max_val;
+				pixel = b;
 			else
 				pixel = T((pixel - a) * dba);
 		}
@@ -1071,7 +901,7 @@ public:
 	}
 
 
-public:
+private:
 	bool isClippedVal(uint8_t pixel)const {
 		return (pixel == 0 || 255 == pixel);
 	}
@@ -1084,6 +914,13 @@ public:
 		return (pixel == 0 || 1 == pixel);
 	}
 
+	bool isClippedVal2(T pixel) {
+		return (pixel == Pixel<T>::min() || pixel == Pixel<T>::max());
+	}
+
+public:
+	//need to complete
+	//return stats vector??
 	void ComputeStatistics(bool clip = false) {
 
 		for (int ch = 0; ch < m_channels; ++ch) {
@@ -1092,7 +929,7 @@ public:
 
 			int count = 0;
 			double meansum = 0;
-			Histogram histogram((*this), ch);
+			//Histogram histogram((*this), ch);
 
 			for (auto pixel = cbegin(ch); pixel != cend(ch); ++pixel) {
 				if (clip && isClippedVal(*pixel)) continue;
@@ -1109,11 +946,11 @@ public:
 
 			statistics[ch].max = max;
 			statistics[ch].min = min;
-			float median = statistics[ch].median = histogram.Median<T>(clip);
+			float median = statistics[ch].median;// = histogram.Median<T>(clip);
 			float mean = statistics[ch].mean = meansum / count;
 
-			for (int i = 0; i < histogram.Size(); ++i)
-				histogram[i] = 0;
+			//for (int i = 0; i < histogram.Size(); ++i)
+				//histogram[i] = 0;
 
 			double avgDevsum = 0;
 
@@ -1121,14 +958,14 @@ public:
 				if (clip && isClippedVal(*pixel)) continue;
 
 				float t = abs(*pixel - median);
-				histogram[(is_float()) ? t * 65535 : t]++;
+				//histogram[(is_float()) ? t * 65535 : t]++;
 				avgDevsum += t;
 
 			}
 
 			statistics[ch].avgDev = avgDevsum / count;
 
-			statistics[ch].mad = histogram.Median<T>();
+			statistics[ch].mad;// = histogram.Median<T>();
 
 			double x9mad = 1 / (9 * statistics[ch].mad);
 			double sum1 = 0, sum2 = 0;
@@ -1268,7 +1105,10 @@ public:
 	}
 
 	T ComputeMedian(int ch, bool clip = false)const {
-		Histogram histogram(*this, ch);
+
+		Histogram histogram;
+		histogram.ConstructHistogram(cbegin(ch), cend(ch));
+
 		return histogram.Median<T>(clip);
 	}
 
@@ -1319,17 +1159,28 @@ public:
 
 	T ComputeMAD(int ch, T median, bool clip = false)const {
 
-		Histogram histogram((*this), ch, median, clip);
+		Histogram histogram;
+		histogram.ConstructMADHistogram(cbegin(ch), cend(ch), median, clip);
+
 		return histogram.Median<T>(clip);
+	}
+
+	T ComputenMAD(int ch, T median, bool clip = false)const {
+
+		Histogram histogram;
+		histogram.ConstructMADHistogram(cbegin(ch), cend(ch), median, clip);
+
+		return 1.4826 * histogram.Median<T>(clip);
 	}
 
 	T ComputeMAD(int ch, bool clip = false)const {
 
 		T median = ComputeMedian(ch, clip);
 
-		Histogram histogram((*this), ch, median, clip);
+		Histogram histogram;
+		histogram.ConstructMADHistogram(cbegin(ch), cend(ch), median, clip);
 
-		return histogram.Median<T>();
+		return histogram.Median<T>(clip);
 	}
 
 	float ComputeBWMV(int ch, T median, bool clip = false)const {
@@ -1367,7 +1218,7 @@ public:
 	}
 
 
-	friend void CreateStatsText(const std::filesystem::path& file_path, Image<T>& img) {
+	/*friend void CreateStatsText(const std::filesystem::path& file_path, Image<T>& img) {
 
 		std::ofstream myfile;
 		std::filesystem::path temp = file_path;
@@ -1451,8 +1302,12 @@ public:
 			return true;
 		}
 		return false;
-	}
+	}*/
 };
+template Image<uint8_t>;
+template Image<uint16_t>;
+template Image<float>;
+
 
 typedef Image<float> Image32;
 typedef Image<uint16_t> Image16;
@@ -1521,12 +1376,3 @@ enum class FastRotate {
 bool StatsTextExists(const std::filesystem::path& file_path);
 
 void GetImageStackFromTemp(FileVector& light_files, ImageVector& img_stack);
-
-namespace FileOP {
-
-	bool FitsRead(const std::filesystem::path file, Image32& img);
-
-	//void XISFRead(std::string file, Image32& img);
-
-}
-

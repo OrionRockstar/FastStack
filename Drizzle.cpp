@@ -15,18 +15,18 @@ float Drizzle::AddPixel(float inp, float out, float area, int pix_weight) {
 	return (dw != 0) ? ((inp * area * pix_weight * s2) + (out * m_out_weight)) / dw : out;
 }
 
-void Drizzle::DrizzlePixel(Image32& input, Pointi source, Image32& output, Pointd dest) {
+void Drizzle::DrizzlePixel(Image32& input, Point<> source, Image32& output, Pointd dest) {
 
-	dest.x *= m_scale_factor;
-	dest.y *= m_scale_factor;
+	//dest.x *= m_scale_factor;
+	//dest.y *= m_scale_factor;
 
-	int x_f = (int)floor(dest.x);
-	int y_f = (int)floor(dest.y);
+	int x_f = (int)floor(dest.x());
+	int y_f= (int)floor(dest.y());
 
 	if (x_f < 0 || x_f >= output.Cols() - m_scale_factor || y_f < 0 || y_f >= output.Rows() - m_scale_factor) return;
 
-	float vx = (1 - (dest.x - x_f));
-	float vy = (1 - (dest.y - y_f));
+	float vx = (1 - (dest.x() - x_f));
+	float vy = (1 - (dest.y() - y_f));
 
 	int limity = ceil(m_new_drop);
 	if (vy > m_new_drop) {

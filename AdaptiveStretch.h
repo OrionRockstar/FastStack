@@ -1,18 +1,34 @@
 #pragma once
 #include "Image.h"
-#include "Toolbar.h"
+#include "ProcessDialog.h"
 #include "qchart.h"
 #include "qlineseries.h"
 #include "qchartview.h"
 
 class AdaptiveStretch {
+public:
+	struct CDF_Curve {
+
+		std::vector<float> curve;
+		float min = 0;
+		float max = 1;
+
+		void Resize(size_t new_size) { curve.resize(new_size); }
+
+		float& operator[](int el) { return curve[el]; }
+	};
+
+private:
 	//rename to noise thresh
-	float m_noise_thresh = 1;
+	float m_noise_thresh = 0.001;
 
 	bool m_contrast_protection = false;
-	float m_contrast = 0;
+	float m_contrast = 0.0;
 
 	int m_data_points = 1'000'000;
+
+
+	CDF_Curve m_cdf_curve;
 
 public:
 	AdaptiveStretch() = default;
@@ -24,19 +40,20 @@ public:
 	void setContrast(float contrast) { m_contrast = contrast; }
 
 	void setDataPoints(int num) { m_data_points = num; }
-private:
-	template<typename T>
-	Image<T> RGBtoI(Image<T>&img);
 
+private:
 	template<typename T>
 	std::vector<float> GetCumulativeNetForces(Image<T>&img);
 
 public:
+	template<typename T>
+	void ComputeCDF(Image<T>& img);
+
 	template <typename T>
 	void Apply(Image<T>&img);
 
 	template<typename T>
-	void ApplytoDest(Image<T>& src, Image<T>& dst, int factor);
+	void ApplyTo(Image<T>& src, Image<T>& dst, int factor);
 };
 
 
@@ -89,8 +106,6 @@ private:
 
 	void actionSlider_noise_coef(int action);
 
-	void sliderMoved_noise_coef(int value);
-
 	void itemSelected_noise_coef(int index);
 
 
@@ -101,11 +116,9 @@ private:
 
 	void actionSlider_contrast_coef(int action);
 
-	void sliderMoved_contrast_coef(int value);
-
 	void itemSelected_contrast_coef(int index);
 
-	void onContrastStateChanged(int state);
+	void onClick_constrast(bool val);
 
 
 	void editingFinished_data_pts();

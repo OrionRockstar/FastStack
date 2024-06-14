@@ -1,10 +1,12 @@
 #pragma once
 #include "Image.h"
-class Bitmap {
+#include "ImageFile.h"
+
+class Bitmap :public ImageFile {
 
 #pragma pack(push, 1)
 	struct BitmapHeader {
-		const char signature[2] = { 'B','M' };
+		char signature[2] = { 'B','M' };
 		uint32_t file_size = 0; //bytes
 		uint16_t reserved1 = 0;
 		uint16_t reserved2 = 0;
@@ -26,6 +28,7 @@ class Bitmap {
 		int32_t vertical_resolution = 0; //pixels_per_meter
 		uint32_t num_colors_used = 0;
 		uint32_t num_colors_important = 0;
+
 	};
 
 	/*struct ColorHeader {
@@ -44,12 +47,17 @@ class Bitmap {
 		uint8_t a = 0x00;
 	};
 
-	BitmapHeader file_header;
-	DIBHeader info_header;
+	struct rle8 {
+		uint8_t count = 0;
+		uint8_t index = 0;
+	};
+
+	BitmapHeader m_bmp_header;
+	DIBHeader m_info_header;
 	//ColorHeader color_header;
 
-	Image8 bmp;
-	std::unique_ptr<RGBA[]> color_data;
+	uint16_t m_bits_per_pixel = 8;
+	std::vector<RGBA> color_table;
 	std::array<uint8_t, 3> pad = { 0,0,0 };
 	int padding_length = 0;
 
@@ -59,22 +67,34 @@ public:
 	~Bitmap() {}
 
 private:
-	template<typename Image>
-	void Tobmp(Image & src);
+	void ReadBitmapHeader();
 
-	void Frombmp(Image8 & dst);
+	void ReadInfoHeader();
 
-	template<typename Image>
-	void BuildBitmap(Image & img);
+	void WriteHeaders(const Image8* src, bool compression = false);
 
-	void ResetMembers();
+	bool isGreyscale();
+
+	void ReadFromColorTable(Image8& dst);
+
+	void Read8bitCompression(Image8& dst);
+
+	template<typename T>
+	void Write8bitCompression(const Image<T>& src);
 
 public:
+
 	bool isBitmap(std::filesystem::path path);
 
-	void Read(std::filesystem::path path, Image8 & dst);
+	void Open(std::filesystem::path path) override;
 
-	template<typename Image>
-	void Write(Image & src, std::filesystem::path path);
+	void Create(std::filesystem::path path) override;
+
+	void Close() override;
+
+	void Read(Image8& dst);
+
+	template<typename T>
+	void Write(const Image<T>& src, bool compression = false);
+
 };
-

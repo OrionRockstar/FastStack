@@ -24,7 +24,7 @@ private:
 
 	float AddPixel(float inp, float out, float area, int pix_weight);
 
-	void DrizzlePixel(Image32& input, Pointi source, Image32& output, Pointd dest);
+	void DrizzlePixel(Image32& input, Point<> source, Image32& output, Pointd dest);
 
 
 public:

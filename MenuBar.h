@@ -4,9 +4,20 @@
 #include "ui_MenuBar.h"
 #include "ImageWindow.h"
 
+#include"HistogramTransformation.h"
+#include"AutoHistogram.h"
 #include"ASinhStretch.h"
 #include"CurvesTransformation.h"
 #include"LocalHistogramEqualization.h"
+#include "AdaptiveStretch.h"
+#include "MorphologicalTransformation.h"
+#include "ImageStackingDialog.h"
+#include "ImageGeometryDialogs.h"
+#include "GaussianFilter.h"
+#include "BilateralFilter.h"
+#include "Sobel.h"
+#include "Masks.h"
+
 
 class BackgroundExtraction : public QMenu {
 public:
@@ -18,89 +29,88 @@ private:
     void AutoBackgroundExtraction() {}
 };
 
-class Morphology : public QMenu {
-public:
-    Morphology(QWidget* parent) : QMenu(parent) {
-        this->setTitle(tr("&Morphology"));
-        this->addAction(tr("Morphological Transformations"), this, &Morphology::MorphologicalTransformations);
-    }
-private:
-    void MorphologicalTransformations() {}
+class ImageGeometryMenu : public QMenu {
 
-    void GaussianBlur() {}
+    RotationDialog* m_rd = nullptr;
+    FastRotationDialog* m_frd = nullptr;
+    HomographyTransformationDialog* m_htd = nullptr;
+    std::unique_ptr<IntegerResampleDialog> m_irs;
+
+public:
+    ImageGeometryMenu(QWidget* parent);
+
+private:
+    void RotationSelection();
+
+    void FastRotationSelection();
+
+    void IntegerResampleSelection();
 };
 
-class ImageTransformations : public QMenu {
-    Q_OBJECT
+class MaskMenu : public QMenu {
+    RangeMaskDialog* m_rmd = nullptr;
 
 public:
-    ImageTransformations(QWidget* parent) : QMenu(parent) {
-        this->setTitle("Image Transformations");
-        this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
-        this->addAction(tr("&Historgram TransFormation"), this, &ImageTransformations::HistogramTransformation);
-        this->addAction(tr("&ArcSinH Stretch"), this, &ImageTransformations::ArcSinhStretch);
-        this->addAction(tr("&Curves Transformation"), this, &ImageTransformations::CurvesTransformation);
-        this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformations::LocalHistogramEqualization);
-    }
-
-private slots:
-    void onHistogramTransformationClose() {
-        htw = nullptr;
-    }
-
-    void onASinhStretchDialogClose() {
-        m_ashd = nullptr;
-    }
-
-    void onLocalHistogramEqualizationDialogClose() {
-        m_lhed = nullptr;
-    }
-
-    void onCurveTransformationDialogClose() {
-        m_ctd = nullptr;
-    }
+    MaskMenu(QWidget* parent);
 
 private:
-    HistogramTransformationDialog* htw = nullptr;
+    void RangeMaskSelection();
+};
+
+class MorphologyMenu : public QMenu {
+    MorphologicalTransformationDialog* m_mtd = nullptr;
+    BilateralFilterDialog* m_bfd = nullptr;
+    GaussianFilterDialog* m_gfd = nullptr;
+    std::unique_ptr<SobelDialog> m_sd;
+
+public:
+    MorphologyMenu(QWidget* parent);
+
+private:
+    void MorphologicalTransformationsSelection();
+
+    void GaussianBlurSelection();
+
+    void BilateralFilterSelection();
+
+    void SobelSelection();
+};
+
+class ImageTransformationsMenu : public QMenu {
+    Q_OBJECT
+
+    AdaptiveStretchDialog* m_asd = nullptr;
+    AutoHistogramDialog* m_ahd = nullptr;
+    HistogramTransformationDialog* m_ht = nullptr;
     ASinhStretchDialog* m_ashd = nullptr;
     LocalHistogramEqualizationDialog* m_lhed = nullptr;
     CurveTransformDialog* m_ctd = nullptr;
 
-    void HistogramTransformation() {
-        if (htw == nullptr) {
-            htw = new HistogramTransformationDialog(parentWidget());
-            connect(htw, &ProcessDialog::onClose, this, &ImageTransformations::onHistogramTransformationClose);
-        }
-    }
+public:
+    ImageTransformationsMenu(QWidget* parent);
 
-    void ArcSinhStretch() {
-        if (m_ashd == nullptr) {
-            m_ashd = new ASinhStretchDialog(parentWidget());
-            connect(m_ashd, &ProcessDialog::onClose, this, &ImageTransformations::onASinhStretchDialogClose);
-        }
-    }
+private:
+    void AdaptiveStretchSelection();
 
-    void CurvesTransformation() {
-        if (m_ctd == nullptr) {
-            m_ctd = new CurveTransformDialog(parentWidget());
-            connect(m_ctd, &ProcessDialog::onClose, this, &ImageTransformations::onCurveTransformationDialogClose);
-        }
-    }
+    void AutoHistogramSelection();
 
-    void LocalHistogramEqualization() {
-        if (m_lhed == nullptr) {
-            m_lhed = new LocalHistogramEqualizationDialog(parentWidget());
-            connect(m_lhed, &LocalHistogramEqualizationDialog::onClose, this, &ImageTransformations::onLocalHistogramEqualizationDialogClose);
-        }
-    }
+    void HistogramTransformationSelection();
+
+    void ArcSinhStretchSelection();
+
+    void CurvesTransformationSelection();
+
+    void LocalHistogramEqualizationSelection();
 
 };
 
 class ProcessMenu : public QMenu {
 
     QMenu* m_image_trans;
-    QMenu* morphology;
+    QMenu* m_morphology;
     QMenu* m_abg_extraction;
+    QMenu* m_image_geometry;
+    QMenu* m_mask;
 
 public:
 
@@ -109,17 +119,8 @@ public:
         CreateProcessMenu();
     }
 
-    void CreateProcessMenu() {
-
-        m_abg_extraction = new BackgroundExtraction(this);
-        this->addMenu(m_abg_extraction);
-
-        m_image_trans = new ImageTransformations(parentWidget());
-        this->addMenu(m_image_trans);
-
-        morphology = new Morphology(this);
-        this->addMenu(morphology);
-    }
+private:
+    void CreateProcessMenu();
 };
 
 class MenuBar: public QMenuBar {
@@ -141,9 +142,11 @@ public:
     uint32_t image_counter = 0;
 
     QString m_typelist =
+        "All Accepted Formats(*.bmp *.fits *.fts *.fit *.tiff *.tif);;"
+        "BMP file(*.bmp);;"
         "FITS file(*.fits *.fts *.fit);;"
         "XISF file(*.xisf);;"
-        "TIFF file(*.tiff *tif)";
+        "TIFF file(*.tiff *.tif)";
 
     void Open();
 

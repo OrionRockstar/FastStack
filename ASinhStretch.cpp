@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "FastStack.h"
 #include "ASinhStretch.h"
+#include "Histogram.h"
 
 float ASinhStretch::StretchFactor()const {
 	return m_stretch_factor;
@@ -18,9 +19,10 @@ void ASinhStretch::setBlackpoint(float blackpoint) {
 	m_blackpoint = blackpoint;
 }
 
-template<typename Image>
-void ASinhStretch::ComputeBlackpoint(Image& img) {
-	Histogram histogram(img);
+template<typename T>
+void ASinhStretch::ComputeBlackpoint(Image<T>& img) {
+	Histogram histogram;
+	histogram.ConstructHistogram(img.cbegin(), img.cend());
 
 	int sum = 0;
 	int i = 0;
@@ -28,7 +30,7 @@ void ASinhStretch::ComputeBlackpoint(Image& img) {
 	while (sum < img.TotalPxCount() * .02)
 		sum += histogram[i++];
 
-	m_blackpoint = (i - 1) / 65535.0f;
+	m_blackpoint = (i + 1) / ((img.is_uint8()) ? 255.0 : 65535.0);
 
 }
 template void ASinhStretch::ComputeBlackpoint(Image8&);
@@ -121,30 +123,21 @@ template void ASinhStretch::Apply(Image32&);
 
 
 
+using ASSD = ASinhStretchDialog;
 
+ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): ProcessDialog("ASinhStretch",QSize(500,170),*reinterpret_cast<FastStack*>(parent)->m_workspace, parent) {
 
-ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): ProcessDialog("ASinhStretch", parent) {
+	setTimer(250, this, &ASinhStretchDialog::ApplytoPreview);
 
-	this->setWindowTitle(Name());
-	this->setGeometry(400, 400, 500, 175);
-	this->setFocus();
+	connect(this, &ProcessDialog::processDropped, this, &ASSD::Apply);
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &ASSD::Apply, &ASSD::showPreview, &ASSD::resetDialog);
 
-	m_timer = new Timer(500, this);
-	connect(m_timer, &QTimer::timeout, this, &ASinhStretchDialog::ApplytoPreview);
+	QPushButton* bp_comp = new QPushButton(this);
+	bp_comp->setText("Compute Blackpoint");
+	bp_comp->move(62, 105);
+	bp_comp->setAutoDefault(false);
+	connect(bp_comp, &QPushButton::pressed, this, &ASSD::onPressed_blackpoint);
 
-	setWorkspace(reinterpret_cast<FastStack*>(parentWidget())->workspace);
-	setToolbar(new Toolbar(this));
-
-	connect(m_tb, &Toolbar::sendApply, this, &ASinhStretchDialog::Apply);
-	connect(m_tb, &Toolbar::sendPreview, this, &ASinhStretchDialog::showPreview);
-	connect(m_tb, &Toolbar::sendReset, this, &ASinhStretchDialog::resetDialog);
-
-	m_bp_comp = new QPushButton(this);
-	m_bp_comp->setText("Compute Blackpoint");
-	m_bp_comp->move(62, 110);
-	m_bp_comp->setAutoDefault(false);
-	connect(m_bp_comp, &QPushButton::pressed, this, &ASinhStretchDialog::computeBlackpoint);
-	connect(m_bp_comp, &QPushButton::pressed, this, &ASinhStretchDialog::ApplytoPreview);
 
 	AddStretchFactorInputs();
 	AddBlackpointInputs();
@@ -152,68 +145,41 @@ ASinhStretchDialog::ASinhStretchDialog(QWidget* parent): ProcessDialog("ASinhStr
 
 	m_rgb_cb = new QCheckBox("Use sRGB", this);
 	m_rgb_cb->setChecked(true);
-	m_rgb_cb->move(300, 112);
+	m_rgb_cb->move(300, 107);
+	connect(m_rgb_cb, &QCheckBox::clicked, this, &ASSD::onClick_srgb);
 
-	this->setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint); 
-	this->setAttribute(Qt::WA_DeleteOnClose);
 	this->show();
 }
 
-void ASinhStretchDialog::actionSlider_sf(int action) {
-	if (action == 3 || action == 4) {
-		m_sf_le->setText(QString::number(pow(1.024, m_sf_slider->sliderPosition()), 'f'));
-		m_sf_le->removeEndDecimal();
-		ApplytoPreview();
-	}
-}
+void ASinhStretchDialog::editingFinished_sf() {
 
-void ASinhStretchDialog::repositionSlider_sf() {
+	float sf = m_sf_le->text().toFloat();
+	m_ash.setStretchFactor(sf);
 
-	int new_pos = log10(m_sf_le->text().toFloat()) / log10(1.024) + 0.5;
-	if (new_pos == m_sf_slider->sliderPosition())
-		return;
-
+	int new_pos = (log10(sf) / log10(1.024)) + 0.5;
 	m_sf_slider->setSliderPosition(new_pos);
+
 	ApplytoPreview();
 }
 
-void ASinhStretchDialog::sliderMoved_sf(int value) {
-	m_sf_le->setText(QString::number(pow(1.024, value), 'f'));
-	m_sf_le->removeEndDecimal();
-
-	m_timer->start();
-	//ApplytoPreview();
+void ASinhStretchDialog::actionSlider_sf(int action) {
+	float sf = pow(1.024, m_sf_slider->sliderPosition());
+	m_sf_le->setValue(sf);
+	m_ash.setStretchFactor(sf);
+	startTimer();
 }
 
+void ASinhStretchDialog::editingFinished_bp() {
+	float bp = m_bp_le->text().toFloat();
+	m_ash.setBlackpoint(bp);
+
+	m_bp_slider->setSliderPosition(bp * 1000);
+	ApplytoPreview();
+}
 
 void ASinhStretchDialog::actionSlider_bp(int action) {
-	if (action == 3 || action == 4) {
-		m_bp_le->setText(QString::number(m_bp_slider->sliderPosition() / 1000.0, 'f'));
-		ApplytoPreview();
-	}
-}
-
-void ASinhStretchDialog::repositionSlider_bp() {
-
-	int new_pos = m_bp_le->text().toFloat() * 1000;
-	if (new_pos == m_bp_slider->sliderPosition())
-		return;
-
-	m_bp_slider->setSliderPosition(new_pos);
-	ApplytoPreview();
-}
-
-void ASinhStretchDialog::sliderMoved_bp(int value) {
-
-	m_bp_le->setText(QString::number(value/1000.0,'f'));
-	m_timer->start();
-	//ApplytoPreview();
-}
-
-
-void ASinhStretchDialog::actionSlider_ft(int action) {
-	if (action == 3 || action == 4)
-		m_fine_tune->setValue(0);
+	m_bp_le->setValue(m_bp_slider->sliderPosition() / 1000.0);
+	startTimer();
 }
 
 void ASinhStretchDialog::sliderPressed_ft() {
@@ -229,75 +195,80 @@ void ASinhStretchDialog::sliderMoved_ft(int value) {
 	double new_bp = m_current_bp + value / 1'000'000.0;
 
 	auto vp = m_bp_le->Validator();
+
 	if (new_bp < vp->bottom())
 		new_bp = vp->bottom();
 
 	if (new_bp > vp->top())
 		new_bp = vp->top();
+
+	m_ash.setBlackpoint(new_bp);
 	
-	m_bp_le->setText(QString::number(new_bp,'f', 6));
+	m_bp_le->setValue(new_bp);
 	m_bp_slider->setValue(new_bp * 1000);
 
-	m_timer->start();
-	//ApplytoPreview();
+	startTimer();
 }
 
 void ASinhStretchDialog::sliderReleased_ft() {
 	m_fine_tune->setValue(0);
 }
 
+void ASinhStretchDialog::onClick_srgb(bool val) {
+	m_ash.setsRGB(val);
+	ApplytoPreview();
+}
+
+void ASinhStretchDialog::onPressed_blackpoint() {
+	computeBlackpoint();
+	ApplytoPreview();
+}
+
 
 void ASinhStretchDialog::AddStretchFactorInputs() {
 
-	int dy = 20;
-
-	m_sf_label = new QLabel("Stretch Factor:", this);
-	m_sf_label->move(25, dy);
-
-	m_sf_le = new DoubleLineEdit("1.00", new DoubleValidator(1.00, 375, 2, this), this);
-	m_sf_le->setGeometry(135, dy, 70, 25);
+	m_sf_le = new DoubleLineEdit("1.00", new DoubleValidator(1.00, 375, 2), 4, this);
+	m_sf_le->setFixedWidth(75);
 	m_sf_le->setMaxLength(4);
+	m_sf_le->move(135, 10);
+	m_sf_le->addLabel(new QLabel("Stretch Factor:   ", this));
 
 	m_sf_slider = new QSlider(Qt::Horizontal, this);
 	m_sf_slider->setRange(0, 250);
 	m_sf_slider->setFixedWidth(250);
-	m_sf_slider->move(225, dy);
+	m_sf_le->addSlider(m_sf_slider);
 
-	connect(m_sf_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::repositionSlider_sf);
-	connect(m_sf_slider, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_sf);
+	connect(m_sf_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::editingFinished_sf);
 	connect(m_sf_slider, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_sf);
 }
 
 void ASinhStretchDialog::AddBlackpointInputs() {
 
-	int dy = 50;
-
-	m_bp_label = new QLabel("Blackpoint:", this);
-	m_bp_label->move(45, dy);
+	m_bp_le = new DoubleLineEdit("0.000000", new DoubleValidator(0.0, 0.2, 6), this);
+	m_bp_le->setFixedWidth(75);
+	m_bp_le->move(135, 45);
+	m_bp_le->setMaxLength(8);
+	m_bp_le->addLabel(new QLabel("Blackpoint:   ", this));
 
 	m_bp_slider = new QSlider(Qt::Horizontal, this);
 	m_bp_slider->setRange(0, 200);
 	m_bp_slider->setFixedWidth(250);
-	m_bp_slider->move(225,dy);
+	m_bp_le->addSlider(m_bp_slider);
 
-	m_bp_le = new DoubleLineEdit("0.000000", new DoubleValidator(0.0, 0.2, 6, this), this);
-	m_bp_le->setGeometry(135, dy, 70, 25);
-	m_bp_le->setMaxLength(8);
-
-	connect(m_bp_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::repositionSlider_bp);
-	connect(m_bp_slider, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_bp);
+	connect(m_bp_le, &DoubleLineEdit::editingFinished, this, &ASinhStretchDialog::editingFinished_bp);
 	connect(m_bp_slider, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_bp);
 }
 
 void ASinhStretchDialog::AddFinetuneInputs() {
 
 	m_fine_tune = new QSlider(Qt::Horizontal, this);
-	m_fine_tune->move(135, 85);
+	m_fine_tune->move(135, 80);
 	m_fine_tune->setFixedWidth(340);
 	m_fine_tune->setRange(-500, 500);
 	m_fine_tune->setValue(0);
+	m_fine_tune->setPageStep(0);
+	m_fine_tune->setSingleStep(0);
 
-	connect(m_fine_tune, &QSlider::actionTriggered, this, &ASinhStretchDialog::actionSlider_ft);
 	connect(m_fine_tune, &QSlider::sliderPressed, this, &ASinhStretchDialog::sliderPressed_ft);
 	connect(m_fine_tune, &QSlider::sliderMoved, this, &ASinhStretchDialog::sliderMoved_ft);
 	connect(m_fine_tune, &QSlider::sliderReleased, this, &ASinhStretchDialog::sliderReleased_ft);
@@ -309,25 +280,25 @@ void ASinhStretchDialog::computeBlackpoint() {
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	switch (iwptr->source.Bitdepth()) {
+	switch (iwptr->Source().Bitdepth()) {
 	case 8: {
-		ash.ComputeBlackpoint(iwptr->source);
+		m_ash.ComputeBlackpoint(iwptr->Source());
 		break;
 	}
 	case 16: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		ash.ComputeBlackpoint(iw16->source);
+		m_ash.ComputeBlackpoint(iw16->Source());
 		break;
 	}
 	case -32: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		ash.ComputeBlackpoint(iw32->source);
+		m_ash.ComputeBlackpoint(iw32->Source());
 		break;
 	}
 	}
 
-	m_bp_le->setText(QString::number(ash.Blackpoint()));
-	repositionSlider_bp();
+	m_bp_le->setText(QString::number(m_ash.Blackpoint()));
+	editingFinished_bp();
 }
 
 void ASinhStretchDialog::resetDialog() {
@@ -350,88 +321,50 @@ void ASinhStretchDialog::showPreview() {
 
 void ASinhStretchDialog::Apply() {
 
-	ash.setStretchFactor(m_sf_le->text().toFloat());
-	ash.setBlackpoint(m_bp_le->text().toFloat());
-	ash.setsRGB(m_rgb_cb->isChecked());
-
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	switch (iwptr->source.Bitdepth()) {
+	switch (iwptr->Source().Bitdepth()) {
 	case 8: {
-		ash.Apply(iwptr->source);
-		iwptr->DisplayImage();
-		if (iwptr->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp)->UpdatefromParent();
-			reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp)->DisplayImage();
-			ApplytoPreview();
-		}
+		iwptr->UpdateImage(m_ash, &ASinhStretch::Apply);
 		break;
 	}
 	case 16: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		ash.Apply(iw16->source);
-		iw16->DisplayImage();
-		if (iw16->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow16*>(iw16->rtp)->UpdatefromParent();
-			ApplytoPreview();
-		}
+		iw16->UpdateImage(m_ash, &ASinhStretch::Apply);
 		break;
 	}
 	case -32: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		ash.Apply(iw32->source);
-		iw32->DisplayImage();
-		if (iw32->rtpExists()) {
-			reinterpret_cast<RTP_ImageWindow32*>(iw32->rtp)->UpdatefromParent();
-			ApplytoPreview();
-		}
+		iw32->UpdateImage(m_ash, &ASinhStretch::Apply);
 		break;
 	}
 	}
 
+	ApplytoPreview();
 }
 
 void ASinhStretchDialog::ApplytoPreview() {
 
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	if (!reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->rtpExists())
+	if (!isPreviewValid())
 		return;
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	if (iwptr->rtp->windowTitle().sliced(19, iwptr->rtp->windowTitle().length() - 19).compare(m_name) != 0)
-		return;
-
-	ash.setStretchFactor(m_sf_le->text().toFloat());
-	ash.setBlackpoint(m_bp_le->text().toFloat());
-	ash.setsRGB(m_rgb_cb->isChecked());
-
-	switch (iwptr->source.Bitdepth()) {
+	switch (iwptr->Source().Bitdepth()) {
 	case 8: {
-		auto iw8 = reinterpret_cast<RTP_ImageWindow8*>(iwptr->rtp);
-		iw8->UpdatefromParent();
-		ash.Apply(iw8->source);
-		iwptr->DisplayImage();
-		break;
+		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
+		return iw8->UpdatePreview(m_ash, &ASinhStretch::Apply);
 	}
 	case 16: {
-		auto iw16 = reinterpret_cast<RTP_ImageWindow16*>(iwptr->rtp);
-		iw16->UpdatefromParent();
-		ash.Apply(iw16->source);
-		iw16->DisplayImage();
-		break;
+		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
+		return iw16->UpdatePreview(m_ash, &ASinhStretch::Apply);
 	}
 	case -32: {
-		auto iw32 = reinterpret_cast<RTP_ImageWindow32*>(iwptr->rtp);
-		iw32->UpdatefromParent();
-		ash.Apply(iw32->source);
-		iw32->DisplayImage();
-		break;
+		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
+		return iw32->UpdatePreview(m_ash, &ASinhStretch::Apply);
 	}
 	}
 }

@@ -1,44 +1,89 @@
 #pragma once
-#include "Image.h"
-
-enum class Integration {
-	average,
-	median,
-	min,
-	max
-};
-
-enum class Rejection {
-	none,
-	sigma_clip,
-	winsorized_sigma_clip
-};
-
-enum class ScaleEstimator {
-	median,
-	avgdev,
-	mad,
-	bwmv,
-	none
-};
+#include "FITS.h"
+#include "Maths.h"
+#include "ProcessDialog.h"
+#include "ImageFileReader.h"
 
 
 class ImageStacking {
+public:
+	enum class Integration {
+		average,
+		median,
+		min,
+		max
+	};
 
-	ScaleEstimator m_scale_est = ScaleEstimator::none;
+	enum class Normalization {
+		additive,
+		multiplicative,
+		additive_scaling,
+		multiplicative_scaling,
+		none
+	};
+
+	enum class Rejection {
+		none,
+		sigma_clip,
+		winsorized_sigma_clip,
+		percintile_clip
+	};
+
+private:
+	struct PixelRows {
+
+	private:
+		ImageStacking* m_isp;
+		std::vector<float> m_pixels;
+		int m_cols = 0;
+		int m_num_imgs = 0;
+		int m_size = 0;
+
+		int m_max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
+
+	public:
+		PixelRows(int num_imgs, int cols, ImageStacking& isp);
+
+	private:
+		float& operator() (int x, int y) { return m_pixels[y * m_cols + x]; }
+
+	public:
+		int NumberofImages()const { return m_num_imgs; }
+
+		void Fill(const Point<>& start_point);
+
+		void FillPixelStack(std::vector<float>& pixelstack, int x, int ch);
+	};
+
+	std::vector<std::unique_ptr<ImageFile>> m_imgfile_vector;
+	FileVector m_file_paths;
+
+	Normalization m_normalization = Normalization::none;
+
+	std::vector<std::array<float, 3>> mle; //location estimator
+	std::vector<std::array<float, 3>> msf; //scale factors
 
 	Integration m_integration = Integration::average;
 
 	Rejection m_rejection = Rejection::none;
-	float m_l_sigma = 2;
-	float m_u_sigma = 3;
+	float m_l_sigma = 2.0;
+	float m_u_sigma = 3.0;
 
-	void ScaleImage(Image32& ref, Image32& tgt, ScaleEstimator scale_est);
+public:
+	ImageStacking() = default;
 
-	void ScaleImageStack(ImageVector& img_stack, ScaleEstimator type);
+	void setRejectionMethod(Rejection method) { m_rejection = method; }
+
+	void setNormalation(Normalization normalization) { m_normalization = normalization; }
+
+	void setIntegrationMethod(Integration method) { m_integration = method; }
+
+	void setSigmaLow(float sigma_low) { m_l_sigma = sigma_low; }
+
+	void setSigmaHigh(float sigma_high) { m_u_sigma = sigma_high; }
 
 
-	//typedef std::vector<float> PS;
+private:
 	void RemoveOutliers(std::vector<float>& pixelstack, float l_limit, float u_limit);
 
 	float Mean(const std::vector<float>& pixelstack);
@@ -49,26 +94,29 @@ class ImageStacking {
 
 	float Min(const std::vector<float>& pixelstack);
 
+	float Max(const std::vector<float>& pixelstack);
+
+	void PercintileClipping(std::vector<float>& pixelstack, float p_low, float p_high);
+
 	void SigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
 
 	void WinsorizedSigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
 
+	void PixelRejection(std::vector<float>& pixelstack);
+
+	float PixelIntegration(std::vector<float>& pixelstack);
+
+	void ComputeScaleEstimators();
+
+	void OpenFiles();
+
+	bool isFilesSameDimenisions();
+
+	void CloseFiles();
 
 public:
+	void GenerateWeightMaps_forDrizzle(FileVector paths);
 
-	ImageStacking() = default;
-
-	ImageStacking(Integration integration) :m_integration(integration) {}
-
-	ImageStacking(ScaleEstimator scale_est) :m_scale_est(scale_est) {}
-
-	ImageStacking(Rejection method, float l_sigma = 2, float u_sigma = 3) :m_rejection(method), m_l_sigma(l_sigma), m_u_sigma(u_sigma) {}
-
-	ImageStacking(Integration integration, ScaleEstimator scale_est, Rejection method, float l_sigma, float u_sigma)
-		:m_integration(integration), m_scale_est(scale_est), m_rejection(method), m_l_sigma(l_sigma), m_u_sigma(u_sigma) {}
-
-	//create modifiers to change sclae_est, rejection, integration
-
-	void IntegrateImages(ImageVector& img_stack, Image32& output);
+	Status IntegrateImages(FileVector paths, Image32 & output);
 };
 

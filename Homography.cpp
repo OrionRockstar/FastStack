@@ -76,6 +76,7 @@ Matrix Homography::ComputeHomography(const StarPairVector& spv) {
 
     int tvgtotal = int(spv.size()),
         maxmatch = 0;
+    //le& slider 1.0-5.0
     double tol = 2;
 
     srand(time(NULL));

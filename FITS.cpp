@@ -214,6 +214,8 @@ void FITS::Open(std::filesystem::path path) {
 	if (!is_FitsFile())
 		return;
 
+	m_type = FileType::FITS;
+
 	m_fits_header.Read(m_stream);
 
 	m_data_pos = m_fits_header.header_block.size() * 80;
@@ -278,10 +280,9 @@ template void FITS::Read(Image32&);
 
 
 template<typename T>
-void FITS::ReadSome(T* buffer, std::array<int, 3>& start_point, int num_elements) {
+void FITS::ReadSome(T* buffer, const Point<>& start_point, int num_elements) {
 
-	std::streampos offset = (start_point[2] * m_px_count + start_point[1] * m_cols + start_point[0]) * sizeof(T);
-
+	std::streampos offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x()) * sizeof(T);
 	m_stream.seekg(m_data_pos + offset);
 	m_stream.read((char*)buffer, num_elements * sizeof(T));
 
@@ -294,9 +295,50 @@ void FITS::ReadSome(T* buffer, std::array<int, 3>& start_point, int num_elements
 			buffer[x] = _byteswap_ushort(buffer[x]);
 
 }
-template void FITS::ReadSome(uint8_t*, std::array<int, 3>&, int);
-template void FITS::ReadSome(uint16_t*, std::array<int, 3>&, int);
-template void FITS::ReadSome(float*, std::array<int, 3>&, int);
+template void FITS::ReadSome(uint8_t*, const Point<>&, int);
+template void FITS::ReadSome(uint16_t*, const Point<>&, int);
+template void FITS::ReadSome(float*, const Point<>&, int);
+
+void FITS::ReadSome_Any(float* dst, const Point<>& start_point, int num_elements) {
+	size_t offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x());
+
+	switch (m_bitdepth) {
+	case 8: {
+		std::vector<uint8_t> buff(num_elements);
+		m_stream.seekg(m_data_pos + std::streampos(offset));
+		m_stream.read((char*)buff.data(), num_elements);
+		for (int x = 0; x < num_elements; ++x)
+			dst[x] = Pixel<float>::toType(buff[x]);
+		break;
+	}
+	case 16: {
+		std::vector<uint16_t> buffer(num_elements);
+		offset *= 2;
+		m_stream.seekg(m_data_pos + std::streampos(offset));
+		m_stream.read((char*)buffer.data(), num_elements * 2);
+
+		/*for (int x = num_elements - 1, m = num_elements / 2; x >= 0; --x, --m) {
+			uint16_t* p = (uint16_t*)&buffer[m];
+			buffer[x] = uint16_t(_byteswap_ushort(p[1]) + 32768) / 65535.0f;
+			buffer[--x] = uint16_t(_byteswap_ushort(p[0]) + 32768) / 65535.0f;
+
+		}*/
+
+		for (int x = 0; x < num_elements; ++x)
+			dst[x] = Pixel<float>::toType(uint16_t(_byteswap_ushort(buffer[x]) + 32768));
+		break;
+	}
+	case -32: {
+		offset *= 4;
+		m_stream.seekg(m_data_pos + std::streampos(offset));
+		m_stream.read((char*)dst, num_elements * 4);
+		for (int x = 0; x < num_elements; ++x)
+			dst[x] = byteswap_float(dst[x]);
+		break;
+	}
+	}
+
+}
 
 void FITS::ReadAny(Image32& dst) {
 
@@ -323,7 +365,7 @@ void FITS::ReadAny(Image32& dst) {
 	else if (m_bitdepth == 16) {
 
 		std::vector<int16_t> buffer(dst.Cols());
-		int mem_size = buffer.size() * sizeof(int16_t);
+		int mem_size = buffer.size() * sizeof(uint16_t);
 
 		for (int ch = 0; ch < dst.Channels(); ++ch) {
 			for (int y = 0; y < dst.Rows(); ++y) {
@@ -337,7 +379,7 @@ void FITS::ReadAny(Image32& dst) {
 
 	else if (m_bitdepth == -32) {
 
-		m_stream.read((char*)dst.data.get(), dst.TotalImage() * sizeof(float));
+		m_stream.read((char*)dst.data.get(), dst.TotalPxCount() * sizeof(float));
 
 		for (auto& pixel : dst)
 			pixel = byteswap_float(pixel);

@@ -2,29 +2,18 @@
 #include "pch.h"
 #include "Image.h"
 #include "CurveInterpolation.h"
-#include"Toolbar.h"
+#include "ProcessDialog.h"
 #include "Maths.h"
+#include "RGBColorSpace.h"
 #include <QGraphicsScene>
 #include <QGraphicsView>
 
-enum class CurveComponent {
-	red = 0,
-	green,
-	blue,
-	rgb_k,
-	Lightness,
-	a,
-	b,
-	c,
-	hue,
-	saturation
-};
 
 class CurveTransform {
 private:
 	std::array<Curve, 10> m_comp_curves;
 
-	Curve& rCurve(CurveComponent comp) { return m_comp_curves[int(comp)]; }
+	Curve& rCurve(ColorComponent comp) { return m_comp_curves[int(comp)]; }
 
 public:
 
@@ -32,20 +21,28 @@ public:
 
 	~CurveTransform() {};
 
-	void SetInterpolationMethod(CurveComponent comp, CurveType type);
+	void SetInterpolationMethod(ColorComponent comp, CurveType type);
 
-	void SetDataPoints(CurveComponent comp, std::vector<QPointF> points);
+	void SetDataPoints(ColorComponent comp, std::vector<QPointF> points);
 
-	void ComputeCoefficients(CurveComponent comp);
+	void ComputeCoefficients(ColorComponent comp);
 
-	void InterpolateValues(CurveComponent comp, std::vector<double>& values);
+	void InterpolateValues(ColorComponent comp, std::vector<double>& values);
 
 	template<typename T>
 	void Apply(Image<T>& img);
 };
 
-class CurveItem {
 
+
+
+
+
+
+
+
+class CurveItem {
+	
 	QGraphicsScene* m_scene = nullptr;
 
 	CurveType m_type = CurveType::akima_spline;
@@ -66,22 +63,30 @@ class CurveItem {
 	QList<QGraphicsItem*> m_item_list;
 
 public:
-
 	CurveItem() = default;
 
 	CurveItem(QPen pen, QBrush brush, QGraphicsScene* scene);
 
 	void SetCurveType(CurveType type) { m_type = type; }
 
+public:
+	const QList<QGraphicsItem*>& ItemList()const { return m_item_list; }
+
+	int ItemIndex(const QGraphicsItem* item)const { return m_item_list.indexOf(item); }
+
+	int ItemListSize()const { return m_item_list.size(); }
+
+	QPointF InputPoint(int index) { return m_input_pts[index]; }
+
 	CurveType CurveType() { return m_type; }
 
-	QGraphicsItem* Left()const;
+	QGraphicsItem* Left()const { return m_left; }
 
-	QGraphicsItem* Right()const;
+	QGraphicsItem* Right()const { return m_right; }
 
-	QGraphicsItem* Current()const;
+	QGraphicsItem* Current()const { return m_current; }
 
-	QPointF ItemCenter(QGraphicsItem* item);
+	static QPointF ItemCenter(const QGraphicsItem* item);
 
 	QGraphicsItem* AddEllipse(qreal x, qreal y);
 
@@ -89,19 +94,17 @@ public:
 
 	std::vector<QPointF> GetNormalizedInputs();
 
-	QGraphicsItem* RemoveItem(QPointF point);
+	void RemoveItem(QPointF point);
 
-	void SetCurvePoints(std::vector<double>& values);
+	void SetCurvePoints(const std::vector<double>& y_values);
 
-	void HideCurve();
-
-	void HidePoints();
-
-	void ShowPoints();
-
-	void ShowCurve();
+	void setCurveVisibility(bool visible);
 
 	void UpdateItemPos(QGraphicsItem* item, QPointF delta);
+
+	const QGraphicsItem* nextItem();
+
+	const QGraphicsItem* previousItem();
 
 };
 
@@ -117,7 +120,7 @@ private:
 	std::array<QColor, 10> m_color = { QColor{255,000,000}, {000,255,000}, {000,000,255}, {255,255,255}, {255,255,255},
 											 {255,255,000}, {000,255,255}, {255,000,127}, {000,128,255}, {178,102,255} };
 
-	CurveComponent m_comp = CurveComponent::rgb_k;
+	ColorComponent m_comp = ColorComponent::rgb_k;
 	std::array<CurveItem*, 10> m_curve_items;
 
 	std::vector<double> m_values = std::vector<double>(380);
@@ -129,7 +132,11 @@ public:
 
 	CurveScene(CurveTransform* ct, QRect rect, QWidget* parent = nullptr);
 
-	void AddGrid();
+	CurveItem* curveItem(ColorComponent comp)const {
+		return m_curve_items[int(comp)];
+	}
+
+	void drawGrid();
 
 	void resetScene();
 
@@ -138,18 +145,24 @@ public slots:
 
 	void CurveTypeChanged(int id);
 
-	void receiveLinePos(QPointF point);
+	void onUpdatePoint(QPointF point);
+
+	void onPressed_previous_next();
 
 signals:
+	//item added, removed, changed
+	void itemARC();
+
 	void sendCurveType(int id);
 
 	void sendCurrentPos(QPointF point);
 
-	void sendEndCurrent(bool val);
+	void sendIsEndCurrent(bool val);
+
+	void end(bool);
 
 private:
-
-	QPointF GetCurrentItemCenter()const;
+	bool xValueExists()const;
 
 	bool isInScene(const QRectF rect)const;
 
@@ -161,9 +174,7 @@ private:
 
 	void mouseMoveEvent(QGraphicsSceneMouseEvent* event);
 
-	//check for vertical points
-	// points with same x value
-	//void mouseReleaseEvent(QGraphicsSceneMouseEvent* event);
+	void mouseReleaseEvent(QGraphicsSceneMouseEvent* event);
 };
 
 class CurveTransformDialog : public ProcessDialog {
@@ -172,8 +183,8 @@ class CurveTransformDialog : public ProcessDialog {
 private:
 	CurveTransform m_ct;
 
-	CurveScene* cs;
-	QGraphicsView* gv;
+	CurveScene* m_cs;
+	QGraphicsView* m_gv;
 
 	QButtonGroup* m_component_bg;
 	QButtonGroup* m_curvetype_bg;
@@ -181,23 +192,24 @@ private:
 	DoubleLineEdit* m_input_le;
 	DoubleLineEdit* m_output_le;
 
+	QLabel* m_current_point;
+
 public:
 	CurveTransformDialog(QWidget* parent = nullptr);
 
 public slots:
-
-	void onClick(int id);
-
-	void onChannelChange(int id);
+	void onItemARC();
 
 	void onEditingFinished_io();
 
-	void endCurrent(bool val);
+	void onCurrentPos(QPointF point);
 
-	void currentPos(QPointF point);
+	void onPressed_previous();
+
+	void onPressed_next();
 
 signals:
-	void sendLinePos(QPointF point);
+	void updatePoint(QPointF point);
 
 private:
 
@@ -206,6 +218,8 @@ private:
 	void AddCuveTypeSelection();
 
 	void AddPointLineEdits();
+
+	void AddPointSelection();
 
 	void resetDialog();
 

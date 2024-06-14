@@ -291,6 +291,34 @@ template void TIFF::Read(Image8&);
 template void TIFF::Read(Image16&);
 template void TIFF::Read(Image32&);
 
+void TIFF::ReadAny(Image32& dst) {
+
+    m_stream.seekg(m_data_pos);
+
+    dst = Image32(m_rows, m_cols, m_channels);
+
+    if (m_bitdepth == 8) {
+        Image8 temp;
+        Read(temp);
+        for (int el = 0; el < dst.TotalPxCount(); ++el)
+            dst[el] = Pixel<float>::toType(temp[el]);
+    }
+
+    else if (m_bitdepth == 16) {
+        Image16 temp;
+        Read(temp);
+        for (int el = 0; el < dst.TotalPxCount(); ++el)
+            dst[el] = Pixel<float>::toType(temp[el]);
+    }
+
+    else if (m_bitdepth == 32)
+        Read(dst);
+
+    if (dst.is_float())
+        dst.Normalize();
+
+    Close();
+}
 
 template<typename T>
 void TIFF::Write(const Image<T>& src, int new_bitdepth, bool planar_contiguous) {

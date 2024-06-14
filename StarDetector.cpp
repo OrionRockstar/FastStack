@@ -4,7 +4,8 @@
 #include "Matrix.h"
 #include "Wavelet.h"
 
-bool StarDetector::IsNewStar(int x, int y, int r, std::vector<Star>& star_vector) {
+
+void StarDetector::AddNewStar(int x, int y, int r, std::vector<Star>& star_vector) {
 
     for (struct Star& star : star_vector) {
         if (Distance(double(x), double(y), star.xc, star.yc) <= Max<double>(r, star.radius)) {
@@ -12,11 +13,11 @@ bool StarDetector::IsNewStar(int x, int y, int r, std::vector<Star>& star_vector
             star.yc = .5 * (star.yc + y);
             star.radius = Max<double>(star.radius, r); //(star.rad + (r * ix2min_radius))
 
-            return false;
+            return;
         }
     }
 
-    return true;
+    star_vector.emplace_back(x, y, r);
 }
 
 StarVector StarDetector::CombineStarVectors(std::vector<StarVector>& svv) {
@@ -40,13 +41,20 @@ StarVector StarDetector::CombineStarVectors(std::vector<StarVector>& svv) {
                 }
             }
             if (new_star)
-                starvector.emplace_back(svv[el][i].xc, svv[el][i].yc, svv[el][i].radius);
+                starvector.emplace_back(svv[el][i]);
         }
 
     }
 
     return starvector;
 }
+
+void StarDetector::TrimStarVector(StarVector& starvector) {
+    if (m_max_sv_size >= starvector.size())
+        return;
+    starvector.resize(m_max_sv_size);
+}
+
 
 void StarDetector::AperturePhotometry_WCG(const Image32& img, StarVector& star_vector) {
     std::vector<float> local_background;
@@ -144,7 +152,7 @@ void StarDetector::AperturePhotometry_Gaussian(const Image32& img, StarVector& s
 
         float logA = log(img(star->xc, star->yc));
 
-        float intensity_sum = 0;
+        double intensity_sum = 0;
         for (int y = yc - r, el = 0; y <= yc + r; ++y) {
             for (int x = xc - r; x <= xc + r; ++x) {
                 if (img.IsInBounds(x, y)) {
@@ -189,28 +197,38 @@ void StarDetector::AperturePhotometry_Gaussian(const Image32& img, StarVector& s
     }
 }
 
+void StarDetector::toStructureEdgeMap(Image8& src) {
 
-StarVector StarDetector::StarDetection(const Image32& img) {
+    for (int y = 1; y < src.Rows() - 1; ++y)
+        for (int x = 1; x < src.Cols() - 1; ++x)
+            if (src(x, y) == 1)
+                if (src(x - 1, y) != 0 && src(x + 1, y) != 0 && src(x, y - 1) != 0 && src(x, y + 1) != 0) src(x, y) = 2;
+}
 
-    Image8Vector wavelet_vector;
-    Wavelet().B3WaveletTransform_Trinerized(img, wavelet_vector, m_K, m_median_blur, m_num_of_layers);
+
+StarVector StarDetector::ApplyStarDetection(const Image32& img) {
+
+    Image8Vector wavelet_vector = Wavelet().StuctureMaps(img, m_K, m_median_blur, m_wavelet_layers);
 
     std::vector<std::vector<Star>> svv(wavelet_vector.size());
-    for (auto& s : svv)
-        s.reserve(1000);
 
-    std::array<int, 5> min_rad = { 1,2,4,8,16 };
+    const std::array<int, 5> min_rad = { 1,2,4,8,16 };
 
 #pragma omp parallel for schedule(static) 
     for (int el = 0; el < wavelet_vector.size(); ++el) {
 
+        Image8* map = &wavelet_vector[el];
+        toStructureEdgeMap(*map);
+
+        StarVector sv;
+        sv.reserve(1'000);
+
         for (int y = 0; y < img.Rows(); ++y) {
             for (int x = 0; x < img.Cols(); ++x) {
 
-                if (wavelet_vector[el](x, y) == 2) {
+                if ((*map)(x, y) == 2) {
 
-                    for (int r = min_rad[el]; r <= 32; ++r) {
-                        //bool edge_star = false;
+                    for (int r = min_rad[el]; r <= m_max_radius; ++r) {
 
                         int vote = 0, spacev = 0, istarv = 0;
 
@@ -221,25 +239,21 @@ StarVector StarDetector::StarDetection(const Image32& img) {
                             int a = int(round(x + r * tf._cos)); //x
                             int b = int(round(y + r * tf._sin)); //y 
 
-                            if (img.IsInBounds(a, b, 5)) {
+                            if (img.IsInBounds(a, b)) {
 
-                                if (wavelet_vector[el](a, b) == 2)  istarv++;
+                                if ((*map)(a, b) == 2)  istarv++;
 
-                                else if ((wavelet_vector[el](a, b) == 1) && (img(x, y) >= 1.5 * img(a, b))) vote++;
+                                else if (((*map)(a, b) == 1) && (m_peak_edge * img(x, y) >= img(a, b))) vote++;
 
                                 else  spacev++;
                             }
 
                             else
                                 goto newstar;
-
-
                         }
 
-                        if (vote >= 6) {
-                            if (IsNewStar(x, y, r, svv[el]))
-                                svv[el].emplace_back(x, y, r);
-                        }
+                        if (vote >= 6)
+                            AddNewStar(x, y, r, sv);
 
                         else if (spacev >= 6)  break;
                     }
@@ -247,6 +261,8 @@ StarVector StarDetector::StarDetection(const Image32& img) {
                 }
             }
         }
+
+        svv[el] = std::move(sv);
     }
 
     wavelet_vector.clear();
@@ -256,6 +272,8 @@ StarVector StarDetector::StarDetection(const Image32& img) {
     AperturePhotometry_Gaussian(img, star_vector);
 
     std::sort(star_vector.begin(), star_vector.end(), Star());
+
+    TrimStarVector(star_vector);
 
     return star_vector;
 }

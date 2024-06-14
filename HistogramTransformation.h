@@ -1,21 +1,11 @@
 #pragma once
 #include "Image.h"
-#include "Toolbar.h"
-#include <QChart>
-#include <qvalueaxis.h>
-#include <QLineSeries>
-#include <QChartView>
-
-enum class Component {
-	red = 0,
-	green,
-	blue,
-	rgb_k
-};
+#include "ProcessDialog.h"
+#include "RGBColorSpace.h"
 
 class HistogramTransformation {
 
-	struct HistogramCurve {
+	struct MTFCurve {
 	private:
 		float m_shadow = 0;
 		float m_midtone = 0.5;
@@ -28,11 +18,11 @@ class HistogramTransformation {
 	public:
 		std::vector<uint16_t> m_lut;
 
-		HistogramCurve(float shadow, float midtone, float highlight) : m_shadow(shadow), m_midtone(midtone), m_highlights(highlight) {}
+		MTFCurve(float shadow, float midtone, float highlight) : m_shadow(shadow), m_midtone(midtone), m_highlights(highlight) {}
 
-		HistogramCurve() = default;
+		MTFCurve() = default;
 
-		bool IsIdentity() { return (m_shadow == 0 && m_midtone == 0.5 && m_highlights == 1.0); }
+		bool IsIdentity() { return (m_shadow == 0.0 && m_midtone == 0.5 && m_highlights == 1.0); }
 
 		float Shadow() const { return m_shadow; }
 
@@ -40,82 +30,53 @@ class HistogramTransformation {
 
 		float Highlight() const { return m_highlights; }
 
-		void setShadow(float shadow) {
-			m_shadow = shadow;
-			dv = 1.0 / (m_highlights - m_shadow);
-		}
+		void setShadow(float shadow);
 
-		void setMidtone(float midtone) {
-			m_midtone = midtone;
-			m1 = m_midtone - 1;
-			m2 = 2 * m_midtone - 1;
-		}
+		void setMidtone(float midtone);
 
-		void setHighlight(float hightlight) {
-			m_highlights = hightlight;
-			dv = 1.0 / (m_highlights - m_shadow);
-		}
+		void setHighlight(float hightlight);
 	
-		float MTF(float pixel) {
+		float MTF(float pixel);
 
-			if (pixel <= 0.0f) return 0;
+		float TransformPixel(float pixel);
 
-			else if (pixel >= 1) return 1;
+		void Generate16Bit_LUT();
 
-			else if (pixel == m_midtone)  return 0.5;
+		void Generate8Bit_LUT();
 
-			return (m1 * pixel) / ((m2 * pixel) - m_midtone);
-
-		}
-
-		float TransformPixel(float pixel) {
-			pixel = (pixel - m_shadow) * dv;
-
-			return MTF(pixel);
-		}
-
-
-		void Generate16Bit_LUT() {
-			m_lut.resize(65536);
-			for (int el = 0; el < 65536; ++el)
-				m_lut[el] = TransformPixel(el / 65535.0f) * 65535;
-		}
-
-		void Generate8Bit_LUT() {
-			m_lut.resize(256);
-			for (int el = 0; el < 256; ++el)
-				m_lut[el] = TransformPixel(el / 255.0f) * 255;
-		}
-
-		template <typename Image>
-		void ApplyChannel(Image& img, int ch);
+		template <typename T>
+		void ApplyChannel(Image<T>& img, int ch);
 	};
 
 private:
-	std::array<HistogramCurve, 4> m_hist_curves;
+	std::array<MTFCurve, 4> m_hist_curves;
 
-	HistogramCurve& operator[](Component comp) {
+	MTFCurve& operator[](ColorComponent comp) {
 		return m_hist_curves[int(comp)];
 	}
 
-	const HistogramCurve& operator[](Component comp) const {
+	const MTFCurve& operator[](ColorComponent comp) const {
 		return m_hist_curves[int(comp)];
 	}
 
 public:
 	HistogramTransformation() = default;
 
-	float Shadow(Component component) const;
+	float Shadow(ColorComponent component) const;
 
-	float Midtone(Component component) const;
+	float Midtone(ColorComponent component) const;
 
-	float Highlight(Component component) const;
+	float Highlight(ColorComponent component) const;
 
-	void setShadow(Component component, float shadow);
+	void setShadow(ColorComponent component, float shadow);
 
-	void setMidtone(Component component, float midtone);
+	void setMidtone(ColorComponent component, float midtone);
 
-	void setHighlight(Component component, float hightlight);
+	void setHighlight(ColorComponent component, float hightlight);
+
+	float TransformPixel(ColorComponent component, float pixel);
+
+	static float MTF(float pixel, float midtone);
 
 	template<typename T>
 	void ComputeSTFCurve(Image<T>& img);
@@ -123,9 +84,8 @@ public:
 	template<typename T>
 	void STFStretch(Image<T>& img);
 
-	template<typename Image>
-	void Apply(Image& img);
-
+	template<typename T>
+	void Apply(Image<T>& img);
 };
 
 
@@ -145,7 +105,7 @@ private:
 	QStyleOptionSlider m_highlight;
 	bool m_highlight_act = false;
 
-	int max_val = 380;
+	int max_val = 400;
 	double m_med = .5;
 
 public:
@@ -160,6 +120,7 @@ signals:
 	void sliderMoved_highlight(int value);
 
 public:
+
 	void setMedian(float median);
 
 	int sliderPosition_shadow()const;
@@ -176,12 +137,14 @@ public:
 
 	void resetSliderPositions();
 
+private:
 	void mousePressEvent(QMouseEvent* event);
 
 	void mouseMoveEvent(QMouseEvent* event);
 	
 	void paintEvent(QPaintEvent* event);
 
+	void AddStyleSheet();
 };
 
 
@@ -190,8 +153,12 @@ class HistogramTransformationDialog : public ProcessDialog {
 	Q_OBJECT
 
 	HistogramTransformation m_ht;
+	ColorComponent m_current_comp = ColorComponent::rgb_k;
 
 	HistogramSlider* m_histogram_slider;
+
+	QGraphicsPathItem* m_mtf_curve = nullptr;
+	QPushButton* m_mtf_curve_pb;
 
 	QLabel* m_shadow_label;
 	DoubleLineEdit* m_shadow_le;
@@ -202,26 +169,35 @@ class HistogramTransformationDialog : public ProcessDialog {
 	QLabel* m_highlight_label;
 	DoubleLineEdit* m_highlight_le;
 
-	QChartView* cv;
-	QChart* m_histogram;
-	QValueAxis* m_axisX;
-	QValueAxis* m_axisY;
+	QGraphicsView* m_gv;
+	QGraphicsScene* m_gs;
+
+	std::array<QPen,4> m_pens = { QColor(255,0,0),QColor(0,255,0),QColor(0,0,255) ,QColor(255,255,255) };
 
 	QComboBox* m_image_sel;
 
-	QButtonGroup* m_component_bg;
+	QButtonGroup* m_component_bg; 
+	int m_current_hist_res = 16;
+	
 
 public:
 	HistogramTransformationDialog(QWidget* parent = nullptr);
 
+private:
 	void onWindowOpen();
 
 	void onWindowClose();
 
+	void onButtonPress(bool val) {
+		m_mtf_curve->setVisible(val);
+	}
+
 private:
 	void onClick(int id);
 	
-	void onActivation(int index);
+	void onActivation_imageSelection(int index);
+
+	void onActivation_resolution(int index);
 
 	void sliderMoved_shadow(int value);
 
@@ -229,22 +205,30 @@ private:
 
 	void sliderMoved_highlight(int value);
 
-	void editingFinished_shadow();
+	void editingFinished_smh();
 
-	void editingFinished_midtone();
+	void resetScene();
 
-	void editingFinished_highlight();
+	void addGrid();
 
 	void AddHistogramChart();
 
 	template<typename T>
 	void showHistogram(Image<T>& img);
 
+	void showMTFCurve();
+
+	void AddHistogramSlider();
+
 	void AddChannelSelection();
 
 	void AddLineEdits();
 
-	void setHistogramTransformation();
+	void AddImageSelectionCombo();
+
+	void AddMTFPushButton();
+
+	void AddResolutionCombo();
 
 	void resetDialog();
 

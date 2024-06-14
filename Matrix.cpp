@@ -81,7 +81,7 @@ double Matrix::Determinant()const {
     assert(m_rows == m_cols);
 
     Matrix d(m_rows, m_cols);
-    memcpy(&d.data[0], &data[0], m_size * 8);
+    memcpy(&d.data[0], &data[0], m_count * 8);
 
     for (int row = 0; row < m_rows; ++row) {
 

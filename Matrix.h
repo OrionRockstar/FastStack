@@ -9,17 +9,17 @@ class Matrix {
 
     int m_rows = 0;
     int m_cols = 0;
-    int m_size = 0;
+    int m_count = 0;
 
 public:
     std::vector<double> data;
 
-    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols), m_size(rows* cols) {
+    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols), m_count(rows* cols) {
         data.resize(rows * cols);
     }
 
-    Matrix(int rows, int cols, std::initializer_list<double> list) :m_rows(rows), m_cols(cols), m_size(rows* cols) {
-        assert(m_size == list.size());
+    Matrix(int rows, int cols, std::initializer_list<double> list) :m_rows(rows), m_cols(cols), m_count(rows* cols) {
+        assert(m_count == list.size());
         data = list;
     }
 
@@ -28,7 +28,7 @@ public:
     Matrix(const Matrix& other) {
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_size = other.m_size;
+        m_count = other.m_count;
         data = other.data;
         //memcpy(&data[0], &other.data[0], m_size * 8);
     }
@@ -36,7 +36,7 @@ public:
     Matrix(Matrix&& other) {
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_size = other.m_size;
+        m_count = other.m_count;
         data = std::move(other.data);
     }
 
@@ -57,7 +57,7 @@ public:
         data = other.data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_size = other.m_size;
+        m_count = other.m_count;
 
         return *this;
     }
@@ -66,7 +66,7 @@ public:
         data = std::move(other.data);
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_size = other.m_size;
+        m_count = other.m_count;
 
         return *this;
     }
@@ -165,7 +165,14 @@ public:
 
     const int Cols()const { return m_cols; }
 
-    const int Size()const { return m_size; }
+    const int Count()const { return m_count; }
+
+    bool isSize(int rows, int cols)const {
+        if (rows == m_rows && cols == m_cols)
+            return true;
+        else
+            return false;
+    }
 
     void Print() {
         for (int r = 0; r < m_rows; ++r) {

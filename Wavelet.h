@@ -102,9 +102,6 @@ private:
 
 	void MedianNoiseReduction(float threshold = 3, float amount = 1);
 
-	void TrinerizeImage(const Image32& input, Image8& output, float threshold);
-
-
 public:
 
 	template<typename Image>
@@ -119,7 +116,7 @@ public:
 	template<typename Image>
 	void MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num);
 
-	void B3WaveletTransform_Trinerized(const Image32& img, Image8Vector& wavelet_vector, float thresh_mult = 3, bool median_blur = true, int scale_num = 5);
+	Image8Vector StuctureMaps(const Image32& src, float K, bool median_blur, int num_layers);
 
 	void ChrominanceNoiseReduction(Image32& img, int layers_to_remove, int layers_to_keep);
 };

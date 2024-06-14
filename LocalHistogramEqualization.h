@@ -1,8 +1,10 @@
 #pragma once
 #include "Image.h"
-#include "Toolbar.h"
+#include "ProcessDialog.h"
 
 class LocalHistogramEqualization {
+
+	ProgressSignal* m_ps = new ProgressSignal();
 
 	int m_kernel_radius = 64;
 	float m_contrast_limit = 2.0;
@@ -11,23 +13,28 @@ class LocalHistogramEqualization {
 	bool m_is_circular = false;
 
 	int m_hist_res = 8;
+
+
 public:
+
 	LocalHistogramEqualization() = default;
 
 private:
 	struct KernelHistogram {
 
 		std::unique_ptr<uint32_t[]> histogram;
-		int m_kernel_radius = 64;
 		int m_size = 256;
-		int pix_count = 0;
+		int m_count = 0;
+
+		int m_radius = 64;
+		int m_dimension = 2 * m_radius + 1;
 
 		int m_multiplier = m_size - 1;
 		bool m_is_circular = false;
 
-		std::vector<int> back_pix;
-		std::vector<int> front_pix;
-		std::vector<bool> k_mask;
+		std::vector<int> back_pix;//contains displacement from center coloumn
+		std::vector<int> front_pix;//
+		std::vector<char> k_mask;
 
 		uint32_t& operator[](int val) { return histogram[val]; }
 
@@ -35,9 +42,11 @@ private:
 
 		KernelHistogram(int resolution, int kernel_radius, bool circular);
 
-		int Size()const noexcept { return m_size; }
+		int Size()const { return m_size; }
 
-		int Multiplier()const noexcept { return m_multiplier; }
+		int Count()const { return m_count; }
+
+		int Multiplier()const { return m_multiplier; }
 
 		template<typename T>
 		void Populate(Image<T>& img, int y);
@@ -51,6 +60,7 @@ private:
 	};
 
 public:
+	ProgressSignal* progressSignal() const { return m_ps; }
 
 	void setKernelRadius(int kernel_radius) { m_kernel_radius = kernel_radius; }
 
@@ -58,7 +68,8 @@ public:
 
 	void setAmount(float amount) { m_amount = amount; }
 
-	void setCircularKernel(bool is_circular) { m_is_circular = is_circular; }
+	void setCircularKernel(bool is_circular) { 
+		m_is_circular = is_circular; }
 
 	void setHistogramResolution(int resolution) { m_hist_res = resolution; }
 
@@ -79,27 +90,23 @@ class LocalHistogramEqualizationDialog : public ProcessDialog {
 
 	LocalHistogramEqualization m_lhe;
 
+	QProgressBar* progress;
 	//kernel radius
-	QLabel* m_kr_label;
-	QLineEdit* m_kr_le;
+	DoubleLineEdit* m_kr_le;
 	QSlider* m_kr_slider;
 
 	//contrast limit
-	QLabel* m_cl_label;
 	DoubleLineEdit* m_cl_le;
 	QSlider* m_cl_slider;
 
 	//amount
-	QLabel* m_amount_label;
 	DoubleLineEdit* m_amount_le;
 	QSlider* m_amount_slider;
 
 	QCheckBox* m_circular;
-	QLabel* m_circular_label;
 
 	QComboBox* m_histogram_resolution;
 	std::array<int, 3> m_res = { 8,10,12 };
-	QLabel* m_hr_label;
 
 public:
 	LocalHistogramEqualizationDialog(QWidget* parent = nullptr);
@@ -107,20 +114,22 @@ public:
 private:
 	void actionSlider_kr(int action);
 
-	void sliderMoved_kr(int value);
+	void editingFinished_kr();
 
 
 	void actionSlider_cl(int action);
 
-	void sliderMoved_cl(int value);
+	void editingFinished_cl();
 
 
 	void actionSlider_amount(int action);
 
-	void sliderMoved_amount(int value);
+	void editingFinished_amount();
 
 
 	void itemSelected(int index);
+
+	void checked(bool val);
 
 	void AddKernelRadiusInputs();
 

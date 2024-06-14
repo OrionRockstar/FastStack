@@ -25,41 +25,19 @@ class StarMatching {
 
     struct PotentialStarPairs {
         std::vector<uint32_t> data;
+        int m_cols = 200;
 
-        PotentialStarPairs() {
-            data = std::vector<uint32_t>(40'000);
-        }
+        PotentialStarPairs(int target_size, int reference_size);
 
         ~PotentialStarPairs() {};
 
-        uint32_t& operator[](int el) {
-            return data[el];
-        }
-
         uint32_t& operator()(int target_star, int reference_star) {
-            return data[reference_star * 200 + target_star];
+            return data[reference_star * m_cols + target_star];
         }
 
-        void AddVote(int target_star, int reference_star) {
-            (*this)(target_star, reference_star)++;
-        }
+        void AddVote(int target_star, int reference_star);
 
-        uint32_t Threshold(float K = 1) {
-            uint64_t mean = 0;
-            for (auto vote : data)
-                mean += vote;
-
-            mean /= 40'000;
-
-            int d;
-            uint64_t var = 0;
-            for (auto vote : data) {
-                d = vote - mean;
-                var += d * d;
-            }
-
-            return mean + K * sqrt(var / 40'000);
-        }
+        uint32_t Threshold(float K = 1.0f);
     };
 
     struct TVGStar {

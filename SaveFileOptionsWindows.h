@@ -4,7 +4,7 @@
 class FITSWindow : public QDialog {
     Q_OBJECT
 
-        QDialog* window;
+        //QDialog* window;
     QVBoxLayout* layout;
 
     QRadioButton* bd8;
@@ -16,13 +16,12 @@ class FITSWindow : public QDialog {
 
 public:
     FITSWindow(QWidget* parent, int bitdepth) : QDialog(parent), new_bitdepth(bitdepth) {
-        window = new QDialog(this);
+        //window = new QDialog(this);
         layout = new QVBoxLayout(this);
-
         //window->setWindowIcon
 
-        window->resize(200, 100);
-        window->setWindowTitle("FITS Save Options");
+        this->resize(200, 100);
+        this->setWindowTitle("FITS Save Options");
 
         bd8 = new QRadioButton(this);
         bd8->setText("8-bit unsigned int");
@@ -57,9 +56,10 @@ public:
         connect(bd32, &QRadioButton::toggled, this, &FITSWindow::setBitdepth32);
 
         connect(save, &QPushButton::pressed, this, &FITSWindow::saveImage);
-        connect(window, &QDialog::finished, this, &FITSWindow::done);
 
-        window->setLayout(layout);
+        this->setLayout(layout);
+        this->setAttribute(Qt::WA_DeleteOnClose);
+        this->show();
     }
 
 private slots:
@@ -70,20 +70,15 @@ private slots:
     void setBitdepth32() { new_bitdepth = -32; }
 
     void saveImage() {
-        window->accept();
+        this->accept();
     }
 
-    void done(int r) {
-        delete this;
-    }
 
 signals:
 
     void setBitdepth();
 
 public:
-
-    virtual int exec() { return window->exec(); }
 
     int getNewBitdepth() {
         return new_bitdepth;

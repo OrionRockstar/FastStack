@@ -1,7 +1,7 @@
 #pragma once
 #include "Image.h"
 #include "ImageWindow.h"
-#include "Toolbar.h"
+#include "ProcessDialog.h"
 
 class ASinhStretch {
 	float m_stretch_factor = 1.0;
@@ -29,8 +29,8 @@ public:
 
 	void setsRGB(bool srgb) { m_srbg = srgb; }
 
-	template<typename Image>
-	void ComputeBlackpoint(Image& img);
+	template<typename T>
+	void ComputeBlackpoint(Image<T>& img);
 
 	template<typename Image>
 	void Apply(Image& img);
@@ -48,13 +48,11 @@ public:
 class ASinhStretchDialog : public ProcessDialog {
 	Q_OBJECT
 
-	ASinhStretch ash;
+	ASinhStretch m_ash;
 
-	QLabel* m_sf_label;
 	QSlider* m_sf_slider;
 	DoubleLineEdit* m_sf_le;
 
-	QLabel* m_bp_label;
 	QSlider* m_bp_slider;
 	DoubleLineEdit* m_bp_le;
 
@@ -62,45 +60,17 @@ class ASinhStretchDialog : public ProcessDialog {
 	QSlider* m_fine_tune;
 
 	QCheckBox* m_rgb_cb;
-
-	QPushButton* m_bp_comp;
-
 public:
 	ASinhStretchDialog(QWidget* parent = nullptr);
 
-/*signals:
-	void onClose();
-
-private:
-
-	void closeEvent(QCloseEvent* close) {
-		for (auto sw : m_workspace->subWindowList()) {
-			auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget())->rtp;
-			QString str = ptr->windowTitle();
-			str.remove(m_name);
-			ptr->setWindowTitle(str);
-		}
-		onClose();
-		close->accept();
-	}*/
-
-//private slots:
 private:
 	void actionSlider_sf(int action);
 
-	void repositionSlider_sf();
-
-	void sliderMoved_sf(int value);
-
+	void editingFinished_sf();
 
 	void actionSlider_bp(int action);
 
-	void repositionSlider_bp();
-
-	void sliderMoved_bp(int value);
-
-
-	void actionSlider_ft(int action);
+	void editingFinished_bp();
 
 	void sliderPressed_ft();
 
@@ -108,7 +78,10 @@ private:
 
 	void sliderReleased_ft();
 
-private:
+	void onClick_srgb(bool val);
+
+	void onPressed_blackpoint();
+
 	void AddStretchFactorInputs();
 
 	void AddBlackpointInputs();

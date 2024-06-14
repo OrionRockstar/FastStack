@@ -2,6 +2,12 @@
 #include <fstream>
 #include<filesystem>
 
+enum class FileType {
+	FITS,
+	TIFF,
+	XISF,
+	BMP
+};
 
 class ImageFile {
 protected:
@@ -18,8 +24,10 @@ protected:
 	int m_bitdepth = 8;
 	int m_px_count = 1;
 
-	ImageFile() = default;
+	FileType m_type;
 
+	ImageFile() = default;
+public:
 	ImageFile(ImageFile&& other) noexcept {
 
 		m_stream = std::move(other.m_stream);
@@ -33,6 +41,16 @@ protected:
 		m_bitdepth = other.m_bitdepth;
 		m_px_count = other.m_px_count;
 	}
+
+	virtual ~ImageFile() {}
+
+	int Rows()const { return m_rows; }
+
+	int Cols()const { return m_cols; }
+
+	int Channels()const { return m_channels; }
+
+	FileType Type()const { return m_type; }
 
 private:
 	void SetBuffer() {
@@ -83,6 +101,7 @@ protected:
 		m_stream.open(path, std::ios::out | std::ios::binary | std::ios::trunc);
 	}
 
+public:
 	virtual void Close() {
 
 		m_stream.close();

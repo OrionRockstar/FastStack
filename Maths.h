@@ -120,18 +120,30 @@ T MAD_nocopy(std::vector<T>& vector, float median) {
     return vector[mid];
 }
 
-template<typename T>
-struct Point {
-    T x = 0;
-    T y = 0;
 
+
+template<typename T = int>
+struct Point {
+
+private:
+    T m_x = 0;
+    T m_y = 0;
+    int m_ch = 1;
+
+public:
     Point() = default;
 
-    Point(T x, T y) : x(x), y(y) {}
+    Point(T x, T y) : m_x(x), m_y(y) {}
+    
+    Point(T x, T y, int ch) : m_x(x), m_y(y), m_ch(ch) {}
 
-    bool operator()(Point& a, Point& b) { return (a.x < b.x); }
+    T x()const { return m_x; }
+
+    T y()const { return m_y; }
+
+    int channel()const { return m_ch; }
+    //bool operator()(Point& a, Point& b) { return (a.x < b.x); }
 
 };
-typedef Point<int> Pointi;
 typedef Point<float> Pointf;
 typedef Point<double> Pointd;

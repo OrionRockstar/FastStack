@@ -2,27 +2,39 @@
 #include "ImageWindow.h"
 //#include "HistogramTransformation.h"
 #include "FastStack.h"
-#include "FITS.h"
 
 //change parent to faststack???
 template<typename T>
-ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : QWidget(parent) {
+ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : m_name(name), QWidget(parent) {
 
-    m_parent = parent;
+    m_workspace = parent;
+    setAcceptDrops(true);
+    installEventFilter(this);
+    setMouseTracking(true);
 
     iws = new IWSS();
+    img.MoveTo(m_source);
 
-    m_name = name;
+    //tb->move
+    //IdealFactor();//= abs(m_factor_poll = -4);
+    int factor = IdealZoomFactor(true);
 
-    img.MoveTo(source);
-
-    IdealFactor();//= abs(m_factor_poll = -4);
+    m_factor_poll = (factor == 1) ? factor : -factor;
+    m_initial_factor = m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
 
     this->setWindowTitle("1:" + QString(std::to_string(abs(m_factor_poll)).c_str()) + " " + m_name);
 
-    m_drows = m_winRows = source.Rows() * m_factor;
-    m_dcols = m_winCols = source.Cols() * m_factor;
-    m_dchannels = source.Channels();
+    m_drows = m_winRows = m_source.Rows() * m_factor;
+    m_dcols = m_winCols = m_source.Cols() * m_factor;
+    m_dchannels = m_source.Channels();
+
+    this->resize(m_winCols, m_winRows);
+
+   // QToolBar* tb = new QToolBar(this);
+    //tb->setOrientation(Qt::Vertical);
+    //tb->setGeometry(m_dcols, 0, 20, 20);
+    //tb->setAutoFillBackground(true);
+    //tb->setBackgroundRole(QPalette::ColorRole::Dark);
 
     sa = new QScrollArea(this);
     sa->setGeometry(0, 0, m_winCols, m_winRows);
@@ -32,46 +44,56 @@ ImageWindow<T>::ImageWindow(Image<T>& img, QString name, QWidget* parent) : QWid
     QString corner = "QAbstractScrollArea::corner{background-color: light gray; }";    
     sa->setStyleSheet(corner);
 
-
-    label = new QLabel(this);
-    label->setGeometry(0, 0, m_winCols, m_winRows);
+    m_label = new QLabel(this);
+    m_label->setGeometry(0, 0, m_dcols, m_drows);
+    m_label->setMouseTracking(true);
 
     InstantiateScrollBars();
+    QImage::Format format = QImage::Format::Format_RGB888;
 
     if (m_dchannels == 1)
-        display = QImage(m_dcols, m_drows, QImage::Format::Format_Grayscale8);
+        format = QImage::Format::Format_Grayscale8;
 
-    else if (m_dchannels == 3)
-        display = QImage(m_dcols, m_drows, QImage::Format::Format_RGB888);
-
-    //HistogramTransformation().STFStretch(source);
-    //RTP_ImageWindow<T>* r;// = new RTP_ImageWindow<T>(this);
-    //rtp = new RTP_ImageWindow<T>(this);
+    m_display = QImage(m_dcols, m_drows, format);
 
     BinToWindow(0, 0, 1/m_factor);
     
-    output.convertFromImage(display);
-    label->setPixmap(output);
+    output.convertFromImage(m_display);
+    m_label->setPixmap(output);
 
-    reinterpret_cast<Workspace*>(m_parent)->addSubWindow(this);
-    reinterpret_cast<Workspace*>(m_parent)->currentSubWindow()->show();
+    QIcon icon;
+    icon.addFile("C:\\Users\\Zack\\Desktop\\fast_stack_icon_fs2.png");
+    this->setWindowIcon(icon);
 
-    //this->setFixedSize(m_winCols, m_winRows);
+    this->setFocusPolicy(Qt::FocusPolicy::ClickFocus);
+    auto ptr = reinterpret_cast<Workspace*>(parent);
+    m_sw_parent = ptr->addSubWindow(this);//subwindow then becomes
+    //need to take an account for extra window with when resizing if adding side toolbar
+    m_sw_parent->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols + (2 * m_border_width), m_winRows + (m_titlebar_height + m_border_width));//orig 10,35
+    ptr->UpdateOffsets();
+
+    m_sw_parent->setWindowFlags(Qt::SubWindow | Qt::WindowShadeButtonHint);
+
+    connect(iws, &IWSS::sendWindowOpen, ptr, &Workspace::receiveOpen);
+    connect(iws, &IWSS::sendWindowClose, ptr, &Workspace::receiveClose);
+
+    m_sw_parent->show();
+
 }
 
 
 template<typename T>
-void ImageWindow<T>::sliderPressedX() {
+void ImageWindow<T>::sliderPressed_X() {
     m_scrollbarX = sbh->value();
 }
 
 template<typename T>
-void ImageWindow<T>::sliderPressedY() {
+void ImageWindow<T>::sliderPressed_Y() {
     m_scrollbarY = sbv->value();
 }
 
 template<typename T>
-void ImageWindow<T>::sliderPanX(int value) {
+void ImageWindow<T>::sliderMoved_X(int value) {
     
     if (value == m_scrollbarX)
         return;
@@ -80,7 +102,7 @@ void ImageWindow<T>::sliderPanX(int value) {
 }
 
 template<typename T>
-void ImageWindow<T>::sliderPanY(int value) {
+void ImageWindow<T>::sliderMoved_Y(int value) {
 
     if (value == m_scrollbarY)
         return;
@@ -223,7 +245,23 @@ void ImageWindow<T>::wheelEvent(QWheelEvent* event) {
 }
 
 template<typename T>
+void ImageWindow<T>::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasFormat("process"))
+        event->acceptProposedAction();
+
+}
+
+template<typename T>
+void ImageWindow<T>::dropEvent(QDropEvent* event) {
+    auto ptr = reinterpret_cast<Workspace*>(m_workspace);
+    ptr->setActiveSubWindow(m_sw_parent);
+    reinterpret_cast<ProcessDialog*>(event->source())->processDropped();
+    event->acceptProposedAction();
+}
+
+template<typename T>
 void ImageWindow<T>::mousePressEvent(QMouseEvent* event) {
+
     if (event->buttons() == Qt::LeftButton) {
         m_mouseX = event->x();
         m_mouseY = event->y();
@@ -232,9 +270,12 @@ void ImageWindow<T>::mousePressEvent(QMouseEvent* event) {
 
 template<typename T>
 void ImageWindow<T>::mouseMoveEvent(QMouseEvent* event) {
-    if (event->buttons() == Qt::LeftButton) {
+
+    if (event->buttons() == Qt::LeftButton) 
         Pan(event->x(), event->y());
-    }
+    
+    int x = (event->x() - m_label->x()) / m_factor + m_sourceOffX;
+    int y = (event->y() - m_label->y()) / m_factor + m_sourceOffY;
 }
 
 template<typename T>
@@ -245,24 +286,13 @@ void ImageWindow<T>::closeEvent(QCloseEvent* close) {
     close->accept();
 }
 
-
 template<typename T>
 void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
 
     if (m_open == false) {
 
         m_open = true;
-        auto ptr = reinterpret_cast<Workspace*>(m_parent);
 
-        //ptr->currentSubWindow()->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols + 15 / devicePixelRatio(), m_winRows + 45 / devicePixelRatio());//15, 45 for native window
-        //ptr->currentSubWindow()
-        ptr->currentSubWindow()->setGeometry(ptr->m_offsetx, ptr->m_offsety, m_winCols+10, m_winRows+35);
-        //ptr->currentSubWindow()->setStyleSheet("QMdiSubWindow:Title {background: green;}");
-        //ptr->currentSubWindow()->setStyleSheet("QMdiSubWindow::")
-        ptr->UpdateOffsets();
-
-        connect(iws, &IWSS::sendWindowOpen, ptr, &Workspace::receiveOpen);
-        connect(iws, &IWSS::sendWindowClose, ptr, &Workspace::receiveClose);
         iws->sendWindowOpen();
 
         return;
@@ -273,18 +303,19 @@ void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
 
     if (new_cols <= sbv->width() || new_rows <= sbh->height())
         return;
-
+    
     sa->resize(new_cols, new_rows);
+
     //if window width greater than display image
-    if (new_cols >= int((source.Cols() - m_sourceOffX) * m_factor) - 1) {
+    if (new_cols >= int((m_source.Cols() - m_sourceOffX) * m_factor) - 1) {
         double dx = (new_cols - m_winCols) / m_factor;
 
         if (dx > 0)
             m_sourceOffX -= dx;
-        m_sourceOffX = Clip(m_sourceOffX, 0.0, double(source.Cols()));
-        m_dcols = (source.Cols() - m_sourceOffX) * m_factor;
+        m_sourceOffX = Clip(m_sourceOffX, 0.0, double(m_source.Cols()));
+        m_dcols = (m_source.Cols() - m_sourceOffX) * m_factor;
 
-        HideHorizontalScrollBar();
+       HideHorizontalScrollBar();
     }
 
     else {
@@ -292,21 +323,21 @@ void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
         ShowHorizontalScrollBar();
     }
 
-    if (new_rows >= int((source.Rows() - m_sourceOffY) * m_factor) - 1) {
+    if (new_rows >= int((m_source.Rows() - m_sourceOffY) * m_factor) - 1) {
         double dy = (new_rows - m_winRows) / m_factor;
 
         if (dy > 0)
             m_sourceOffY -= dy;
 
-        m_sourceOffY = Clip(m_sourceOffY, 0.0, double(source.Rows()));
-        m_drows = (source.Rows() - m_sourceOffY) * m_factor;
+        m_sourceOffY = Clip(m_sourceOffY, 0.0, double(m_source.Rows()));
+        m_drows = (m_source.Rows() - m_sourceOffY) * m_factor;
 
-        HideVerticalScrollBar();
+       HideVerticalScrollBar();
     }
 
     else {
         m_drows = new_rows;
-         ShowVerticalScrollBar();
+        ShowVerticalScrollBar();
     }
 
     m_winCols = new_cols;
@@ -314,35 +345,26 @@ void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
 
     ResizeDisplay();
     DisplayImage();
-
 }
-
 
 template<typename T>
-void ImageWindow<T>::ResizeWindowtoNormal() {
+bool ImageWindow<T>::eventFilter(QObject* object, QEvent* event) {
+    if (event->type() == QEvent::HideToParent)
+        m_sw_parent->resize(300, m_titlebar_height);
 
-    m_winCols = source.Cols() * m_initial_factor;
-    m_winRows = source.Rows() * m_initial_factor;
 
-    auto win = reinterpret_cast<QMdiArea*>(m_parent)->currentSubWindow();
-    win->hide();
-    win->resize(m_winCols + 12, m_winRows + 36);
-    win->show();
-
+    return false;
 }
+
 
 
 template<typename T>
 void ImageWindow<T>::ResizeDisplay() {
 
-    //size().width() changes depending on scaling factor
-    //std::cout << size().width() << " " << m_winCols << "\n";
-    //std::cout << sbv->width();
-
-    if (sbv->isVisible() && !sbh->isVisible()) {
+    if (isVerticalScrollBarOn() && isHorizontalScrollBarOff()) {
         if (m_winCols > m_dcols + sbv->width()) {
             for (int i = 0; i < sbv->width(); ++i)
-                if (m_drows < int((source.Rows() - m_sourceOffY) * m_factor))
+                if (m_drows < int((m_source.Rows() - m_sourceOffY) * m_factor))
                     m_drows++;
 
             HideHorizontalScrollBar();
@@ -356,11 +378,11 @@ void ImageWindow<T>::ResizeDisplay() {
 
     }
 
-    else if (sbh->isVisible() && !sbv->isVisible()) {
+    else if (isHorizontalScrollBarOn() && isVerticalScrollBarOff()) {
 
         if (m_winRows > m_drows + sbh->height()) {
             for (int i = 0; i < sbh->height(); ++i)
-                if (m_dcols < int((source.Cols() - m_sourceOffX) * m_factor))
+                if (m_dcols < int((m_source.Cols() - m_sourceOffX) * m_factor))
                     m_dcols++;
             HideVerticalScrollBar();
         }
@@ -373,7 +395,7 @@ void ImageWindow<T>::ResizeDisplay() {
 
     }
 
-    else if (sbv->isVisible() && sbh->isVisible()) {
+    else if (isVerticalScrollBarOn() && isHorizontalScrollBarOn()) {
 
         m_dcols = m_winCols - sbv->width();
         m_drows = m_winRows - sbh->height();
@@ -387,12 +409,44 @@ void ImageWindow<T>::ResizeDisplay() {
         HideVerticalScrollBar();
     }
 
-    int dr = (sbh->isVisible()) ? sbh->height() : 0;
-    int dc = (sbv->isVisible()) ? sbv->width() : 0;
+    int dr = (isHorizontalScrollBarOn()) ? sbh->height() : 0;
+    int dc = (isVerticalScrollBarOn()) ? sbv->width() : 0;
 
-    label->setGeometry((m_winCols - (m_dcols + dc)) / 2, (m_winRows - (m_drows + dr)) / 2, m_dcols, m_drows);
-    display = QImage(m_dcols, m_drows, display.format());
+    m_label->setGeometry((m_winCols - (m_dcols + dc)) / 2, (m_winRows - (m_drows + dr)) / 2, m_dcols, m_drows);
+    m_display = QImage(m_dcols, m_drows, m_display.format());
 }
+
+template<typename T>
+int ImageWindow<T>::IdealZoomFactor(bool workspace) {
+
+    QSize size = screen()->availableSize();
+
+    if (workspace)
+        size = m_workspace->size();
+
+    int width = size.width();
+    int height = size.height();
+
+    int factor = 1;
+    for (; factor < 10; ++factor) {
+
+        int new_cols = m_source.Cols() / factor;
+        int new_rows = m_source.Rows() / factor;
+
+        if (new_cols < 0.75 * width && new_rows < 0.75 * height)
+            break;
+    }
+
+
+    return factor;
+
+    m_factor_poll = (factor == 1) ? factor : -factor;
+    m_initial_factor = m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
+
+    return factor;
+
+}
+
 
 template<typename T>
 void ImageWindow<T>::DisplayImage() {
@@ -403,20 +457,23 @@ void ImageWindow<T>::DisplayImage() {
     else
         BinToWindow(m_sourceOffX, m_sourceOffY, 1 / m_factor);
 
-    output.convertFromImage(display);
-    label->setPixmap(output);
+    output.convertFromImage(m_display);
+    m_label->setPixmap(output);
 }
 
 template<typename T>
-void ImageWindow<T>::ShowRTP() {
-    if (rtp == nullptr) {
-        rtp = new RTP_ImageWindow<T>(this);
-    }
-    else {
-        reinterpret_cast<RTP_ImageWindow<T>*>(rtp)->UpdatefromParent();
-        reinterpret_cast<RTP_ImageWindow<T>*>(rtp)->DisplayImage();
-    }
+void ImageWindow<T>::ShowPreview() {
+
+    if (m_preview == nullptr)
+        m_preview = std::unique_ptr<QDialog>(new PreviewWindow<T>(this));
+
 }
+
+template<typename T>
+void ImageWindow<T>::ClosePreview() {
+    
+    m_preview.reset(nullptr);
+ }
 
 template<typename T>
 void ImageWindow<T>::InstantiateScrollBars() {
@@ -424,16 +481,16 @@ void ImageWindow<T>::InstantiateScrollBars() {
 
     sbh = new ScrollBar;
     sa->setHorizontalScrollBar(sbh);
-    connect(sbh, &ScrollBar::sliderPressed, this, &ImageWindow::sliderPressedX);
-    connect(sbh, &ScrollBar::sliderMoved, this, &ImageWindow::sliderPanX);
+    connect(sbh, &ScrollBar::sliderPressed, this, &ImageWindow::sliderPressed_X);
+    connect(sbh, &ScrollBar::sliderMoved, this, &ImageWindow::sliderMoved_X);
     connect(sbh, &ScrollBar::actionTriggered, this, &ImageWindow::sliderArrowX);
     connect(sbh, &ScrollBar::wheelEvent, this, &ImageWindow::sliderWheelX);
     sbh->setFixedHeight(20);
 
     sbv = new ScrollBar;
     sa->setVerticalScrollBar(sbv);
-    connect(sbv, &ScrollBar::sliderPressed, this, &ImageWindow::sliderPressedY);
-    connect(sbv, &ScrollBar::sliderMoved, this, &ImageWindow::sliderPanY);
+    connect(sbv, &ScrollBar::sliderPressed, this, &ImageWindow::sliderPressed_Y);
+    connect(sbv, &ScrollBar::sliderMoved, this, &ImageWindow::sliderMoved_Y);
     connect(sbv, &ScrollBar::actionTriggered, this, &ImageWindow::sliderArrowY);
     connect(sbv, &ScrollBar::wheelEvent, this, &ImageWindow::sliderWheelY);
     sbv->setFixedWidth(20);
@@ -442,15 +499,13 @@ void ImageWindow<T>::InstantiateScrollBars() {
 template<typename T>
 void ImageWindow<T>::ShowHorizontalScrollBar() {
 
-    int page_step = (m_dcols / m_factor) * m_initial_factor;
+    double page_step = (m_dcols / m_factor) * m_initial_factor;
 
-    sbh->setRange(0, source.Cols() * m_initial_factor - page_step + 0.5);
+    sbh->setRange(0, m_source.Cols() * m_initial_factor - page_step);
     sbh->setSliderPosition(m_sourceOffX * m_initial_factor);
     sbh->setPageStep(page_step);
-    //sbh->setFixedHeight(20);//multiply height by scale factor
     m_scrollbarX = sbh->value();
 
-    //sbh->show();
     sa->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 }
 
@@ -463,17 +518,14 @@ void ImageWindow<T>::HideHorizontalScrollBar() {
 template<typename T>
 void ImageWindow<T>::ShowVerticalScrollBar() {
 
-    int page_step = (m_drows / m_factor) * m_initial_factor;
+    double page_step = (m_drows / m_factor) * m_initial_factor;
 
-    sbv->setRange(0, source.Rows() * m_initial_factor - page_step + 0.5);
+    sbv->setRange(0, m_source.Rows() * m_initial_factor - page_step);
     sbv->setSliderPosition(m_sourceOffY * m_initial_factor);
     sbv->setPageStep(page_step);
-    //sbv->setFixedWidth(20);
-    //sbv->setFixedHeight(m_drows);
     m_scrollbarY = sbv->value();
 
     sa->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-    //sbv->show();
 }
 
 template<typename T>
@@ -485,17 +537,44 @@ void ImageWindow<T>::HideVerticalScrollBar() {
 template<typename T>
 void ImageWindow<T>::ShowScrollBars() {
 
-    if (m_winCols > source.Cols() * m_factor)
-        HideHorizontalScrollBar();
-    else
+    if (m_winCols < m_dcols) {
+        m_dcols = m_winCols;
         ShowHorizontalScrollBar();
-
-    if (m_winRows > source.Rows() * m_factor)
-        HideVerticalScrollBar();
+    }
     else
-        ShowVerticalScrollBar();  
+        HideHorizontalScrollBar();
+
+    if (m_winRows < m_drows) {
+        m_drows = m_winRows;
+        ShowVerticalScrollBar();
+    }
+
+    else
+        HideVerticalScrollBar();
 
 }
+
+template<typename T>
+bool ImageWindow<T>::isHorizontalScrollBarOn() {
+    return (sa->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOn);
+}
+
+template<typename T>
+bool ImageWindow<T>::isVerticalScrollBarOn() {
+    return (sa->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOn);
+}
+
+template<typename T>
+bool ImageWindow<T>::isHorizontalScrollBarOff() {
+    return (sa->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+}
+
+template<typename T>
+bool ImageWindow<T>::isVerticalScrollBarOff() {
+    return (sa->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+}
+
+
 
 template<typename T>
 void ImageWindow<T>::Zoom(int x, int y) {
@@ -509,32 +588,18 @@ void ImageWindow<T>::Zoom(int x, int y) {
     m_sourceOffX += (x_old - x_new);
     m_sourceOffY += (y_old - y_new);
 
-    m_drows = source.Rows() * m_factor;
-    m_dcols = source.Cols() * m_factor;
+    m_drows = m_source.Rows() * m_factor;
+    m_dcols = m_source.Cols() * m_factor;
 
-    if (m_winCols < m_dcols) {
-        m_dcols = m_winCols;
-        ShowHorizontalScrollBar();
-    }
-    else
-        HideHorizontalScrollBar();
-
-    if (m_winRows < m_drows) {
-        m_drows = m_winRows;
-        ShowVerticalScrollBar();
-    }
-    else
-        HideVerticalScrollBar();
-
-    m_sourceOffX = Clip(m_sourceOffX, 0.0, double(source.Cols() - m_dcols / m_factor));
-    m_sourceOffY = Clip(m_sourceOffY, 0.0, double(source.Rows() - m_drows / m_factor));
-
+    ShowScrollBars();
+    m_sourceOffX = Clip(m_sourceOffX, 0.0, double(m_source.Cols() - m_dcols / m_factor));
+    m_sourceOffY = Clip(m_sourceOffY, 0.0, double(m_source.Rows() - m_drows / m_factor));
     ResizeDisplay();
 
     m_old_factor = m_factor;
 
     DisplayImage();
-    
+
 }
 
 template<typename T>
@@ -548,8 +613,8 @@ void ImageWindow<T>::Pan(int x, int y) {
         m_mouseX = x;
         m_mouseY = y;
 
-        m_sourceOffX = Clip(m_sourceOffX, 0.0, source.Cols() - m_dcols / m_factor);
-        m_sourceOffY = Clip(m_sourceOffY, 0.0, source.Rows() - m_drows / m_factor);
+        m_sourceOffX = Clip(m_sourceOffX, 0.0, m_source.Cols() - m_dcols / m_factor);
+        m_sourceOffY = Clip(m_sourceOffY, 0.0, m_source.Rows() - m_drows / m_factor);
         
         sbh->setSliderPosition(m_sourceOffX * m_initial_factor);
         sbv->setSliderPosition(m_sourceOffY * m_initial_factor);
@@ -562,15 +627,19 @@ void ImageWindow<T>::Pan(int x, int y) {
 template<typename T>
 void ImageWindow<T>::Pan_SliderX(int x) {
 
-    if (x == 0)
-        m_sourceOffX = m_scrollbarX = 0;
+    if (x == sbh->minimum())
+        m_sourceOffX = m_scrollbarX = sbh->minimum();
+
+    else if (x == sbh->maximum()) {
+        m_sourceOffX = m_source.Cols() - m_dcols / m_factor;
+        m_scrollbarX = sbh->maximum();
+    }
 
     else {
         m_sourceOffX -= (m_scrollbarX - x) / m_initial_factor;
+        m_sourceOffX = Clip(m_sourceOffX, 0.0, m_source.Cols() - m_dcols / m_factor);
         m_scrollbarX = x;
     }
-
-    m_sourceOffX = Clip(m_sourceOffX, 0.0, source.Cols() - m_dcols / m_factor);
 
     DisplayImage();
 }
@@ -578,15 +647,19 @@ void ImageWindow<T>::Pan_SliderX(int x) {
 template<typename T>
 void ImageWindow<T>::Pan_SliderY(int y) {
 
-    if (y == 0)
+    if (y == sbv->minimum())
         m_sourceOffY = m_scrollbarY = 0;
+
+    else if (y == sbv->maximum()) {
+        m_sourceOffY = m_source.Rows() - m_drows / m_factor;
+        m_scrollbarY = sbv->maximum();
+    }
 
     else {
         m_sourceOffY -= (m_scrollbarY - y) / m_initial_factor;
+        m_sourceOffY = Clip(m_sourceOffY, 0.0, m_source.Rows() - m_drows / m_factor);
         m_scrollbarY = y;
     }
-
-    m_sourceOffY = Clip(m_sourceOffY, 0.0, source.Rows() - m_drows / m_factor);
 
     DisplayImage();
 }
@@ -605,14 +678,14 @@ void ImageWindow<T>::BinToWindow_RGB(int x_start, int y_start, int factor) {
 
             for (int j = 0; j < factor; ++j)
                 for (int i = 0; i < factor; ++i) {
-                    r += source(x_s + i, y_s + j, 0);
-                    g += source(x_s + i, y_s + j, 1);
-                    b += source(x_s + i, y_s + j, 2);
+                    r += m_source(x_s + i, y_s + j, 0);
+                    g += m_source(x_s + i, y_s + j, 1);
+                    b += m_source(x_s + i, y_s + j, 2);
                 }
 
-            display.scanLine(y)[3 * x + 0] = Pixel<uint8_t>::toType(T(r / factor2));
-            display.scanLine(y)[3 * x + 1] = Pixel<uint8_t>::toType(T(g / factor2));
-            display.scanLine(y)[3 * x + 2] = Pixel<uint8_t>::toType(T(b / factor2));
+            m_display.scanLine(y)[3 * x + 0] = Pixel<uint8_t>::toType(T(r / factor2));
+            m_display.scanLine(y)[3 * x + 1] = Pixel<uint8_t>::toType(T(g / factor2));
+            m_display.scanLine(y)[3 * x + 2] = Pixel<uint8_t>::toType(T(b / factor2));
             
         }
     }
@@ -635,16 +708,17 @@ void ImageWindow<T>::BinToWindow(int x_start, int y_start, int factor) {
 
                 for (int j = 0; j < factor; ++j)
                     for (int i = 0; i < factor; ++i)
-                        pix += source(x_s + i, y_s + j, ch);
+                        pix += m_source(x_s + i, y_s + j, ch);
                     
-               display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(T(pix / factor2));
+                m_display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(T(pix / factor2));
             }
         }
     }
+
 }
 
 template<typename T>
-void ImageWindow<T>::BinToWindow2(int x_start, int y_start, int factor) {
+void ImageWindow<T>::BinToWindow_STF(int x_start, int y_start, int factor) {
 
     if (m_stf) {
         if (compute_stf) {
@@ -663,19 +737,18 @@ void ImageWindow<T>::BinToWindow2(int x_start, int y_start, int factor) {
 
                 for (int j = 0; j < factor; ++j)
                     for (int i = 0; i < factor; ++i)
-                        pix += source(x_s + i, y_s + j, ch);
+                        pix += m_source(x_s + i, y_s + j, ch);
                 pix = pix / factor2;
 
                 //if (m_stf)
                     //pix = Pixel<T>::toType(stf.RGB_K.TransformPixel(Pixel<float>::toType(T(pix))));
 
-                display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(T(pix));
+                m_display.scanLine(y)[m_dchannels * x + ch] = Pixel<uint8_t>::toType(T(pix));
             }
         }
     }
     
 }
-
 
 template<typename T>
 void ImageWindow<T>::UpsampleToWindow_RGB(double x_start, double y_start, int factor) {
@@ -687,9 +760,9 @@ void ImageWindow<T>::UpsampleToWindow_RGB(double x_start, double y_start, int fa
         double x_s = x_start;
         for (int x = 0; x < m_dcols; ++x, x_s += dd) {
 
-            display.scanLine(y)[3 * x + 0] = Pixel<uint8_t>::toType(source(x_s, y_s, 0));
-            display.scanLine(y)[3 * x + 1] = Pixel<uint8_t>::toType(source(x_s, y_s, 1));
-            display.scanLine(y)[3 * x + 2] = Pixel<uint8_t>::toType(source(x_s, y_s, 2));
+            m_display.scanLine(y)[3 * x + 0] = Pixel<uint8_t>::toType(m_source(x_s, y_s, 0));
+            m_display.scanLine(y)[3 * x + 1] = Pixel<uint8_t>::toType(m_source(x_s, y_s, 1));
+            m_display.scanLine(y)[3 * x + 2] = Pixel<uint8_t>::toType(m_source(x_s, y_s, 2));
 
         }
     }
@@ -709,7 +782,7 @@ void ImageWindow<T>::UpsampleToWindow(double x_start, double y_start, int factor
             double x_s = x_start;
             for (int x = 0; x < m_dcols; ++x, x_s += dd) {
 
-                display.scanLine(y)[m_dchannels * (x)+ch] = Pixel<uint8_t>::toType(source(x_s, y_s, ch));
+                m_display.scanLine(y)[m_dchannels * (x)+ch] = Pixel<uint8_t>::toType(m_source(x_s, y_s, ch));
 
             }
         }
@@ -720,3 +793,183 @@ void ImageWindow<T>::UpsampleToWindow(double x_start, double y_start, int factor
 template class ImageWindow<uint8_t>;
 template class ImageWindow<uint16_t>;
 template class ImageWindow<float>;
+
+
+
+
+
+
+
+
+template<typename T>
+PreviewWindow<T>::PreviewWindow(QWidget* parent) : QDialog(parent) {
+    installEventFilter(this);
+
+    auto iw_parent = reinterpret_cast<ImageWindow<T>*>(parent);
+    m_bin_factor = iw_parent->IdealZoomFactor();
+
+    m_drows = iw_parent->Source().Rows() / m_bin_factor;
+    m_dcols = iw_parent->Source().Cols() / m_bin_factor;
+    m_dchannels = iw_parent->Source().Channels();
+
+
+    m_source = Image<T>(m_drows, m_dcols, m_dchannels);
+
+    label = new QLabel(this);
+    label->setGeometry(0, 0, m_dcols, m_drows);
+
+    iws = new IWSS();
+
+    if (m_dchannels == 1)
+        display = QImage(m_dcols, m_drows, QImage::Format::Format_Grayscale8);
+
+    else if (m_dchannels == 3)
+        display = QImage(m_dcols, m_drows, QImage::Format::Format_RGB888);
+
+    connect(iws, &IWSS::sendWindowClose, iw_parent, &ImageWindow<T>::ClosePreview);
+
+    UpdatefromParent();
+
+    ImagetoQImage(m_source, display);
+
+    output.convertFromImage(display);
+    label->setPixmap(output);
+
+    this->setWindowTitle(iw_parent->ImageName() + "Preview: ");
+
+    setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
+    setAttribute(Qt::WA_DeleteOnClose);
+    show();
+}
+
+template<typename T>
+void PreviewWindow<T>::UpdatefromParent() {
+
+    auto parent = reinterpret_cast<ImageWindow<T>*>(this->parentWidget());
+
+    int factor = m_bin_factor;
+
+    for (int ch = 0; ch < m_dchannels; ++ch) {
+        for (int y = factor / 2, y_s = 0; y < m_drows; ++y, y_s += factor) {
+            for (int x = factor / 2, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+                m_source(x, y, ch) = parent->Source()(x_s, y_s, ch);
+            }
+        }
+    }
+}
+
+template<typename T>
+void PreviewWindow<T>::UpdatefromParent_QualityRGB() {
+
+    ImageWindow<T>* parent = reinterpret_cast<ImageWindow<T>*>(this->parentWidget());
+
+    int factor = m_bin_factor;
+    int factor2 = factor * factor;
+
+    for (int y = 0, y_s = 0; y < m_drows; ++y, y_s += factor) {
+        for (int x = 0, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+            double R = 0, G = 0, B = 0;
+
+            for (int j = 0; j < factor; ++j) {
+                for (int i = 0; i < factor; ++i) {
+                    R += parent->Source()(x_s + i, y_s + j, 0);
+                    G += parent->Source()(x_s + i, y_s + j, 1);
+                    B += parent->Source()(x_s + i, y_s + j, 2);
+                }
+            }
+            m_source(x, y, 0) = R / factor2;
+            m_source(x, y, 1) = G / factor2;
+            m_source(x, y, 2) = B / factor2;
+
+        }
+    }
+    
+}
+
+template<typename T>
+void PreviewWindow<T>::UpdatefromParent_Quality() {
+
+    if (m_dchannels == 3)
+        return UpdatefromParent_QualityRGB();
+
+    auto parent = reinterpret_cast<ImageWindow<T>*>(this->parentWidget());
+
+    int factor = m_bin_factor;
+    int factor2 = factor * factor;
+
+    for (int ch = 0; ch < m_dchannels; ++ch) {
+        for (int y = 0, y_s = 0; y < m_drows; ++y, y_s += factor) {
+            for (int x = 0, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+                double pix = 0;
+
+                for (int j = 0; j < factor; ++j)
+                    for (int i = 0; i < factor; ++i)
+                        pix += parent->Source()(x_s + i, y_s + j, ch);
+
+                m_source(x, y, ch) = pix / factor2;
+
+            }
+        }
+    }
+}
+
+template<typename T>
+void PreviewWindow<T>::UpdatefromSource_Quality(Image<T>& src) {
+
+    int factor = m_bin_factor;
+    int factor2 = factor * factor;
+
+    for (int ch = 0; ch < m_dchannels; ++ch) {
+        for (int y = 0, y_s = 0; y < m_drows; ++y, y_s += factor) {
+            for (int x = 0, x_s = 0; x < m_dcols; ++x, x_s += factor) {
+
+                double pix = 0;
+
+                for (int j = 0; j < factor; ++j)
+                    for (int i = 0; i < factor; ++i)
+                        pix += src(x_s + i, y_s + j, ch);
+
+                m_source(x, y, ch) = pix / factor2;
+
+            }
+        }
+    }
+}
+
+template<typename T>
+void PreviewWindow<T>::UpdatePreview(Image<T>& src) {
+
+    m_drows = src.Rows() / m_bin_factor;
+    m_dcols = src.Cols() / m_bin_factor;
+    m_dchannels = src.Channels();
+
+    if (m_drows != m_source.Rows() || m_dcols != m_source.Cols() || m_dchannels != m_source.Channels()) {
+        m_source = Image<T>(m_drows, m_dcols, m_dchannels);
+
+        auto format = QImage::Format::Format_RGB888;
+
+        if (m_dchannels == 1)
+            format = QImage::Format::Format_Grayscale8;
+
+        display = QImage(m_dcols, m_drows, format);
+    }
+
+    UpdatefromSource_Quality(src);
+    DisplayImage();
+}
+
+template<typename T>
+void PreviewWindow<T>::DisplayImage() {
+
+    ImagetoQImage(m_source, display);
+
+    output.convertFromImage(display);
+    label->setPixmap(output);
+}
+
+template class PreviewWindow<uint8_t>;
+template class PreviewWindow<uint16_t>;
+template class PreviewWindow<float>;
