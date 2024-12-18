@@ -1,6 +1,7 @@
 #pragma once
 #include "Image.h"
 #include "ProcessDialog.h"
+#include "Maths.h"
 
 
 enum class MorphologicalFilter {
@@ -80,8 +81,8 @@ class MorphologicalTransformation {
 		void Update(int x, int y, int ch) {
 
 			int xx = x + m_radius;
-			if (xx >= m_img->Cols())
-				xx = 2 * m_img->Cols() - (xx + 1);
+			if (xx >= m_img->cols())
+				xx = 2 * m_img->cols() - (xx + 1);
 
 			for (int j = 0; j < m_size; j += m_dim) 
 				for (int i = 0; i < m_dim - 1; ++i)
@@ -92,8 +93,8 @@ class MorphologicalTransformation {
 				int yy = y + j;
 				if (yy < 0)
 					yy = -yy;
-				else if (yy >= m_img->Rows())
-					yy = 2 * m_img->Rows() - (yy + 1);
+				else if (yy >= m_img->rows())
+					yy = 2 * m_img->rows() - (yy + 1);
 
 				data[el] = (*m_img)(xx, yy, ch);
 
@@ -101,21 +102,21 @@ class MorphologicalTransformation {
 
 		}
 
-		T Minimum()const {
+		T minimum()const {
 			T min = std::numeric_limits<T>::max();
 			for (int el = 0; el < m_obj->m_mask_loc.size(); ++el)
-				min = Min(min, data[m_obj->m_mask_loc[el]]);
+				min = math::min(min, data[m_obj->m_mask_loc[el]]);
 			return min;
 		}
 
-		T Maximum()const {
+		T maximum()const {
 			T max = std::numeric_limits<T>::min();
 			for (int el = 0; el < m_obj->m_mask_loc.size(); ++el)
 				max = Max(max, data[m_obj->m_mask_loc[el]]);
 			return max;
 		}
 
-		T Selection(int pivot)const {
+		T selection(int pivot)const {
 			std::vector<T> k(m_obj->m_mask_loc.size());
 
 			for (int el = 0; el < k.size(); ++el)
@@ -126,7 +127,7 @@ class MorphologicalTransformation {
 			return k[pivot];
 		}
 
-		T Median()const {
+		T median()const {
 
 			std::vector<T> k(m_obj->m_mask_loc.size());
 
@@ -140,7 +141,7 @@ class MorphologicalTransformation {
 			return k[h];
 		}
 
-		T Midpoint()const {
+		T midpoint()const {
 
 			T min = std::numeric_limits<T>::max();
 			T max = std::numeric_limits<T>::min();
@@ -163,11 +164,11 @@ public:
 
 	ProgressSignal* progressSignal()const { return m_ps; }
 
-	int KernelDimension()const { return m_kernel_dim; }
+	int kernelDimension()const { return m_kernel_dim; }
 
-	int KernelSize()const { return m_kernel_size; }
+	int kernelSize()const { return m_kernel_size; }
 
-	bool KernelMaskAt(int el) { return m_kmask[el]; }
+	bool kernelMaskAt(int el) { return m_kmask[el]; }
 
 	MorphologicalFilter morphologicalFilter()const { return m_morph_filter; }
 
@@ -178,15 +179,15 @@ public:
 
 	void resizeKernel(int new_dim);
 
-	float Selection()const { return m_selection; }
+	float selectionPoint()const { return m_selection; }
 
-	void setSelection(float selection) {
+	void setSelectionPoint(float selection) {
 		m_selection = selection;
 	}
 
-	float Amount()const { return m_amount; }
+	float blendAmount()const { return m_amount; }
 
-	void setAmount(float amount) {
+	void setBlendAmount(float amount) {
 		m_amount = amount;
 		m_orig_amount = 1.00 - m_amount;
 	}
@@ -199,60 +200,60 @@ public:
 
 	void setMask_Diamond();
 
-	void RotateMask();
+	void invertMask();
 
-	void InvertMask();
+	void rotateMask();
 
 	ProgressSignal* signalObject()const  {return m_ps;}
 
 private:
 
 	template<typename T>
-	T Amount(T old_pixel, T new_pixel) {
+	T blend(T old_pixel, T new_pixel) {
 		return T(m_orig_amount * old_pixel + m_amount * new_pixel);
 	}
 
 	void GetMaskedLocations();
 
 	template <typename T>
-	void Erosion(Image<T>&img);
+	void erosion(Image<T>&img);
 
 	template <typename T>
-	void Dialation(Image<T>&img);
+	void dialation(Image<T>&img);
 
 	template <typename T>
-	void Opening(Image<T>&img);
+	void opening(Image<T>&img);
 
 	template <typename T>
-	void Closing(Image<T>&img);
+	void closing(Image<T>&img);
 
 	template <typename T>
-	void Selection(Image<T>&img);
+	void selection(Image<T>&img);
 
 	template <typename T>
-	void Median(Image<T>&img);
+	void median(Image<T>&img);
 
 	template <typename T>
-	void Midpoint(Image<T>&img);
+	void midpoint(Image<T>&img);
 
 	template <typename T>
-	void FastMedian3x3(Image<T>& img);
+	void fastMedian3x3(Image<T>& img);
 
 	template <typename T>
-	void FastMedian5x5(Image<T>& img);
+	void fastMedian5x5(Image<T>& img);
 
 	template <typename T>
-	void FastMedian7x7(Image<T>& img);
+	void fastMedian7x7(Image<T>& img);
 
 	template <typename T>
-	void FastMedian9x9(Image<T>& img);
+	void fastMedian9x9(Image<T>& img);
 
 	template <typename T>
-	void FastMedian(Image<T>&img, int kernel_dim);
+	void fastMedian(Image<T>&img, int kernel_dim);
 
 public:
 	template <typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -263,7 +264,7 @@ class MorphologicalKernelScene : public QGraphicsScene {
 	MorphologicalTransformation* m_mt;
 	QList<QGraphicsItem*> m_items;
 
-	std::array<QPen, 2> m_pens = { QPen(QColor(127,127,127), 0.5), QPen(QColor(0, 0, 0), 0.5) };
+	std::array<QPen, 2> m_pens = { QPen(QColor(169,169,169), 0.5), QPen(QColor(0, 0, 0), 0.5) };
 	std::array<QBrush, 2> m_brushes = { Qt::transparent, QColor(255,255,255) };
 
 public:
@@ -277,6 +278,9 @@ public:
 };
 
 
+
+
+
 class MorphologicalTransformationDialog : public ProcessDialog {
 
 	MorphologicalTransformation m_mt;
@@ -285,23 +289,19 @@ class MorphologicalTransformationDialog : public ProcessDialog {
 	MorphologicalKernelScene* m_mks;
 
 	DoubleLineEdit* m_selection_le;
-	QSlider* m_selection_slider;
+	Slider* m_selection_slider;
 
 	DoubleLineEdit* m_amount_le;
-	QSlider* m_amount_slider;
+	Slider* m_amount_slider;
 
-	QComboBox* m_filter_cb;
+	ComboBox* m_filter_cb;
 
-	QComboBox* m_kerenl_size_cb;
+	ComboBox* m_kerenl_size_cb;
 
 public:
 	MorphologicalTransformationDialog(QWidget* parent = nullptr);
 
 private slots:
-	void setNewKernelSize(int index);
-
-	void setMorphologicalFilter(int index);
-
 	void setMask_true();
 
 	void setMask_false();
@@ -314,28 +314,18 @@ private slots:
 
 	void rotateMask();
 
-	void editingFinished_selection();
-
-	void onActionTriggered_selection(int action);
-
-	void editingFinished_amount();
-
-	void onActionTriggered_amount(int action);
-
 private:
-	void AddKernelPB();
+	void addKernelPB();
 
-	void AddOperationsCombo();
+	void addKernelScene();
 
-	void AddKernelScene();
+	void addKernelSizeCombo();
 
-	void AddKernelSizeCombo();
+	void addFilterSelectionCombo();
 
-	void AddFilterSelectionCombo();
+	void addSelectionInputs();
 
-	void AddSelectionInputs();
-
-	void AddAmountInputs();
+	void addAmountInputs();
 
 	void resetDialog();
 

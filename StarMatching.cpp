@@ -2,7 +2,7 @@
 #include "StarMatching.h"
 #include "Maths.h"
 
-StarMatching::TriangleVector StarMatching::TriangleComputation(const StarVector& star_vector)
+StarMatching::TriangleVector StarMatching::computeTriangles(const StarVector& star_vector)
 {
     int nstars = (int)star_vector.size();
     int maxtri = ((nstars * (nstars - 1) * (nstars - 2)) / 6);
@@ -12,11 +12,11 @@ StarMatching::TriangleVector StarMatching::TriangleComputation(const StarVector&
 
     for (int sa = 0; sa < nstars; ++sa) {
         for (int sb = sa + 1; sb < nstars; ++sb) {
-            float side_ab = Distance(star_vector[sa].xc, star_vector[sa].yc, star_vector[sb].xc, star_vector[sb].yc);
+            float side_ab = math::distancef(star_vector[sa].xc, star_vector[sa].yc, star_vector[sb].xc, star_vector[sb].yc);
             for (int sc = sb + 1; sc < nstars; ++sc) {
                 sides[0] = side_ab;
-                sides[1] = Distance(star_vector[sa].xc, star_vector[sa].yc, star_vector[sc].xc, star_vector[sc].yc);
-                sides[2] = Distance(star_vector[sb].xc, star_vector[sb].yc, star_vector[sc].xc, star_vector[sc].yc);
+                sides[1] = math::distancef(star_vector[sa].xc, star_vector[sa].yc, star_vector[sc].xc, star_vector[sc].yc);
+                sides[2] = math::distancef(star_vector[sb].xc, star_vector[sb].yc, star_vector[sc].xc, star_vector[sc].yc);
 
                 for (int j = 0; j < 2; j++) {
                     for (int i = 2; i > 0; i--) {
@@ -43,11 +43,7 @@ StarMatching::PotentialStarPairs::PotentialStarPairs(int target_size, int refere
     data = std::vector<uint32_t>(target_size * reference_size);
 }
 
-void StarMatching::PotentialStarPairs::AddVote(int target_star, int reference_star) {
-    data[reference_star * m_cols + target_star]++;
-}
-
-uint32_t StarMatching::PotentialStarPairs::Threshold(float K) {
+uint32_t StarMatching::PotentialStarPairs::computeVoteThreshold(float K) {
     uint64_t mean = 0;
     for (auto vote : data)
         mean += vote;
@@ -65,7 +61,7 @@ uint32_t StarMatching::PotentialStarPairs::Threshold(float K) {
     return mean + K * sqrt(var / data.size());
 }
 
-StarPairVector StarMatching::GetMatchedPairsCentroids(const std::vector<Star>& refstarvec, const std::vector<Star>& tgtstarvec, const std::vector<TVGStar>& tvgvec) {
+StarPairVector StarMatching::getMatchedPairsCentroids(const std::vector<Star>& refstarvec, const std::vector<Star>& tgtstarvec, const std::vector<TVGStar>& tvgvec) {
 
     StarPairVector spv(tvgvec.size());
 
@@ -79,18 +75,18 @@ StarPairVector StarMatching::GetMatchedPairsCentroids(const std::vector<Star>& r
     return spv;
 }
 
-StarPairVector StarMatching::MatchStars(const StarVector& refstars, const StarVector& tgtstars) {
+StarPairVector StarMatching::matchStars(const StarVector& refstars, const StarVector& tgtstars) {
 
     if (m_reftri.size() == 0)
-        m_reftri = TriangleComputation(refstars);
+        m_reftri = computeTriangles(refstars);
 
-    m_tgttri = TriangleComputation(tgtstars);
+    m_tgttri = computeTriangles(tgtstars);
 
     PotentialStarPairs psp(tgtstars.size(), refstars.size());
 
     float tol = 0.0002f;
     int lref = 0;
-#pragma omp parallel for firstprivate(lref) schedule(static,m_tgttri.size()/omp_get_max_threads())
+#pragma omp parallel for firstprivate(lref) schedule(static)
     for (int itgt = 0; itgt < m_tgttri.size(); ++itgt) {
 
         while (lref < m_reftri.size() && m_tgttri[itgt].rx > m_reftri[lref].rx + tol) lref++;
@@ -98,16 +94,16 @@ StarPairVector StarMatching::MatchStars(const StarVector& refstars, const StarVe
         int iref = lref;
 
         while (iref < m_reftri.size() && m_reftri[iref].rx < m_tgttri[itgt].rx + tol) {
-            if (Distance(m_tgttri[itgt].rx, m_tgttri[itgt].ry, m_reftri[iref].rx, m_reftri[iref].ry) <= tol) {
-                psp.AddVote(m_tgttri[itgt].star1, m_reftri[iref].star1);
-                psp.AddVote(m_tgttri[itgt].star1, m_reftri[iref].star2);
-                psp.AddVote(m_tgttri[itgt].star1, m_reftri[iref].star3);
-                psp.AddVote(m_tgttri[itgt].star2, m_reftri[iref].star1);
-                psp.AddVote(m_tgttri[itgt].star2, m_reftri[iref].star2);
-                psp.AddVote(m_tgttri[itgt].star2, m_reftri[iref].star3);
-                psp.AddVote(m_tgttri[itgt].star3, m_reftri[iref].star1);
-                psp.AddVote(m_tgttri[itgt].star3, m_reftri[iref].star2);
-                psp.AddVote(m_tgttri[itgt].star3, m_reftri[iref].star3);
+            if (math::distancef(m_tgttri[itgt].rx, m_tgttri[itgt].ry, m_reftri[iref].rx, m_reftri[iref].ry) <= tol) {
+                psp(m_tgttri[itgt].star1, m_reftri[iref].star1)++;
+                psp(m_tgttri[itgt].star1, m_reftri[iref].star2)++;
+                psp(m_tgttri[itgt].star1, m_reftri[iref].star3)++;
+                psp(m_tgttri[itgt].star2, m_reftri[iref].star1)++;
+                psp(m_tgttri[itgt].star2, m_reftri[iref].star2)++;
+                psp(m_tgttri[itgt].star2, m_reftri[iref].star3)++;
+                psp(m_tgttri[itgt].star3, m_reftri[iref].star1)++;
+                psp(m_tgttri[itgt].star3, m_reftri[iref].star2)++;
+                psp(m_tgttri[itgt].star3, m_reftri[iref].star3)++;
             }
             iref++;
         }
@@ -117,7 +113,8 @@ StarPairVector StarMatching::MatchStars(const StarVector& refstars, const StarVe
     int max_star_pair = Min(refstars.size(), tgtstars.size()); //200
     tvgvec.reserve(max_star_pair);
 
-    int thresh = psp.Threshold(1.0);
+    int thresh = psp.computeVoteThreshold();
+
     //move to own function???
     for (int iter = 0; iter <= max_star_pair; ++iter) {
 
@@ -147,9 +144,7 @@ StarPairVector StarMatching::MatchStars(const StarVector& refstars, const StarVe
             tvgvec.emplace_back(tgtemp, rtemp);
             psp(tgtemp, rtemp) = 0;
         }
-
     }
 
-    return GetMatchedPairsCentroids(refstars, tgtstars, tvgvec);
-
+    return getMatchedPairsCentroids(refstars, tgtstars, tvgvec);
 }

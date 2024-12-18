@@ -10,80 +10,91 @@ ImageFileReader::ImageFileReader(QMdiArea* workspace) {
 }
 
 
-Status ImageFileReader::Read(std::filesystem::path file_path) {
+
+
+
+Status ImageFileReader::read(std::filesystem::path file_path) {
 	Image8 img8;
 	Image16 img16;
 	Image32 img32;
 
 	std::string ext = file_path.extension().string();
-	std::string filename = file_path.filename().string();
+	for (auto& c : ext)
+		c = std::tolower(c);
 
-	if (ext == ".fit" || ext == ".fits" || ext == ".fts") {
+	std::string filename = file_path.filename().string();
+	std::string name = file_path.stem().string();
+
+	if (FITS::isFITS(filename)) {
 		FITS fits;
-		fits.Open(file_path);
-		switch (fits.GetFITSBitDepth()) {
-		case 8: {
-			fits.Read(img8);
+		fits.open(file_path);
+		switch (fits.imageType()) {
+		case ImageType::UBYTE: {
+			fits.read(img8);
 			break;
 		}
-		case 16: {
-			fits.Read(img16);
+		case ImageType::USHORT: {
+			fits.read(img16);
 			break;
 		}
-		case -32: {
-			fits.Read(img32);
+		case ImageType::FLOAT: {
+			fits.read(img32);
 			break;
 		}
 		}
-		fits.Close();
+		fits.close();
 	}
 
-	else if (ext == ".tif" || ext == ".tiff") {
+	else if (TIFF::isTIFF(filename)) {
+		
 		TIFF tiff;
-		tiff.Open(file_path);
-		switch (tiff.GetTiffValue(TIFF::TIFFTAG::BitsPerSample)) {
-		case 8: {
-			tiff.Read(img8);
+		tiff.open(file_path);
+
+		switch (tiff.imageType()) {
+		case ImageType::UBYTE: {
+			tiff.read(img8);
 			break;
 		}
-		case 16: {
-			tiff.Read(img16);
+		case ImageType::USHORT: {
+			tiff.read(img16);
 			break;
 		}
-		case 32: {
-			tiff.Read(img32);
+		case ImageType::FLOAT: {
+			tiff.read(img32);
 			break;
 		}
 		}
-		tiff.Close();
+		tiff.close();
 	}
 
 	else if (ext == ".bmp") {
 		Bitmap bitmap;
-		bitmap.Open(file_path);
+		bitmap.open(file_path);
 		bitmap.Read(img8);
-		bitmap.Close();
+		bitmap.close();
+	}
+
+	else if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
+		QImageReader imgReader(file_path.string().c_str());
+		imgReader.setAutoTransform(true);
+		QImage img = imgReader.read();		
+		if (img.format() == QImage::Format_RGB32 || img.format() == QImage::Format_ARGB32)
+			img = img.convertToFormat(QImage::Format_RGB888);
+
+		QImagetoImage(img, img8);
 	}
 
 	else
 		return { false, "Unsupported File Type!" };
 
-	int count = 0;
-	for (auto sw : m_workspace->subWindowList()) {
-		auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
-		std::string img_name = ptr->ImageName().toStdString();
-		if (filename == img_name || (file_path.stem().string() + "_" + std::to_string(count) + ext) == img_name)
-			filename = file_path.stem().string() + "_" + std::to_string(++count) + ext;
-	}
+	if (img8.exists())
+		ImageWindow8* iw8 = new ImageWindow8(img8, name.c_str(), m_workspace);
 
-	if (img8.Exists())
-		ImageWindow8* iw8 = new ImageWindow8(img8, filename.c_str(), m_workspace);
+	if (img16.exists())
+		ImageWindow16* iw16 = new ImageWindow16(img16, name.c_str(), m_workspace);
 
-	if (img16.Exists())
-		ImageWindow16* iw16 = new ImageWindow16(img16, filename.c_str(), m_workspace);
-
-	if (img32.Exists())
-		ImageWindow32* iw32 = new ImageWindow32(img32, filename.c_str(), m_workspace);
+	if (img32.exists())
+		ImageWindow32* iw32 = new ImageWindow32(img32, name.c_str(), m_workspace);
 
 	return Status();
 }

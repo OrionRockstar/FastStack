@@ -80,23 +80,23 @@ void TIFF::IFD::Write(std::fstream& stream) {
 
 
 
-void TIFF::GetStripVectors() {
+void TIFF::getStripVectors() {
 
     //strip offsets
-    int offset = GetTiffParam(TIFFTAG::StripOffsets);
+    int offset = tiffValueOffset(TIFFTAG::StripOffsets);
     m_stream.seekg(offset);
-    m_strip_offsets.resize(GetTiffCount(TIFFTAG::StripOffsets));
+    m_strip_offsets.resize(tiffCount(TIFFTAG::StripOffsets));
 
     m_stream.read((char*)m_strip_offsets.data(), m_strip_offsets.size() * 4);
 
 
     //strip byte counts
-    offset = GetTiffParam(TIFFTAG::StripByteCounts);
+    offset = tiffValueOffset(TIFFTAG::StripByteCounts);
     m_stream.seekg(offset);
 
-    m_strip_byte_counts.resize(GetTiffCount(TIFFTAG::StripByteCounts));
+    m_strip_byte_counts.resize(tiffCount(TIFFTAG::StripByteCounts));
 
-    if (GetTiffType(TIFFTAG::StripByteCounts) == FieldType::SHORT) {
+    if (tiffType(TIFFTAG::StripByteCounts) == FieldType::SHORT) {
         std::vector<uint16_t> buffer(m_strip_byte_counts.size());
         m_stream.read((char*)buffer.data(), buffer.size() * 2);
         for (int i = 0; i < m_strip_byte_counts.size(); ++i)
@@ -114,8 +114,8 @@ void TIFF::GetStripVectors() {
     }
 }
 
-void TIFF::MakeStripVectors(int bitdepth) {
-    int mem_row_size = m_cols * abs(bitdepth / 8);
+void TIFF::makeStripVectors(ImageType type) {
+    int mem_row_size = m_cols * typeSize(type);
 
     if (m_planar_config == PlanarConfig::Seperate) {
 
@@ -139,7 +139,42 @@ void TIFF::MakeStripVectors(int bitdepth) {
         m_strip_offsets[i] = mem_row_size + m_strip_offsets[i - 1];
 }
 
-uint32_t TIFF::GetTiffParam(TIFFTAG tag) {
+
+ImageType TIFF::imageTypefromFile() {
+
+    SampleFormat format = SampleFormat(tiffValue(TIFFTAG::SampleFormat));
+    switch (tiffValue(TIFFTAG::BitsPerSample)) {
+    case 8:
+        if (format == SampleFormat::Unsigned)
+            return ImageType::UBYTE;
+    case 16:
+        if (format == SampleFormat::Unsigned)
+            return ImageType::USHORT;
+    case 32:
+        if (format == SampleFormat::Float)
+            return ImageType::FLOAT;
+    default:
+        return ImageType::UBYTE;
+    }
+}
+
+TIFF::FieldType TIFF::tiffType(TIFFTAG tag) {
+    for (auto entry : ifd.directory) {
+        if ((int)tag == entry.tag)
+            return FieldType(entry.type);
+    }
+    return FieldType(1);
+}
+
+uint32_t TIFF::tiffCount(TIFFTAG tag) {
+    for (auto entry : ifd.directory) {
+        if ((int)tag == entry.tag)
+            return entry.count;
+    }
+    return 1;
+}
+
+uint32_t TIFF::tiffValueOffset(TIFFTAG tag) {
     for (auto entry : ifd.directory) {
         if ((int)tag == entry.tag)
             return entry.value_offset;
@@ -147,11 +182,11 @@ uint32_t TIFF::GetTiffParam(TIFFTAG tag) {
     return 1;
 }
 
-uint32_t TIFF::GetTiffValue(TIFFTAG tag) {
+uint32_t TIFF::tiffValue(TIFFTAG tag) {
 
-    FieldType type = GetTiffType(tag);
-    uint32_t count = GetTiffCount(tag);
-    uint32_t val = GetTiffParam(tag);
+    FieldType type = tiffType(tag);
+    uint32_t count = tiffCount(tag);
+    uint32_t val = tiffValueOffset(tag);
 
     if (count == 1 && type != FieldType::RATIONAL)
         return val;
@@ -178,33 +213,13 @@ uint32_t TIFF::GetTiffValue(TIFFTAG tag) {
     return 1;
 }
 
-TIFF::FieldType TIFF::GetTiffType(TIFFTAG tag) {
-    for (auto entry : ifd.directory) {
-        if ((int)tag == entry.tag)
-            return FieldType(entry.type);
-    }
-    return FieldType(1);
-}
 
-uint32_t TIFF::GetTiffCount(TIFFTAG tag) {
-    for (auto entry : ifd.directory) {
-        if ((int)tag == entry.tag)
-            return entry.count;
-    }
-    return 1;
-}
+void TIFF::open(std::filesystem::path path) {
 
-
-void TIFF::Open(std::filesystem::path path) {
-
-    ImageFile::Open(path);
+    ImageFile::open(path);
 
     TIFFHeader header;
     m_stream.read((char*)&header, sizeof(TIFFHeader));
-
-    //std::cout << (int)std::endian::native;
-
-
 
     if (header.byte_order[0] == 'M' && header.byte_order[1] == 'M') {
         byteswap = true;
@@ -218,28 +233,33 @@ void TIFF::Open(std::filesystem::path path) {
     m_stream.seekg(header.offset);
     ifd.Read(m_stream, byteswap);
 
-    m_rows = GetTiffValue(TIFFTAG::ImageLength);
-    m_cols = GetTiffValue(TIFFTAG::ImageWidth);
-    m_channels = GetTiffValue(TIFFTAG::SamplesPerPixel);
-    m_bitdepth = GetTiffValue(TIFFTAG::BitsPerSample);
-    m_planar_config = PlanarConfig(GetTiffValue(TIFFTAG::PlanarConfiguration));
+    m_rows = tiffValue(TIFFTAG::ImageLength);
+    m_cols = tiffValue(TIFFTAG::ImageWidth);
+    m_channels = tiffValue(TIFFTAG::SamplesPerPixel);
+
+    m_img_type = imageTypefromFile();
+    //m_bitdepth = tiffValue(TIFFTAG::BitsPerSample);
+
+    m_planar_config = PlanarConfig(tiffValue(TIFFTAG::PlanarConfiguration));
 
     m_px_count = m_rows * m_cols;
 
-    GetStripVectors();
+    getStripVectors();
 
     //SetBuffer();
-    ResizeBuffer(m_strip_byte_counts[0]);
-
+    resizeBuffer(m_strip_byte_counts[0]);
 }
 
-void TIFF::Create(std::filesystem::path path) {
-    ImageFile::Create(path);
+void TIFF::create(std::filesystem::path path) {
+
+    path += ".tiff";
+
+    ImageFile::create(path);
 }
 
-void TIFF::Close() {
+void TIFF::close() {
 
-    ImageFile::Close();
+    ImageFile::close();
 
     byteswap = false;
     ifd = IFD();
@@ -251,25 +271,25 @@ void TIFF::Close() {
 
 
 template<typename T>
-void TIFF::Read(Image<T>& dst) {
+void TIFF::read(Image<T>& dst) {
 
     m_stream.seekg(m_data_pos);
 
-    dst = Image<T>(m_rows, m_cols, m_channels);
+    dst = Image<T>(rows(), cols(), channels());
 
-    if (m_channels == 1 || m_planar_config == PlanarConfig::Seperate) {
+    if (channels() == 1 || m_planar_config == PlanarConfig::Seperate) {
 
-        for (int ch = 0; ch < dst.Channels(); ++ch) {
-            for (int row = 0; row < m_rows; ++row) {
-                ReadScanLine(&dst(0, row, ch), row, ch);
+        for (int ch = 0; ch < dst.channels(); ++ch) {
+            for (int row = 0; row < rows(); ++row) {
+                readScanLine(&dst(0, row, ch), row, ch);
             }
         }
     }
 
-    else if (m_channels == 3 && m_planar_config == PlanarConfig::Contiguous) {
-        std::vector<T> buffer(m_cols * m_channels);
-        for (int row = 0; row < m_rows; ++row) {
-            ReadScanLine(buffer.data(), row);
+    else if (channels() == 3 && m_planar_config == PlanarConfig::Contiguous) {
+        std::vector<T> buffer(cols() * channels());
+        for (int row = 0; row < rows(); ++row) {
+            readScanLine(buffer.data(), row);
             for (int c = 0, i = 0; c < m_cols; ++c) {
                 dst(c, row, 0) = buffer[i++];
                 dst(c, row, 1) = buffer[i++];
@@ -283,106 +303,103 @@ void TIFF::Read(Image<T>& dst) {
             p = _byteswap_ushort(p);
 
     if (dst.is_float())
-        dst.Normalize();
+        dst.normalize();
 
-    Close();
+    close();
 }
-template void TIFF::Read(Image8&);
-template void TIFF::Read(Image16&);
-template void TIFF::Read(Image32&);
+template void TIFF::read(Image8&);
+template void TIFF::read(Image16&);
+template void TIFF::read(Image32&);
 
-void TIFF::ReadAny(Image32& dst) {
+void TIFF::readAny(Image32& dst) {
 
     m_stream.seekg(m_data_pos);
 
     dst = Image32(m_rows, m_cols, m_channels);
 
-    if (m_bitdepth == 8) {
+    switch (imageType()) {
+    case ImageType::UBYTE: {
         Image8 temp;
-        Read(temp);
+        read(temp);
         for (int el = 0; el < dst.TotalPxCount(); ++el)
             dst[el] = Pixel<float>::toType(temp[el]);
+        break;
     }
 
-    else if (m_bitdepth == 16) {
+    case ImageType::USHORT: {
         Image16 temp;
-        Read(temp);
+        read(temp);
         for (int el = 0; el < dst.TotalPxCount(); ++el)
             dst[el] = Pixel<float>::toType(temp[el]);
+        break;
     }
 
-    else if (m_bitdepth == 32)
-        Read(dst);
-
-    if (dst.is_float())
-        dst.Normalize();
-
-    Close();
+    case ImageType::FLOAT: {
+        read(dst);
+        dst.normalize();
+        break;
+    }
+    }
+    close();
 }
 
 template<typename T>
-void TIFF::Write(const Image<T>& src, int new_bitdepth, bool planar_contiguous) {
+void TIFF::write(const Image<T>& src, ImageType new_type, bool planar_contiguous) {
 
     using enum PlanarConfig;
 
     TIFFHeader header;
-    header.offset = src.TotalPxCount() * abs(new_bitdepth / 8) + 8;
+    header.offset = src.TotalPxCount() * abs(typeSize(new_type)) + 8;
 
     m_stream.write((char*)&header, sizeof(header));
 
-    m_rows = src.Rows();
-    m_cols = src.Cols();
-    m_channels = src.Channels();
+    m_rows = src.rows();
+    m_cols = src.cols();
+    m_channels = src.channels();
 
     m_planar_config = (planar_contiguous) ? Contiguous : Seperate;
 
-    MakeStripVectors(new_bitdepth);
+    makeStripVectors(new_type);
+    resizeBuffer(m_strip_byte_counts[0]);
 
-    //SetBuffer();
-    ResizeBuffer(m_strip_byte_counts[0]);
-
-    switch (new_bitdepth) {
-
-        case 8:
-        {
+    switch (new_type) {
+    case ImageType::UBYTE: {
             if (m_channels == 1 || m_planar_config == Seperate)
-                WritePixels_Seperate<uint8_t>(src);
+                writePixels_Seperate<uint8_t>(src);
             else if (m_planar_config == Contiguous)
-                WritePixels_Contiguous<uint8_t>(src);
+                writePixels_Contiguous<uint8_t>(src);
 
             break;
         }
 
-        case 16:
-        {
+    case ImageType::USHORT: {
             if (m_channels == 1 || m_planar_config == Seperate)
-                WritePixels_Seperate<uint16_t>(src);
+                writePixels_Seperate<uint16_t>(src);
             else if (m_planar_config == Contiguous)
-                WritePixels_Contiguous<uint16_t>(src);
+                writePixels_Contiguous<uint16_t>(src);
 
             break;
         }
 
-        case -32:
-        {
+    case ImageType::FLOAT: {
             if (m_channels == 1 || m_planar_config == Seperate)
-                WritePixels_Seperate<float>(src);
+                writePixels_Seperate<float>(src);
             else if (m_planar_config == Contiguous)
-                WritePixels_Contiguous<float>(src);
+                writePixels_Contiguous<float>(src);
 
             break;
         }
     }
 
-    ifd = IFD(src, new_bitdepth, planar_contiguous);
+    ifd = IFD(src, new_type, planar_contiguous);
 
     ifd.Write(m_stream);
 
     m_stream.write((char*)m_strip_offsets.data(), 4 * m_strip_offsets.size());
     m_stream.write((char*)m_strip_byte_counts.data(), 4 * m_strip_byte_counts.size());
 
-    Close();
+    close();
 }
-template void TIFF::Write(const Image8&, int, bool);
-template void TIFF::Write(const Image16&, int, bool);
-template void TIFF::Write(const Image32&, int, bool);
+template void TIFF::write(const Image8&, ImageType, bool);
+template void TIFF::write(const Image16&, ImageType, bool);
+template void TIFF::write(const Image32&, ImageType, bool);

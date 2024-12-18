@@ -48,12 +48,14 @@ public:
 	void setInvert(bool invert) { m_invert = invert; }
 
 	template <typename T>
-	Image<T> GenerateMask(Image<T>& img);
+	Image<T> GenerateMask(const Image<T>& img);
 
+	template<typename T>
+	Image<T> GenerateMask_Reduced(const Image<T>& img, int factor);
+
+	template<typename T>
+	void GenerateMask_ReducedTo(const Image<T>& src, Image<T>& dst, int factor);
 };
-
-
-
 
 
 class RangeSlider : public QSlider {
@@ -80,11 +82,11 @@ signals:
 public:
 	int sliderPosition_low()const;
 
-	void setSliderPosition_low(int pos);
+	void setValue_low(int pos);
 
 	int sliderPosition_high()const;
 
-	void setSliderPosition_high(int pos);
+	void setValue_high(int pos);
 
 	void resetSliderPositions();
 
@@ -111,14 +113,14 @@ class RangeMaskDialog : public ProcessDialog {
 	DoubleLineEdit* m_high_le;
 
 	DoubleLineEdit* m_fuzzy_le;
-	QSlider* m_fuzzy_slider;
+	Slider* m_fuzzy_slider;
 
 	DoubleLineEdit* m_smooth_le;
-	QSlider* m_smooth_slider;
+	Slider* m_smooth_slider;
 
-	QCheckBox* m_lightness_cb;
-	QCheckBox* m_screening_cb;
-	QCheckBox* m_invert_cb;
+	CheckBox* m_lightness_cb;
+	CheckBox* m_screening_cb;
+	CheckBox* m_invert_cb;
 
 public:
 	RangeMaskDialog(QWidget* parent = nullptr);
@@ -132,19 +134,11 @@ private:
 
 	void onSliderMoved_high(int pos);
 
-	void onEditingFinished_fuzzy();
+	void addRangeSlider();
 
-	void onActionTriggered_fuzzy(int action);
+	void addFuzzinessInputs();
 
-	void onEditingFinished_smooth();
-
-	void onActionTriggered_smooth(int action);
-
-	void AddRangeSlider();
-
-	void AddFuzzinessInputs();
-
-	void AddSmoothnessInputs();
+	void addSmoothnessInputs();
 
 	void resetDialog();
 

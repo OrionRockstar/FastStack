@@ -2,148 +2,126 @@
 #include "CurvesTransformation.h"
 #include "FastStack.h"
 
-void CurveTransform::SetInterpolationMethod(ColorComponent comp, CurveType type) {
-	rCurve(comp).SetInterpolationCurve(type);
+void CurveTransform::setInterpolation(ColorComponent comp, Curve::Type type) {
+	rCurve(comp).setInterpolation(type);
 }
 
-void CurveTransform::SetDataPoints(ColorComponent comp, std::vector<QPointF> points) {
-	rCurve(comp).InsertDataPoints(points);
+void CurveTransform::setDataPoints(ColorComponent comp, std::vector<QPointF> points) {
+	rCurve(comp).setDataPoints(points);
 }
 
-void CurveTransform::ComputeCoefficients(ColorComponent comp) {
-	rCurve(comp).SetCoeffecients();
+void CurveTransform::computeCoefficients(ColorComponent comp) {
+	rCurve(comp).computeCoeffecients();
 }
 
-void CurveTransform::InterpolateValues(ColorComponent comp, std::vector<double>& values) {
+void CurveTransform::interpolateValues(ColorComponent comp, std::vector<double>& values) {
 
-	if (m_comp_curves[int(comp)].IsIdentity())
+	if (m_comp_curves[int(comp)].isIdentity())
 		return;
 
 	for (auto& val : values) {
-		val = m_comp_curves[int(comp)].Interpolate(val);
+		val = m_comp_curves[int(comp)].interpolate(val);
 	}
 }
-
-
 
 template<typename T>
 void CurveTransform::Apply(Image<T>& img) {
 
 	using CC = ColorComponent;
 
+	auto applyChannel = [&, this](Curve* curve, int ch) {
+		for (auto& p : ImageChannel(img, ch))
+			p = p = Clip(curve->interpolate(p));
+	};
+
 	Curve RGB_K = rCurve(CC::rgb_k);
 
-	if (!RGB_K.IsIdentity()) {
-		if (img.Channels() == 1)
-			for (T& pixel : img) {
-				double val = Pixel<double>::toType(pixel);
-				val = Clip(RGB_K.Interpolate(val));
-				pixel = Pixel<T>::toType(val);
-			}
+	if (!RGB_K.isIdentity()) {
 
-		else if (img.Channels() == 3)
-#pragma omp parallel for num_threads(4)
-			for (int el = 0; el < img.PxCount(); ++el) {
-				double R, G, B;
-				img.getRGB(el, R, G, B);
-
-				R = Clip(RGB_K.Interpolate(R));
-				G = Clip(RGB_K.Interpolate(G));
-				B = Clip(RGB_K.Interpolate(B));
-
-				img.setRGB(el, R, G, B);
-			}
-
+#pragma omp parallel for num_threads(img.channels())
+		for (int ch = 0; ch < img.channels(); ++ch)
+			applyChannel(&RGB_K, ch);
 	}
 
-	if (img.Channels() == 1)
+
+
+	if (img.channels() == 1)
 		return;
 
+	Curve red = rCurve(CC::red);
+	Curve green = rCurve(CC::green);
+	Curve blue = rCurve(CC::blue);
 
+	if (!red.isIdentity() || !green.isIdentity() || !blue.isIdentity()) {
 
+		std::thread t0 = std::thread(applyChannel, &red, 0);
+		std::thread t1 = std::thread(applyChannel, &green, 1);
+		std::thread t2 = std::thread(applyChannel, &blue, 2);
 
-
-	Curve Red = rCurve(CC::red);
-	Curve Green = rCurve(CC::green);
-	Curve Blue = rCurve(CC::blue);
-
-	if (!Red.IsIdentity() || !Green.IsIdentity() || !Blue.IsIdentity()) {
-#pragma omp parallel for
-		for (int el = 0; el < img.PxCount(); ++el) {
-			double R, G, B;
-			img.getRGB(el, R, G, B);
-
-			R = Clip(Red.Interpolate(R));
-			G = Clip(Green.Interpolate(G));
-			B = Clip(Blue.Interpolate(B));
-
-			img.setRGB(el, R, G, B);
-		}
+		t0.join();
+		t1.join();
+		t2.join();
 	}
-
-
-
-
 
 	Curve Lightness = rCurve(CC::Lightness);
 	Curve a = rCurve(CC::a);
 	Curve b = rCurve(CC::b);
 
-	if (!Lightness.IsIdentity() || !a.IsIdentity() || !b.IsIdentity()) {
-#pragma omp parallel for
-		for (int el = 0; el < img.PxCount(); ++el) {
-			double R, G, B;
-			img.getRGB(el, R, G, B);
+	if (!Lightness.isIdentity() || !a.isIdentity() || !b.isIdentity()) {
 
-			double L, _a, _b;
-			ColorSpace::RGBtoCIELab(R, G, B, L, _a, _b);
-			ColorSpace::CIELabtoRGB(Lightness.Interpolate(L), a.Interpolate(_a), b.Interpolate(_b), R, G, B);
+#pragma omp parallel for num_threads(3)
+		for (int y = 0; y < img.rows(); ++y) {
+			for (int x = 0; x < img.cols(); ++x) {
+				auto rgb = img.color<double>(x, y);
 
-			img.setRGB(el, Clip(R), Clip(G), Clip(B));
+				double L, _a, _b;
+				ColorSpace::RGBtoCIELab(rgb, L, _a, _b);
+				rgb = ColorSpace::CIELabtoRGB(Lightness.interpolate(L), a.interpolate(_a), b.interpolate(_b));
+				
+				img.setColor<>(x, y, rgb);
+			}
 		}
 	}
-
-
 
 
 
 	Curve c = rCurve(CC::c);
 
-	if (!c.IsIdentity()) {
-#pragma omp parallel for
-		for (int el = 0; el < img.PxCount(); ++el) {
-			double R, G, B;
-			img.getRGB(el, R, G, B);
+	if (!c.isIdentity()) {
 
-			double L, _c, _h;
-			ColorSpace::RGBtoCIELch(R, G, B, L, _c, _h);
-			ColorSpace::CIELchtoRGB(L, c.Interpolate(_c), _h, R, G, B);
+#pragma omp parallel for num_threads(3)
+		for (int y = 0; y < img.rows(); ++y) {
+			for (int x = 0; x < img.cols(); ++x) {
+				auto rgb = img.color<double>(x, y);
 
-			img.setRGB(el, Clip(R), Clip(G), Clip(B));
+				double L, _c, _h;
+				ColorSpace::RGBtoCIELch(rgb, L, _c, _h);
+				rgb = ColorSpace::CIELchtoRGB(L, c.interpolate(_c), _h);
+
+				img.setColor<>(x, y, rgb);
+			}
 		}
 	}
-
-
 
 
 
 	Curve Hue = rCurve(CC::hue);
 	Curve Saturation = rCurve(CC::saturation);
 
-	if (!Hue.IsIdentity() || !Saturation.IsIdentity()) {
-#pragma omp parallel for
-		for (int el = 0; el < img.PxCount(); ++el) {
-			double R, G, B;
-			img.getRGB(el, R, G, B);
+	if (!Hue.isIdentity() || !Saturation.isIdentity()) {
+#pragma omp parallel for num_threads(3)
+		for (int y = 0; y < img.rows(); ++y) {
+			for (int x = 0; x < img.cols(); ++x) {
+				auto rgb = img.color<double>(x, y);
 
-			double H, S, V, L;
-			ColorSpace::RGBtoHSVL(R, G, B, H, S, V, L);
-			ColorSpace::HSVLtoRGB(Hue.Interpolate(H), Saturation.Interpolate(S), V, L, R, G, B);
+				double H, S, V, L;
+				ColorSpace::RGBtoHSVL(rgb, H, S, V, L);
+				rgb = ColorSpace::HSVLtoRGB(Hue.interpolate(H), Saturation.interpolate(S), V, L);
 
-			img.setRGB(el, Clip(R), Clip(G), Clip(B));
+				img.setColor(x, y, rgb);
+			}
 		}
 	}
-
 }
 template void CurveTransform::Apply(Image8&);
 template void CurveTransform::Apply(Image16&);
@@ -153,404 +131,51 @@ template void CurveTransform::Apply(Image32&);
 
 
 
-
-
-
-
-
-CurveItem::CurveItem(QPen pen, QBrush brush, QGraphicsScene* scene) : m_pen(pen), m_brush(brush) {
-	m_scene = scene;
-
-	m_pen.setWidthF(1.01);
-
-	m_current = m_left = m_scene->addEllipse(0, 0, 8, 8, pen, brush);
-	m_left->moveBy(-4, -4);
-	m_item_list.append(m_left);
-	m_input_pts.append(ItemCenter(m_left));
-
-	m_right = m_scene->addEllipse(380, 380, 8, 8, pen, brush);
-	m_right->setOpacity(0.5);
-	m_right->moveBy(-4, -4);
-	m_item_list.append(m_right);
-	m_input_pts.append(ItemCenter(m_right));
-
-	m_curve_pts.resize(scene->width());
-	for (int i = 0; i < m_curve_pts.size(); ++i)
-		m_curve_pts[i] = QPointF(i, i);
-
-	QPainterPath path;
-	path.addPolygon(m_curve_pts);
-	m_curve = m_scene->addPath(path, m_pen);
+CurveTransformScene::CurveTransformScene(CurveTransform* ctp, QRect rect, QWidget* parent) : CurveScene( rect, parent) {
+	m_ctp = ctp;
 }
 
-QPointF CurveItem::ItemCenter(const QGraphicsItem* item) {
-	QRectF rect = item->sceneBoundingRect();
-
-	float x = rect.x() + (rect.width() / 2.0);
-	float y = rect.y() + (rect.height() / 2.0);
-
-	return QPointF(x, y);
-}
-
-QGraphicsItem* CurveItem::AddEllipse(qreal x, qreal y) {
-	auto new_item = m_scene->addEllipse(x, y, 5, 5, m_pen, m_brush);
-	new_item->moveBy(-2.5, -2.5);
-	for (auto item : m_item_list)
-		item->setOpacity(0.5);
-
-	for (auto item : m_item_list) {
-		if (item->collidesWithItem(new_item)) {
-			m_scene->removeItem(new_item);
-			item->setOpacity(1.0);
-			return m_current = item;
-		}
-	}
-
-
-	new_item->setOpacity(1.0);
-	m_input_pts.append(ItemCenter(new_item));
-	m_item_list.append(new_item);
-	std::sort(m_input_pts.begin(), m_input_pts.end(), [this](QPointF a, QPointF b) {return a.x() < b.x(); });
-	std::sort(m_item_list.begin(), m_item_list.end(), [this](QGraphicsItem* a, QGraphicsItem* b) { return ItemCenter(a).x() < ItemCenter(b).x(); });
-
-	return m_current = new_item;
-}
-
-bool CurveItem::CollidesWithOtherItem(QGraphicsItem* current) {
-
-	for (auto item : m_item_list) {
-		if (item == current)
-			continue;
-		if (current->collidesWithItem(item))
-			return true;
-	}
-
-	return false;
-}
-
-std::vector<QPointF> CurveItem::GetNormalizedInputs() {
-	std::vector<QPointF> p(m_input_pts.size());
-
-	for (int i = 0; i < p.size(); ++i)
-		p[i] = QPointF(m_input_pts[i].x() / m_scene->width(), m_input_pts[i].y() / m_scene->height());
-
-	return p;
-}
-
-//removes item sets current to previous item(lower x pos)
-void CurveItem::RemoveItem(QPointF point) {
-	auto other = m_scene->addEllipse(point.x(), point.y(), 1, 1);
-
-	for (int i = 0; i < m_item_list.size(); ++i) {
-		auto item = m_item_list[i];
-
-		if (item != m_left) {
-			if (item != m_right) {
-				if (other->collidesWithItem(item)) {
-
-					QPointF center = ItemCenter(item);
-					for (int j = 0; j < m_input_pts.size(); ++j) {
-						if (center == m_input_pts[j]) {
-							m_input_pts.removeAt(j);
-							break;
-						}
-					}
-
-					m_item_list.removeAt(i);
-					m_scene->removeItem(item);
-					m_scene->removeItem(other);
-					m_item_list[i - 1]->setOpacity(1.0);
-					m_current = m_item_list[i - 1];
-					return;
-				}
-			}
-		}
-	}
-
-	m_scene->removeItem(other);
-}
-
-void CurveItem::SetCurvePoints(const std::vector<double>& y_values) {
-
-	if (m_curve_pts.size() != y_values.size())
-		m_curve_pts.resize(y_values.size());
-
-	for (int i = 0; i < m_curve_pts.size(); ++i)
-		m_curve_pts[i] = QPointF(i, y_values[i] * m_scene->height());
-
-	m_scene->removeItem(m_curve);
-	QPainterPath path;
-	path.addPolygon(m_curve_pts);
-	m_curve = m_scene->addPath(path, m_pen);
-}
-
-void CurveItem::setCurveVisibility(bool visible) {
-	if (m_item_list.size() != 2 || ItemCenter(m_left) != QPointF(0, 0) || ItemCenter(m_right) != QPointF(380, 380))
-		m_curve->setVisible(true);
-	else
-		m_curve->setVisible(visible);
-
-	for (auto item : m_item_list)
-		item->setVisible(visible);
-}
-
-void CurveItem::UpdateItemPos(QGraphicsItem* item, QPointF delta) {
-
-	for (int i = 0; i < m_input_pts.size(); ++i)
-		if (item == m_item_list[i])
-			m_input_pts[i] += delta;
-
-	item->moveBy(delta.x(), delta.y());
-
-	std::sort(m_input_pts.begin(), m_input_pts.end(), [this](QPointF a, QPointF b) {return a.x() < b.x(); });
-	std::sort(m_item_list.begin(), m_item_list.end(), [this](QGraphicsItem* a, QGraphicsItem* b) { return ItemCenter(a).x() < ItemCenter(b).x(); });
-}
-
-const QGraphicsItem* CurveItem::nextItem() {
-	for (int i = 0; i < m_item_list.size(); ++i) {
-		if (m_item_list[i] == m_current) {
-			if (m_item_list[i] == Right())
-				return Right();
-			else {
-				m_current->setOpacity(0.5);
-				m_current = m_item_list[i + 1];
-				m_current->setOpacity(1.0);
-				return m_current;
-			}
-		}
-	}
-
-	return m_current;
-}
-
-const QGraphicsItem* CurveItem::previousItem() {
-	for (int i = m_item_list.size() - 1; i >= 0; --i) {
-		if (m_item_list[i] == m_current) {
-			if (m_item_list[i] == Left())
-				return Left();
-			else {
-				m_current->setOpacity(0.5);
-				m_current = m_item_list[i - 1];
-				m_current->setOpacity(1.0);
-				return m_current;
-			}
-		}
-	}
-
-	return m_current;
-}
-
-
-
-
-
-
-
-
-CurveScene::CurveScene(CurveTransform* ct, QRect rect, QWidget* parent) : QGraphicsScene(rect, parent) {
-	using CC = ColorComponent;
-	this->setSceneRect(rect);
-	m_ctp = ct;
-
-	drawGrid();
-
-	for (ColorComponent cc = CC::red; cc <= CC::saturation; cc = CC(int(cc) + 1)) {
-		int i = int(cc);
-		m_curve_items[i] = new CurveItem(m_color[i], m_color[i], this);
-		m_curve_items[i]->setCurveVisibility(false);
-	}	
-	
-	m_curve_items[int(CC::rgb_k)]->setCurveVisibility(true);
-
-	m_current = m_curve_items[int(CC::rgb_k)]->Left();
-}
-
-void CurveScene::drawGrid() {
-	int step_x = width() / 4;
-	int step_y = height() / 4;
-
-	int x = step_x;
-	int y = step_y;
-
-	QPen pen = QColor(123, 123, 123);
-	pen.setWidthF(.75);
-
-	for (int i = 1; i < 4; ++i) {
-		QLineF line(step_x * i, 0, step_x * i, height());
-
-		addLine(line, pen);
-		line = QLine(0, step_y * i, width(), step_y * i);
-		addLine(line, pen);
-	}
-}
-
-void CurveScene::resetScene() {
-	using CC = ColorComponent;
-	clear();
-	drawGrid();
-
-	for (ColorComponent cc = CC::red; cc <= CC::saturation; cc = CC(int(cc) + 1)) {
-		int i = int(cc);
-		m_curve_items[i] = new CurveItem(m_color[i], m_color[i], this);
-		m_curve_items[i]->setCurveVisibility(false);
-	}
-
-	m_curve_items[int(m_comp)]->setCurveVisibility(true);
-
-	m_current = m_curve_items[int(m_comp)]->Left();
-}
-
-void CurveScene::ChannelChanged(int id) {
+void CurveTransformScene::onCurveTypeChange(int id) {
 	CurveItem* curve = m_curve_items[int(m_comp)];
 
-	curve->setCurveVisibility(false);
-
-	m_comp = ColorComponent(id);
-	curve = m_curve_items[int(m_comp)];
-	curve->setCurveVisibility(true);
-	m_current = curve->Current();
-	itemARC();
-	sendCurrentPos(CurveItem::ItemCenter(m_current));
-	sendCurveType(int(curve->CurveType()));
+	(*m_ctp).setInterpolation(m_comp, Curve::Type(id));
+	curve->setCurveType(Curve::Type(id));
+	renderCurve(curve);
 }
 
-void CurveScene::CurveTypeChanged(int id) {
-	CurveItem* curve = m_curve_items[int(m_comp)];
-
-	(*m_ctp).SetInterpolationMethod(m_comp, CurveType(id));
-	curve->SetCurveType(CurveType(id));
-	RenderCurve(curve);
+void CurveTransformScene::onUpdatePoint(QPointF point) {
+	CurveScene::onUpdatePoint(point);
+	renderCurve(m_curve_items[int(m_comp)]);
 }
 
-void CurveScene::onPressed_previous_next() {
-	m_current = m_curve_items[int(m_comp)]->Current();
-}
+void CurveTransformScene::renderCurve(CurveItem* curve) {
 
-void CurveScene::onUpdatePoint(QPointF point) {
-	CurveItem* curve = m_curve_items[int(m_comp)];
-	curve->UpdateItemPos(m_current, point -= CurveItem::ItemCenter(m_current));
+	(*m_ctp).setDataPoints(m_comp, curve->curvePoints_norm());
 
-	if (xValueExists()) {
-		curve->UpdateItemPos(m_current, QPointF(1, 0));
-		sendCurrentPos(CurveItem::ItemCenter(m_current));
-	}
-
-	RenderCurve(curve);
-	itemARC();
-}
-
-bool CurveScene::xValueExists()const {
-	auto curve = m_curve_items[int(m_comp)];
-
-	for (auto item : curve->ItemList())
-		if (item != m_current)
-			if (CurveItem::ItemCenter(item).x() == CurveItem::ItemCenter(m_current).x())
-				return true;
-		
-	return false;
-}
-
-bool CurveScene::isInScene(const QRectF rect)const {
-	double mid_x = m_current->boundingRect().width() / 2.0;
-	double mid_y = m_current->boundingRect().height() / 2.0;
-
-	if (0 < rect.x() + mid_x && rect.x() + mid_x < width() && 0 < rect.y() + mid_y && rect.y() + mid_y < height())
-		return true;
-	else
-		return false;
-}
-
-bool CurveScene::isInScene_ends(const QRectF rect)const {
-	double mid_y = m_current->boundingRect().height() / 2;
-	if (0 <= rect.y() + mid_y && (rect.y() + mid_y) <= height())
-		return true;
-	else
-		return false;
-}
-
-void CurveScene::RenderCurve(CurveItem* curve) {
-
-	(*m_ctp).SetDataPoints(m_comp, curve->GetNormalizedInputs());
-
-	(*m_ctp).ComputeCoefficients(m_comp);
+	(*m_ctp).computeCoefficients(m_comp);
 
 	for (int i = 0; i < m_values.size(); ++i)
 		m_values[i] = i / width();
 
 
-	(*m_ctp).InterpolateValues(m_comp, m_values);
+	(*m_ctp).interpolateValues(m_comp, m_values);
 
-	curve->SetCurvePoints(m_values);
+	curve->setCurvePoints(m_values);
 }
 
-
-void CurveScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
-
-	auto curve = m_curve_items[int(m_comp)];
-
-	if (event->buttons() == Qt::RightButton) {
-		curve->RemoveItem(event->scenePos());
-		m_current = curve->Current();
-	}
-
-	if (event->buttons() == Qt::LeftButton) {
-
-		click_x = event->scenePos().x();
-		click_y = event->scenePos().y();
-
-		m_current = curve->AddEllipse(click_x, click_y);
-	}
-
-	RenderCurve(curve);
-	QPointF p = CurveItem::ItemCenter(m_current);
-	sendCurrentPos(CurveItem::ItemCenter(m_current));
-	end((m_current == curve->Left() || m_current == curve->Right()));
-	itemARC();
+void CurveTransformScene::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+	CurveScene::mousePressEvent(event);
+	renderCurve(m_curve_items[int(m_comp)]);
 }
 
-void CurveScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
-
-	if (event->buttons() == Qt::LeftButton) {
-
-		int dx = event->scenePos().x() - click_x;
-		int dy = event->scenePos().y() - click_y;
-
-		click_x = event->scenePos().x();
-		click_y = event->scenePos().y();
-
-
-		auto curve = m_curve_items[int(m_comp)];
-
-		QRectF rect = m_current->sceneBoundingRect();
-
-		if (m_current == curve->Left() || m_current == curve->Right()) {
-			rect.adjust(0, dy, 0, dy);
-			if (isInScene_ends(rect)) 
-				curve->UpdateItemPos(m_current, QPointF(0, dy));		
-		}
-		else {
-
-			if (curve->CollidesWithOtherItem(m_current))
-				dx *= -1, dy *= -1;
-
-			rect.adjust(dx, dy, dx, dy);
-			if (isInScene(rect)) 
-				curve->UpdateItemPos(m_current, QPointF(dx, dy));
-			
-		}
-
-		RenderCurve(curve);
-		sendCurrentPos(CurveItem::ItemCenter(m_current));
-	}
+void CurveTransformScene::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+	CurveScene::mouseMoveEvent(event);
+	renderCurve(m_curve_items[int(m_comp)]);
 }
 
-void CurveScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
-	if (xValueExists()) {
-		auto curve = m_curve_items[int(m_comp)];
-		curve->UpdateItemPos(m_current, QPointF(1, 0));
-		RenderCurve(curve);
-		sendCurrentPos(CurveItem::ItemCenter(m_current));
-	}
+void CurveTransformScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
+	CurveScene::mouseReleaseEvent(event);
+	renderCurve(m_curve_items[int(m_comp)]);
 }
 
 
@@ -558,11 +183,65 @@ void CurveScene::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 
 
 
-CurveTransformDialog::CurveTransformDialog(QWidget* parent): ProcessDialog("CurveTransform", QSize(400,535), *reinterpret_cast<FastStack*>(parent)->m_workspace, parent) {
+CurveGraphicsView::CurveGraphicsView(QGraphicsScene* scene, QWidget* parent) : QGraphicsView(scene, parent) {
+
+	m_cts = static_cast<CurveTransformScene*>(scene);
+
+	this->setRenderHints(QPainter::Antialiasing);
+	this->scale(1, -1);
+	this->setGeometry(9, 9, 382, 382);
+	this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+	loadAxis();
+}
+
+void CurveGraphicsView::loadAxis() {
+
+	m_color_axis[0].x_axis.load("./Icons//horizontal_red.png");
+	m_color_axis[0].y_axis.load("./Icons//vertical_red.png");
+
+	m_color_axis[1].x_axis.load("./Icons//horizontal_green.png");
+	m_color_axis[1].y_axis.load("./Icons//vertical_green.png");
+
+	m_color_axis[2].x_axis.load("./Icons//horizontal_blue.png");
+	m_color_axis[2].y_axis.load("./Icons//vertical_blue.png");
+
+	m_color_axis[3].x_axis.load("./Icons//horizontal_K_L.png");
+	m_color_axis[3].y_axis.load("./Icons//vertical_K_L.png");
+	m_color_axis[4].x_axis.load("./Icons//horizontal_K_L.png");
+	m_color_axis[4].y_axis.load("./Icons//vertical_K_L.png");
+
+	m_color_axis[5].x_axis.load("./Icons//horizontal_a.png");
+	m_color_axis[5].y_axis.load("./Icons//vertical_a.png");
+
+	m_color_axis[6].x_axis.load("./Icons//horizontal_b.png");
+	m_color_axis[6].y_axis.load("./Icons//vertical_b.png");
+
+	m_color_axis[7].x_axis.load("./Icons//horizontal_c.png");
+	m_color_axis[7].y_axis.load("./Icons//vertical_c.png");
+
+	m_color_axis[8].x_axis.load("./Icons//horizontal_hue.png");
+	m_color_axis[8].y_axis.load("./Icons//vertical_hue.png");
+
+	m_color_axis[9].x_axis.load("./Icons//horizontal_saturation.png");
+	m_color_axis[9].y_axis.load("./Icons//vertical_saturation.png");
+}
+
+void CurveGraphicsView::drawBackground(QPainter* painter, const QRectF& rect) {
+
+	painter->fillRect(rect, QColor(19,19,19));
+
+	painter->drawImage( 0, 0, m_color_axis[int(m_cts->currentComponent())].x_axis);// , QRect(150, 0, 50, 8));
+	painter->drawImage(0, 0, m_color_axis[int(m_cts->currentComponent())].y_axis);
+}
+
+
+
+
+CurveTransformDialog::CurveTransformDialog(QWidget* parent): ProcessDialog("CurveTransform", QSize(400,535), FastStack::recast(parent)->workspace()) {
 
 	using CTD = CurveTransformDialog;
-
-	this->setWindowTitle(Name());
 
 	setTimer(250, this, &CTD::ApplytoPreview);
 
@@ -570,30 +249,37 @@ CurveTransformDialog::CurveTransformDialog(QWidget* parent): ProcessDialog("Curv
 	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &CTD::Apply, &CTD::showPreview, &CTD::resetDialog);
 
 
-	m_cs = new CurveScene(&m_ct, QRect(0, 0, 380, 380));
+	m_cs = new CurveTransformScene(&m_ct, QRect(0, 0, 380, 380), this);
 	connect(m_cs, &CurveScene::itemARC, this, &CurveTransformDialog::onItemARC);
-	m_cs->setBackgroundBrush(QBrush("#404040"));
 
-	m_gv = new QGraphicsView(m_cs, this);
-	m_gv->setRenderHints(QPainter::Antialiasing);
-	m_gv->scale(1, -1);
-	m_gv->setGeometry(9, 9, 382, 382);
-	m_gv->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	m_gv->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	m_gv = new CurveGraphicsView(m_cs, this);
 
-	AddComponentSelection();
-	AddPointLineEdits();
-	AddCuveTypeSelection();
-	AddPointSelection();
+
+	addComponentSelection();
+	addPointLineEdits();
+	addPointSelection();
+
+
+	m_curve_type_bg = new CurveTypeButtonGroup(this);
+	m_curve_type_bg->move(148, 470);
+	connect(m_curve_type_bg, &CurveTypeButtonGroup::idClicked, m_cs, &CurveTransformScene::onCurveTypeChange);
+
 	this->show();
 }
 
 void CurveTransformDialog::onItemARC() {
 	auto curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
-	QString c = QString::number(curve->ItemIndex(curve->Current()) + 1);
-	QString t = QString::number(curve->ItemListSize());
-	
-	m_current_point->setText(c + "/" + t);	
+
+	int current = curve->itemIndex(curve->currentItem()) + 1;
+	int total = curve->itemListSize();
+
+	QString c = QString::number(current);
+	QString t = QString::number(total);
+
+	if (current < 10)
+		c.insert(0, "  ");
+
+	m_current_point->setText(c + " / " + t);	
 }
 
 void CurveTransformDialog::onEditingFinished_io() {
@@ -608,195 +294,154 @@ void CurveTransformDialog::onCurrentPos(QPointF point) {
 	startTimer();
 }
 
-void CurveTransformDialog::onPressed_previous() {
-	CurveItem* curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
-	const QGraphicsItem* item = curve->previousItem();
-	int index = curve->ItemIndex(item);
 
-	m_input_le->setValue(curve->InputPoint(index).x() / m_cs->width());
-	m_output_le->setValue(curve->InputPoint(index).y() / m_cs->height());
-
-	if (item == curve->Left() || item == curve->Right())
-		m_input_le->setDisabled(true);
-	else
-		m_input_le->setEnabled(true);
-
-	onItemARC();
-}
-
-void CurveTransformDialog::onPressed_next() {
-	CurveItem* curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
-	const QGraphicsItem* item = curve->nextItem();
-	int index = curve->ItemIndex(item);
-
-	m_input_le->setValue(curve->InputPoint(index).x() / m_cs->width());
-	m_output_le->setValue(curve->InputPoint(index).y() / m_cs->height());
-
-	if (item == curve->Left() || item == curve->Right())
-		m_input_le->setDisabled(true);
-	else
-		m_input_le->setEnabled(true);
-
-	onItemARC();
-}
-
-
-void CurveTransformDialog::AddComponentSelection() {
+void CurveTransformDialog::addComponentSelection() {
 	using CC = ColorComponent;
 
 	m_component_bg = new QButtonGroup(this);
 
-	QSize size(35, 25);
-	int x = 10;
-	int dx = 35;
-	int y = 395;
-	
 	QPixmap pm = QPixmap(15, 15);
 	pm.fill(QColor(255, 0, 0));
 
 	ComponentPushButton* pb = new ComponentPushButton(QIcon(pm), "R", this);
 	m_component_bg->addButton(pb, int(CC::red));
-	pb->resize(size);
-	pb->move(x, y);
 
 	pm.fill(QColor(0, 255, 0));
 	pb = new ComponentPushButton(QIcon(pm), "G", this);
 	m_component_bg->addButton(pb, int(CC::green));
-	pb->resize(size);
-	pb->move(x += dx, y);
+
 
 	pm.fill(QColor(0, 0, 255));
 	pb = new ComponentPushButton(QIcon(pm), "B", this);
 	m_component_bg->addButton(pb, int(CC::blue));
-	pb->resize(size);
-	pb->move(x += dx, y);
+
 
 	pm = QPixmap("C:\\Users\\Zack\\Desktop\\rgb.png");
 	pb = new ComponentPushButton(QIcon(pm),"RGB/K", this);
 	m_component_bg->addButton(pb, int(CC::rgb_k));
 	pb->setChecked(true);
 	pb->resize(65,25);
-	pb->move(x += dx, y);
-
-
 
 	pb = new ComponentPushButton("L", this);
 	m_component_bg->addButton(pb, int(CC::Lightness));
-	pb->resize(size);
-	pb->move(x += 65, y);
 
 	pb = new ComponentPushButton("a", this);
 	m_component_bg->addButton(pb, int(CC::a));
-	pb->resize(size);
-	pb->move(x += dx, y);
 
 	pb = new ComponentPushButton("b", this);
 	m_component_bg->addButton(pb, int(CC::b));
-	pb->resize(size);
-	pb->move(x += dx, y);
 
 	pb = new ComponentPushButton("c", this);
 	m_component_bg->addButton(pb, int(CC::c));
-	pb->resize(size);
-	pb->move(x += dx, y);
-
-
 
 	pb = new ComponentPushButton("H", this);
 	m_component_bg->addButton(pb, int(CC::hue));
-	pb->resize(size);
-	pb->move(x += dx, y);
 
 	pb = new ComponentPushButton("S", this);
 	m_component_bg->addButton(pb, int(CC::saturation));
-	pb->resize(size);
-	pb->move(x += dx, y);
 
-	connect(m_component_bg, &QButtonGroup::idClicked, m_cs, &CurveScene::ChannelChanged);
+	int x = 10;
+	for (auto button : m_component_bg->buttons()) {
+
+		if (m_component_bg->id(button) != int(CC::rgb_k))
+			button->resize({35,25});
+
+		button->move(x, 395);
+		x += button->width();
+	}
+
+	connect(m_component_bg, &QButtonGroup::idClicked, m_cs, &CurveScene::onChannelChange);
+
 }
 
-void CurveTransformDialog::AddCuveTypeSelection() {
-	m_curvetype_bg = new QButtonGroup(this);
+void CurveTransformDialog::addPointLineEdits() {
 
-	QPushButton* pb = new QPushButton("Akima", this);
-	pb->setCheckable(true);
-	pb->setChecked(true);
-	pb->setAutoDefault(false);
-	m_curvetype_bg->addButton(pb, int(CurveType::akima_spline));
-	pb->move(75, 470);
-
-	pb = new QPushButton("Cubic", this);
-	pb->setAutoDefault(false);
-	pb->setCheckable(true);
-	m_curvetype_bg->addButton(pb, int(CurveType::cubic_spline));
-	pb->move(160, 470);
-
-	pb = new QPushButton("Linear", this);
-	pb->setAutoDefault(false);
-	pb->setCheckable(true);
-	m_curvetype_bg->addButton(pb, int(CurveType::linear));
-	pb->move(245, 470);
-
-	connect(m_curvetype_bg, &QButtonGroup::idClicked, m_cs, &CurveScene::CurveTypeChanged);
-	connect(m_cs, &CurveScene::sendCurveType, this, [this](int id) { m_curvetype_bg->button(id)->setChecked(true); });
-}
-
-
-void CurveTransformDialog::AddPointLineEdits() {
-
-	m_input_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6, this), this);
-	m_input_le->setValue(0.0);
+	m_input_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 6, this), this);
 	m_input_le->setFixedWidth(75);
 	m_input_le->move(65, 430);
 	m_input_le->addLabel(new QLabel("Input:   ", this));
 	m_input_le->setDisabled(true);
 
 
-	m_output_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6, this), this);
-	m_output_le->setValue(0.0);
+	m_output_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 6, this), this);
 	m_output_le->setFixedWidth(75);
 	m_output_le->move(210, 430);
 	m_output_le->addLabel(new QLabel("Output:   ", this));
 
-	connect(m_input_le, &DoubleLineEdit::editingFinished, this, &CurveTransformDialog::onEditingFinished_io);
-	connect(m_output_le, &DoubleLineEdit::editingFinished, this, &CurveTransformDialog::onEditingFinished_io);
-	connect(this, &CurveTransformDialog::updatePoint, m_cs, &CurveScene::onUpdatePoint);
+	auto edited = [this]() {
+		int x = m_input_le->value() * m_cs->width();
+		int y = m_output_le->value() * m_cs->height();
+		updatePoint(QPoint(x, y));
+	};
 
-	connect(m_cs, &CurveScene::sendCurrentPos, this, &CurveTransformDialog::onCurrentPos);
-	connect(m_cs, &CurveScene::end, this, [this](bool v) { m_input_le->setDisabled(v); });
+	connect(m_input_le, &DoubleLineEdit::editingFinished, this, edited);
+	connect(m_output_le, &DoubleLineEdit::editingFinished, this, edited);
+
+	connect(this, &CurveTransformDialog::updatePoint, m_cs, &CurveTransformScene::onUpdatePoint);
+
+	connect(m_cs, &CurveScene::currentPos, this, &CurveTransformDialog::onCurrentPos);
+	connect(m_cs, &CurveScene::endItem, this, [this](bool v) { m_input_le->setDisabled(v); });
 
 }
 
-void CurveTransformDialog::AddPointSelection() {
+void CurveTransformDialog::addPointSelection() {
 
 	QPushButton* pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekForward), "", this);
 	pb->setAutoDefault(false);
-	pb->setFlat(true);
-	pb->move(315, 430);
+	pb->move(325, 430);
 
-	connect(pb, &QPushButton::pressed, this, &CurveTransformDialog::onPressed_next);
-	connect(pb, &QPushButton::pressed, m_cs, &CurveScene::onPressed_previous_next);
+	auto next = [this]() {
+		CurveItem* curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
+		const QGraphicsItem* item = curve->nextItem();
+		QPointF p = CurveItem::itemCenter(item);
+
+		m_input_le->setValue(p.x() / m_cs->width());
+		m_output_le->setValue(p.y() / m_cs->height());
+
+		if (curve->isEnd(item))
+			m_input_le->setDisabled(true);
+		else
+			m_input_le->setEnabled(true);
+
+		onItemARC();
+	};
+
+	connect(pb, &QPushButton::pressed, this, next);
 
 	pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekBackward), "", this);
 	pb->setAutoDefault(false);
-	pb->setFlat(true);
-	pb->move(285, 430);
+	pb->move(295, 430);
 
-	connect(pb, &QPushButton::pressed, this, &CurveTransformDialog::onPressed_previous);
-	connect(pb, &QPushButton::pressed, m_cs, &CurveScene::onPressed_previous_next);
+	auto previous = [this]() {
+		CurveItem* curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
+		const QGraphicsItem* item = curve->previousItem();
+		QPointF p = CurveItem::itemCenter(item);
 
-	m_current_point = new QLabel("1/2", this);
-	m_current_point->move(350, 427);
-	m_current_point->resize(m_current_point->fontMetrics().horizontalAdvance("00/00"), m_current_point->size().height());
+		m_input_le->setValue(p.x() / m_cs->width());
+		m_output_le->setValue(p.y() / m_cs->height());
+
+		if (curve->isEnd(item))
+			m_input_le->setDisabled(true);
+		else
+			m_input_le->setEnabled(true);
+
+		onItemARC();
+	};
+
+	connect(pb, &QPushButton::pressed, this, previous);
+
+	m_current_point = new QLabel("  1 / 2", this);
+	m_current_point->move(305, 460);
+	m_current_point->resize(m_current_point->fontMetrics().horizontalAdvance("00 / 00"), m_current_point->size().height());
 }
 
 void CurveTransformDialog::resetDialog() {
 	m_ct = CurveTransform();
 
-	m_input_le->setText("0.000000");
-	m_output_le->setText("0.000000");
+	m_input_le->setValue(0.0);
+	m_output_le->setValue(0.0);
 	m_input_le->setDisabled(true);
-	m_curvetype_bg->button(int(CurveType::akima_spline))->setChecked(true);
+	m_curve_type_bg->button(0)->setChecked(true);
 	m_cs->resetScene();
 	onItemARC();
 
@@ -815,25 +460,24 @@ void CurveTransformDialog::Apply() {
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		iwptr->UpdateImage(m_ct, &CurveTransform::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		iwptr->applyToSource(m_ct, &CurveTransform::Apply);
 		break;
 	}
-	case 16: {
+	case ImageType::USHORT: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->UpdateImage(m_ct, &CurveTransform::Apply);
+		iw16->applyToSource(m_ct, &CurveTransform::Apply);
 		break;
 	}
-	case -32: {
+	case ImageType::FLOAT: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->UpdateImage(m_ct, &CurveTransform::Apply);
+		iw32->applyToSource(m_ct, &CurveTransform::Apply);
 		break;
 	}
 	}
 
 	ApplytoPreview();
-
 }
 
 void CurveTransformDialog::ApplytoPreview() {
@@ -841,20 +485,20 @@ void CurveTransformDialog::ApplytoPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = reinterpret_cast<PreviewWindow8*>(m_preview);
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
-		return iw8->UpdatePreview(m_ct, &CurveTransform::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		auto iw8 = iwptr;
+		return iw8->updatePreview(m_ct, &CurveTransform::Apply);
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
-		return iw16->UpdatePreview(m_ct, &CurveTransform::Apply);
+	case ImageType::USHORT: {
+		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr);
+		return iw16->updatePreview(m_ct, &CurveTransform::Apply);
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
-		return iw32->UpdatePreview(m_ct, &CurveTransform::Apply);
+	case ImageType::FLOAT: {
+		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr);
+		return iw32->updatePreview(m_ct, &CurveTransform::Apply);
 	}
 	}
 }

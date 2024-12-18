@@ -4,7 +4,7 @@
 
 class LocalHistogramEqualization {
 
-	ProgressSignal* m_ps = new ProgressSignal();
+	ProgressSignal m_ps;
 
 	int m_kernel_radius = 64;
 	float m_contrast_limit = 2.0;
@@ -60,7 +60,7 @@ private:
 	};
 
 public:
-	ProgressSignal* progressSignal() const { return m_ps; }
+	const ProgressSignal* progressSignal()const { return &m_ps; }
 
 	void setKernelRadius(int kernel_radius) { m_kernel_radius = kernel_radius; }
 
@@ -74,7 +74,7 @@ public:
 	void setHistogramResolution(int resolution) { m_hist_res = resolution; }
 
 	template<typename T>
-	void Apply(Image<T>&img);
+	void apply(Image<T>&img);
 };
 
 
@@ -90,58 +90,44 @@ class LocalHistogramEqualizationDialog : public ProcessDialog {
 
 	LocalHistogramEqualization m_lhe;
 
-	QProgressBar* progress;
+	std::unique_ptr<ProgressDialog> m_pd;
+
 	//kernel radius
-	DoubleLineEdit* m_kr_le;
-	QSlider* m_kr_slider;
+	IntLineEdit* m_kr_le;
+	Slider* m_kr_slider;
 
 	//contrast limit
 	DoubleLineEdit* m_cl_le;
-	QSlider* m_cl_slider;
+	Slider* m_cl_slider;
 
 	//amount
 	DoubleLineEdit* m_amount_le;
-	QSlider* m_amount_slider;
+	Slider* m_amount_slider;
 
-	QCheckBox* m_circular;
+	CheckBox* m_circular;
 
-	QComboBox* m_histogram_resolution;
+	ComboBox* m_histogram_resolution;
 	std::array<int, 3> m_res = { 8,10,12 };
 
 public:
 	LocalHistogramEqualizationDialog(QWidget* parent = nullptr);
 
 private:
-	void actionSlider_kr(int action);
+	signals:
+	void finished();
 
-	void editingFinished_kr();
+private:
+	void addKernelRadiusInputs();
 
+	void addContrastLimitInputs();
 
-	void actionSlider_cl(int action);
-
-	void editingFinished_cl();
-
-
-	void actionSlider_amount(int action);
-
-	void editingFinished_amount();
-
-
-	void itemSelected(int index);
-
-	void checked(bool val);
-
-	void AddKernelRadiusInputs();
-
-	void AddContrastLimitInputs();
-
-	void AddAmountInputs();
+	void addAmountInputs();
 
 	void showPreview();
 
 	void resetDialog();
 
-	void Apply();
+	void apply();
 
-	void ApplytoPreview();
+	void applytoPreview();
 };

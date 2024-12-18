@@ -32,15 +32,15 @@ public:
 
 	void enableHistogramClipping(bool histogram_clipping) { m_histogram_clipping = histogram_clipping; }
 
-	float ShadowClipping(ColorComponent comp);
+	float shadowClipping(ColorComponent comp)const;
 
 	void setShadowClipping(ColorComponent comp, float percentage);
 
-	float HighlightClipping(ColorComponent comp);
+	float highlightClipping(ColorComponent comp)const;
 
 	void setHighlightClipping(ColorComponent comp, float percentage);
 
-	float TargetMedian(ColorComponent comp);
+	float targetMedian(ColorComponent comp)const;
 
 	void setTargetMedian(ColorComponent comp,float tgt_median);
 
@@ -62,151 +62,76 @@ public:
 
 
 
+
 class AutoHistogramDialog : public ProcessDialog {
-
-	class TargetMedian : public QWidget {
-
-		AutoHistogramDialog* m_parent;
-		AutoHistogram* m_ah;
-
-		QCheckBox* m_joined_rgb_cb;
-		QComboBox* m_stretch_combo;
-
-		DoubleLineEdit* m_red_le;
-		QSlider* m_red_slider;
-
-		DoubleLineEdit* m_green_le;
-		QSlider* m_green_slider;
-
-		DoubleLineEdit* m_blue_le;
-		QSlider* m_blue_slider;
-	public:
-		TargetMedian(AutoHistogram& ah, QWidget* parent);
-	private:
-		void onActionTriggered_red(int action);
-
-		void onEditingFinished_red();
-
-		void onActionTriggered_green(int action);
-
-		void onEditingFinished_green();
-
-		void onActionTriggered_blue(int action);
-
-		void onEditingFinished_blue();
-
-		void onClicked_joined(bool v);
-
-		void updateJoinedChannels();
-
-		void setDisabled_GreenBlue(bool val);
-
-		void AddRedInputs();
-
-		void AddGreenInputs();
-
-		void AddBlueInputs();
-
-	public:
-		void reset();
-	};
-
-	class HistogramClipping : public QWidget {
-		AutoHistogramDialog* m_parent;
-		AutoHistogram* m_ah;
-
-		QCheckBox* m_joined_rgb_cb;
-
-		DoubleLineEdit* m_redShadow_le;
-		QSlider* m_redShadow_slider;
-
-		DoubleLineEdit* m_greenShadow_le;
-		QSlider* m_greenShadow_slider;
-
-		DoubleLineEdit* m_blueShadow_le;
-		QSlider* m_blueShadow_slider;
-
-
-		DoubleLineEdit* m_redHighlight_le;
-		QSlider* m_redHighlight_slider;
-
-		DoubleLineEdit* m_greenHighlight_le;
-		QSlider* m_greenHighlight_slider;
-
-		DoubleLineEdit* m_blueHighlight_le;
-		QSlider* m_blueHighlight_slider;
-
-	public:
-		HistogramClipping(AutoHistogram& ah, QWidget* parent);
-	private:
-		void onActionTriggered_redShadow(int action);
-
-		void onEditingFinished_redShadow();
-
-		void onActionTriggered_greenShadow(int action);
-
-		void onEditingFinished_greenShadow();
-
-		void onActionTriggered_blueShadow(int action);
-
-		void onEditingFinished_blueShadow();
-
-		void onClicked_joined(bool v);
-
-		void updateJoinedChannels_shadow();
-
-		void setDisabled_GreenBlueShadow(bool val);
-
-		void AddRedShadowInputs();
-
-		void AddGreenShadowInputs();
-
-		void AddBlueShadowInputs();
-
-
-
-		void onActionTriggered_redHighlight(int action);
-
-		void onEditingFinished_redHighlight();
-
-		void onActionTriggered_greenHighlight(int action);
-
-		void onEditingFinished_greenHighlight();
-
-		void onActionTriggered_blueHighlight(int action);
-
-		void onEditingFinished_blueHighlight();
-
-		void updateJoinedChannels_Highlight();
-
-		void setDisabled_GreenBlueHighlight(bool val);
-
-		void AddRedHighlightInputs();
-
-		void AddGreenHighlightInputs();
-
-		void AddBlueHighlightInputs();
-	public:
-		void reset();
-	};
 
 	AutoHistogram m_ah;
 
-	TargetMedian* m_tgt_median;
+	GroupBox* m_tgt_med_gb;
+	CheckBox* m_target_enable_cb;
+	CheckBox* m_target_rgb_cb;
+	ComboBox* m_stretch_combo;
+	DoubleLineEdit* m_target_red_le;
+	Slider* m_target_red_slider;
+	DoubleLineEdit* m_target_green_le;
+	Slider* m_target_green_slider;
+	DoubleLineEdit* m_target_blue_le;
+	Slider* m_target_blue_slider;
 
-	HistogramClipping* m_hist_clip;
 
-	QCheckBox* m_target_median_cb;
-	QCheckBox* m_histogram_clipping_cb;
+	GroupBox* m_hist_clip_gb;
+	CheckBox* m_hist_enable_cb;
+	CheckBox* m_hist_rgb_cb;
+	GroupBox* m_shadow_gb;
+	DoubleLineEdit* m_shadow_red_le;
+	Slider* m_shadow_red_slider;
+	DoubleLineEdit* m_shadow_green_le;
+	Slider* m_shadow_green_slider;
+	DoubleLineEdit* m_shadow_blue_le;
+	Slider* m_shadow_blue_slider;
 
+	GroupBox* m_highlight_gb;
+	DoubleLineEdit* m_highlight_red_le;
+	Slider* m_highlight_red_slider;
+	DoubleLineEdit* m_highlight_green_le;
+	Slider* m_highlight_green_slider;
+	DoubleLineEdit* m_highlight_blue_le;
+	Slider* m_highlight_blue_slider;
 
 public:
 	AutoHistogramDialog(QWidget* parent);
 
 private:
-	void onClicked_tergetMedian(bool v);
 
-	void onClicked_histogramClipping(bool v);
+	void addTargetMedianInputs();
+
+	void addTargetMedianInputs_Red();
+
+	void addTargetMedianInputs_Green();
+
+	void addTargetMedianInputs_Blue();
+
+	void joinTargetMedian(bool v);
+
+	void updateJoinedTarget();
+
+	void addHistogramClippingInputs();
+
+	void addHistogramClippingInputs_ShadowRed();
+
+	void addHistogramClippingInputs_ShadowGreen();
+
+	void addHistogramClippingInputs_ShadowBlue();
+
+	void addHistogramClippingInputs_HighlightRed();
+
+	void addHistogramClippingInputs_HighlightGreen();
+
+	void addHistogramClippingInputs_HighlightBlue();
+
+	void joinHistogramClipping(bool v);
+
+	void updateJoinedHistogramClipping();
 
 	void showPreview();
 

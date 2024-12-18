@@ -2,11 +2,12 @@
 #include "Image.h"
 #include "ProcessDialog.h"
 #include "RGBColorSpace.h"
+#include "Statistics.h"
 
 class HistogramTransformation {
 
-	struct MTFCurve {
-	private:
+	class MTFCurve {
+
 		float m_shadow = 0;
 		float m_midtone = 0.5;
 		float m_highlights = 1.0;
@@ -24,21 +25,31 @@ class HistogramTransformation {
 
 		bool IsIdentity() { return (m_shadow == 0.0 && m_midtone == 0.5 && m_highlights == 1.0); }
 
-		float Shadow() const { return m_shadow; }
+		float shadow() const { return m_shadow; }
 
-		float Midtone() const { return m_midtone; }
+		void setShadow(float shadow) {
+			m_shadow = shadow;
+			dv = 1.0 / (m_highlights - m_shadow);
+		}
 
-		float Highlight() const { return m_highlights; }
+		float midtone() const { return m_midtone; }
 
-		void setShadow(float shadow);
+		void setMidtone(float midtone) {
+			m_midtone = midtone;
+			m1 = m_midtone - 1;
+			m2 = 2 * m_midtone - 1;
+		}
 
-		void setMidtone(float midtone);
+		float highlight() const { return m_highlights; }
 
-		void setHighlight(float hightlight);
-	
-		float MTF(float pixel);
+		void setHighlight(float hightlight) {
+			m_highlights = hightlight;
+			dv = 1.0 / (m_highlights - m_shadow);
+		}
 
-		float TransformPixel(float pixel);
+		float MTF(float pixel)const;
+
+		float transformPixel(float pixel)const;
 
 		void Generate16Bit_LUT();
 
@@ -51,6 +62,7 @@ class HistogramTransformation {
 private:
 	std::array<MTFCurve, 4> m_hist_curves;
 
+public:
 	MTFCurve& operator[](ColorComponent comp) {
 		return m_hist_curves[int(comp)];
 	}
@@ -59,34 +71,45 @@ private:
 		return m_hist_curves[int(comp)];
 	}
 
-public:
 	HistogramTransformation() = default;
 
-	float Shadow(ColorComponent component) const;
+	float shadow(ColorComponent component)const {
+		return (*this)[component].shadow();
+	}
 
-	float Midtone(ColorComponent component) const;
+	void setShadow(ColorComponent component, float shadow) {
+		(*this)[component].setShadow(shadow);
+	}
 
-	float Highlight(ColorComponent component) const;
+	float midtone(ColorComponent component)const {
+		return (*this)[component].midtone();
+	}
 
-	void setShadow(ColorComponent component, float shadow);
+	void setMidtone(ColorComponent component, float midtone) {
+		(*this)[component].setMidtone(midtone);
+	}
 
-	void setMidtone(ColorComponent component, float midtone);
+	float highlight(ColorComponent component)const {
+		return (*this)[component].highlight();
+	}
 
-	void setHighlight(ColorComponent component, float hightlight);
+	void setHighlight(ColorComponent component, float highlight) {
+		(*this)[component].setHighlight(highlight);
+	}
 
-	float TransformPixel(ColorComponent component, float pixel);
+	float transformPixel(ColorComponent component, float pixel)const;
 
 	static float MTF(float pixel, float midtone);
 
 	template<typename T>
-	void ComputeSTFCurve(Image<T>& img);
-
-	template<typename T>
-	void STFStretch(Image<T>& img);
+	void computeSTFCurve(const Image<T>& img);
 
 	template<typename T>
 	void Apply(Image<T>& img);
 };
+
+
+
 
 
 
@@ -95,6 +118,8 @@ class HistogramSlider : public QSlider {
 
 private:
 	int click_x = 0;
+
+	QStyleOptionSlider m_trackbar;
 
 	QStyleOptionSlider m_shadow;
 	bool m_shadow_act = false;
@@ -108,16 +133,18 @@ private:
 	int max_val = 400;
 	double m_med = .5;
 
+	QColor m_brush = Qt::white;
+
 public:
 	HistogramSlider(Qt::Orientation orientation, QWidget* parent);
 
 signals:
 
-	void sliderMoved_shadow(int value);
+	void sliderMoved_shadow(int pos);
 
-	void sliderMoved_midtone(int value);
+	void sliderMoved_midtone(int pos);
 
-	void sliderMoved_highlight(int value);
+	void sliderMoved_highlight(int pos);
 
 public:
 
@@ -125,18 +152,19 @@ public:
 
 	int sliderPosition_shadow()const;
 
-	void setSliderPosition_shadow(int pos);
+	void setSliderPosition_Shadow(int pos);
 
 	int sliderPosition_midtone()const;
 
-	void setSliderPosition_midtone(int pos);
+	void setSliderPosition_Midtone(int pos);
 
 	int sliderPosition_highlight()const;
 
-	void setSliderPosition_highlight(int pos);
+	void setSliderPosition_Highlight(int pos);
 
 	void resetSliderPositions();
 
+	void setHandleColor(QColor brush) { m_brush = brush; }
 private:
 	void mousePressEvent(QMouseEvent* event);
 
@@ -144,8 +172,38 @@ private:
 	
 	void paintEvent(QPaintEvent* event);
 
+	void drawHandle(const QRect& rect, const QStyleOptionSlider& opt, QPainter& p);
+
 	void AddStyleSheet();
 };
+
+
+
+
+
+class HistogramTransformationView : public HistogramView {
+
+	HistogramTransformation* m_ht = nullptr;
+	QGraphicsPathItem* m_mtf_curve = nullptr;
+
+public:
+	HistogramTransformationView(HistogramTransformation& ht, const QSize& size, QWidget* parent = nullptr);
+
+	QGraphicsPathItem* mtfCurve()const { return m_mtf_curve; }
+
+	void drawScene();
+
+	void clearScene(bool draw_grid = true)override;
+
+	void resetScene();
+
+	void drawMTFCurve();
+private:
+	void wheelEvent(QWheelEvent* e) {}
+};
+
+
+
 
 
 
@@ -153,32 +211,23 @@ class HistogramTransformationDialog : public ProcessDialog {
 	Q_OBJECT
 
 	HistogramTransformation m_ht;
+	HistogramTransformationView* m_htv = nullptr;
+
 	ColorComponent m_current_comp = ColorComponent::rgb_k;
+	const std::array<QColor, 4> m_colors = { Qt::red,Qt::green,Qt::blue,Qt::white };
 
-	HistogramSlider* m_histogram_slider;
+	HistogramSlider* m_histogram_slider = nullptr;
 
-	QGraphicsPathItem* m_mtf_curve = nullptr;
-	QPushButton* m_mtf_curve_pb;
+	CheckablePushButton* m_mtf_curve_pb = nullptr;
 
-	QLabel* m_shadow_label;
-	DoubleLineEdit* m_shadow_le;
+	DoubleLineEdit* m_shadow_le = nullptr;
+	DoubleLineEdit* m_midtone_le = nullptr;
+	DoubleLineEdit* m_highlight_le = nullptr;
 
-	QLabel* m_midtone_label;
-	DoubleLineEdit* m_midtone_le;
 
-	QLabel* m_highlight_label;
-	DoubleLineEdit* m_highlight_le;
-
-	QGraphicsView* m_gv;
-	QGraphicsScene* m_gs;
-
-	std::array<QPen,4> m_pens = { QColor(255,0,0),QColor(0,255,0),QColor(0,0,255) ,QColor(255,255,255) };
-
-	QComboBox* m_image_sel;
-
-	QButtonGroup* m_component_bg; 
-	int m_current_hist_res = 16;
-	
+	ComboBox* m_image_sel = nullptr;
+	QButtonGroup* m_component_bg = nullptr; 
+	ComboBox* m_hist_res_combo = nullptr;
 
 public:
 	HistogramTransformationDialog(QWidget* parent = nullptr);
@@ -188,10 +237,6 @@ private:
 
 	void onWindowClose();
 
-	void onButtonPress(bool val) {
-		m_mtf_curve->setVisible(val);
-	}
-
 private:
 	void onClick(int id);
 	
@@ -199,36 +244,25 @@ private:
 
 	void onActivation_resolution(int index);
 
-	void sliderMoved_shadow(int value);
+	void sliderMoved_shadow(int pos);
 
-	void sliderMoved_midtone(int value);
+	void sliderMoved_midtone(int pos);
 
-	void sliderMoved_highlight(int value);
+	void sliderMoved_highlight(int pos);
 
 	void editingFinished_smh();
 
-	void resetScene();
+	void addHistogramSlider();
 
-	void addGrid();
+	void addChannelSelection();
 
-	void AddHistogramChart();
+	void addLineEdits();
 
-	template<typename T>
-	void showHistogram(Image<T>& img);
+	void addImageSelectionCombo();
 
-	void showMTFCurve();
+	void addMTFPushButton();
 
-	void AddHistogramSlider();
-
-	void AddChannelSelection();
-
-	void AddLineEdits();
-
-	void AddImageSelectionCombo();
-
-	void AddMTFPushButton();
-
-	void AddResolutionCombo();
+	void addResolutionCombo();
 
 	void resetDialog();
 

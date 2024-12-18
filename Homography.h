@@ -2,17 +2,15 @@
 #include "Matrix.h"
 #include "Star.h"
 
-class Homography
-{
-	Matrix m_homography = Matrix(3, 3);
+class Homography {
 
 	//random number vector generator
-	std::vector<int> RNVG(int max_num);
+	static std::vector<int> RNVG(int max_num);
 
-	void InitialHomography(const StarPairVector& spv);
+	static Matrix computeInitialHomography(const StarPairVector& spv);
 
-	void FinalHomography(const StarPairVector& spv);
+	static Matrix computeFinalHomography(const StarPairVector& spv);
 
 public:
-	Matrix ComputeHomography(const StarPairVector& starpairs);
+	static Matrix computeHomography(const StarPairVector& starpairs);
 };

@@ -3,42 +3,43 @@
 #include "BilateralFilter.h"
 
 template<typename T>
-void BilateralFilter::Apply(Image<T>& img) {
+void BilateralFilter::apply(Image<T>& img) {
 
-	int kernel_radius = (m_kernel_dim - 1) / 2;
+	int radius = (m_kernel_dim - 1) / 2;
 
-	Image<T> temp(img);
+	Image<T> temp(img.rows(), img.cols(), img.channels());
 
-	float k = 1 / (2 * m_sigma * m_sigma);
-	float k_r = 1 / (2 * m_sigma_range * m_sigma_range);
+	float k_s = 1 / (2 * m_sigma_s * m_sigma_s);
+	float k_r = 1 / (2 * m_sigma_r * m_sigma_r);
 
+	FloatKernel gaussian(m_kernel_dim);
 
-	std::vector<float> gk((2 * kernel_radius + 1) * (2 * kernel_radius + 1));
-
-	for (int j = -kernel_radius, el = 0; j <= kernel_radius; ++j)
-		for (int i = -kernel_radius; i <= kernel_radius; ++i)
-			gk[el++] = -k * ((j * j) + (i * i));
+	for (int j = -radius; j <= radius; ++j)
+		for (int i = -radius; i <= radius; ++i)
+			gaussian(i + radius, j + radius) = -k_s * ((j * j) + (i * i));
 
 	int sum = 0;
+	FloatKernel kernel(m_kernel_dim);
 
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y) {
+	for (uint32_t ch = 0; ch < img.channels(); ++ch) {
+#pragma omp parallel for firstprivate(kernel)
+		for (int y = 0; y < img.rows(); ++y) {
 
-			FloatKernel2D kernel(img, kernel_radius);
-			kernel.Populate(y, ch);
+			kernel.populate(img, { 0,y,ch });
 
-			for (int x = 0; x < img.Cols(); ++x) {
+			for (int x = 0; x < img.cols(); ++x) {
 
 				if (x != 0)
-					kernel.Update(x, y, ch);
+					kernel.update(img, { x,y,ch });
 
 				float sum = 0.0f;
 				float weight = 0.0f;
+				float pixel = Pixel<float>::toType(img(x, y, ch));
 
-				for (int el = 0; el < kernel.m_size; ++el) {
-					float d = Pixel<float>::toType(img(x, y, ch)) - kernel[el];
-					float w = exp(gk[el] - (k_r * d * d));
+				for (int el = 0; el < kernel.count(); ++el) {
+					float d = pixel - kernel[el];
+					float d2 = d * d;
+					float w = exp(gaussian[el] - (k_r * (d2 + d2)));
 					weight += w;
 					sum += w * kernel[el];
 				}
@@ -46,21 +47,74 @@ void BilateralFilter::Apply(Image<T>& img) {
 				temp(x, y, ch) = Pixel<T>::toType(sum / weight);
 
 			}
-#pragma omp atomic
-			++sum;
+//#pragma omp atomic
+			//++sum;
 
-			if (omp_get_thread_num() == 0)
-				m_ps->emitProgress((sum * 100) / (img.Rows() * img.Channels()));
+			//if (omp_get_thread_num() == 0)
+				//m_ps->emitProgress((sum * 100) / (img.rows() * img.channels()));
 		}
 	}
 
-	m_ps->emitProgress(100);
+	//m_ps->emitProgress(100);
 
-	temp.MoveTo(img);
+	temp.moveTo(img);
 }
-template void BilateralFilter::Apply(Image8&);
-template void BilateralFilter::Apply(Image16&);
-template void BilateralFilter::Apply(Image32&);
+template void BilateralFilter::apply(Image8&);
+template void BilateralFilter::apply(Image16&);
+template void BilateralFilter::apply(Image32&);
+
+template<typename T>
+void BilateralFilter::applyTo(const Image<T>& src, Image<T>& dst, int factor) {
+
+	factor = Max(factor, 1);
+
+	int radius = (m_kernel_dim - 1) / 2;
+
+	if (dst.rows() != src.rows() / factor || dst.cols() != src.cols() / factor || dst.channels() != src.channels())
+		dst = Image<T>(src.rows() / factor, src.cols() / factor, src.channels());
+
+	float k_s = 1 / (2 * m_sigma_s * m_sigma_s);
+	float k_r = 1 / (2 * m_sigma_r * m_sigma_r);
+
+	FloatKernel gaussian(m_kernel_dim);
+
+	for (int j = -radius; j <= radius; ++j)
+		for (int i = -radius; i <= radius; ++i)
+			gaussian(i + radius, j + radius) = -k_s * ((j * j) + (i * i));
+
+	int sum = 0;
+	FloatKernel kernel(m_kernel_dim);
+
+	for (uint32_t ch = 0; ch < dst.channels(); ++ch) {
+#pragma omp parallel for firstprivate(kernel), num_threads(2)
+		for (int y = 0; y < dst.rows(); ++y) {
+			int y_s = y * factor;
+
+			for (int x = 0; x < dst.cols(); ++x) {
+				int x_s = x * factor;
+
+				kernel.populate(src, { x_s,y_s,ch });
+
+				float sum = 0.0f;
+				float weight = 0.0f;
+				float pixel = Pixel<float>::toType(src(x_s, y_s, ch));
+
+				for (int el = 0; el < kernel.count(); ++el) {
+					float d = pixel - kernel[el];
+					float d2 = d * d;
+					float w = exp(gaussian[el] - (k_r * (d2 + d2)));
+					weight += w;
+					sum += w * kernel[el];
+				}
+
+				dst(x, y, ch) = Pixel<T>::toType(sum / weight);
+			}
+		}
+	}
+}
+template void BilateralFilter::applyTo(const Image8&, Image8&, int);
+template void BilateralFilter::applyTo(const Image16&, Image16&, int);
+template void BilateralFilter::applyTo(const Image32&, Image32&, int);
 
 
 
@@ -68,164 +122,174 @@ template void BilateralFilter::Apply(Image32&);
 
 
 
+BilateralFilterDialog::BilateralFilterDialog(QWidget* parent) : ProcessDialog("BilateralFilter", QSize(470, 165), FastStack::recast(parent)->workspace()) {
 
+	setTimer(750, this, &BilateralFilterDialog::applytoPreview);
 
-BilateralFilterDialog::BilateralFilterDialog(QWidget* parent) : ProcessDialog("BilateralFilter", QSize(470, 140), *reinterpret_cast<FastStack*>(parent)->workspace(), parent) {
+	connect(this, &ProcessDialog::processDropped, this, &BilateralFilterDialog::apply);
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &BilateralFilterDialog::apply, &BilateralFilterDialog::showPreview, &BilateralFilterDialog::resetDialog);
 
-	setTimer(250, this, &BilateralFilterDialog::ApplytoPreview);
+	addSigmaInputs();
+	addSigmaIntensityInputs();
+	addKernelSizeInputs();
 
-	connect(this, &ProcessDialog::processDropped, this, &BilateralFilterDialog::Apply);
-	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &BilateralFilterDialog::Apply, &BilateralFilterDialog::showPreview, &BilateralFilterDialog::resetDialog);
+	this->show();
+}
 
-	AddSigmaInputs();
-	AddSigmaIntensityInputs();
+void BilateralFilterDialog::addSigmaInputs() {
 
-	m_kerenl_size_cb = new QComboBox(this);
+	m_sigma_s_le = new DoubleLineEdit(new DoubleValidator(0.10, 24.0, 2), this);
+	m_sigma_s_le->setValue(m_bf.sigmaSpatial());
+	m_sigma_s_le->setFixedWidth(50);
+	m_sigma_s_le->move(140, 15);
+	m_sigma_s_le->addLabel(new QLabel("StdDev Spatial:   ", this));
+
+	m_sigma_s_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_s_slider->setRange(1, 240);
+	m_sigma_s_slider->setFixedWidth(240);
+	m_sigma_s_slider->setValue(m_bf.sigmaSpatial() * 10);
+	m_sigma_s_le->addSlider(m_sigma_s_slider);
+
+	auto action = [this](int) {
+		float sigma = m_sigma_s_slider->sliderPosition() / 10.0;
+		m_sigma_s_le->setValue(sigma);
+		m_bf.setSigmaSpatial(sigma);
+		startTimer();
+	};
+
+	auto edited = [this]() {
+		float sigma = m_sigma_s_le->valuef();
+		m_bf.setSigmaSpatial(sigma);
+		m_sigma_s_slider->setValue(sigma * 10);
+		applytoPreview();
+	};
+
+	connect(m_sigma_s_slider, &QSlider::actionTriggered, this, action);
+	connect(m_sigma_s_le, &QLineEdit::editingFinished, this, edited);
+}
+
+void BilateralFilterDialog::addSigmaIntensityInputs() {
+
+	m_sigma_r_le = new DoubleLineEdit(new DoubleValidator(0.01, 1.0, 2), this);
+	m_sigma_r_le->setValue(m_bf.sigmaRange());
+	m_sigma_r_le->setFixedWidth(50);
+	m_sigma_r_le->move(140, 55);
+	m_sigma_r_le->addLabel(new QLabel("StdDev Range:   ", this));
+
+	m_sigma_r_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_r_slider->setRange(1, 100);
+	m_sigma_r_slider->setFixedWidth(240);
+	m_sigma_r_slider->setValue(m_bf.sigmaRange() * 100);
+	m_sigma_r_le->addSlider(m_sigma_r_slider);
+
+	auto action = [this](int) {
+		float sigmaI = m_sigma_r_slider->sliderPosition() / 100.0;
+		m_sigma_r_le->setValue(sigmaI);
+		m_bf.setSigmaRange(sigmaI);
+		startTimer();
+	};
+
+	auto edited = [this]() {
+		float sigmaI = m_sigma_r_le->valuef();
+		m_bf.setSigmaRange(sigmaI);
+		m_sigma_r_slider->setValue(sigmaI * 100);
+		applytoPreview();
+	};
+
+	connect(m_sigma_r_slider, &QSlider::actionTriggered, this, action);
+	connect(m_sigma_r_le, &QLineEdit::editingFinished, this, edited);
+}
+
+void BilateralFilterDialog::addKernelSizeInputs() {
+	m_kernel_size_cb = new ComboBox(this);
 
 	for (int i = 3; i <= 15; i += 2) {
 
 		QString d = QString::number(i);
 		QString t = QString::number(i * i);
-		m_kerenl_size_cb->addItem(d + "x" + d + " (" + t + " elements)");
+		m_kernel_size_cb->addItem(d + "x" + d + " (" + t + " elements)");
 	}
-	//kernel dim = 3 + index * 2
-	m_kerenl_size_cb->resize(175, 20);
-	m_kerenl_size_cb->move(140, 85);
 
-	connect(m_kerenl_size_cb, &QComboBox::activated, this, &BilateralFilterDialog::onActivation_ks);
+	m_kernel_size_cb->move(180, 100);
+	m_kernel_size_cb->addLabel(new QLabel("Kernel Size:   ", this));
 
-	this->show();
+	auto activation = [this](int index) {
+		m_bf.setKernelSize(3 + 2 * index);
+		applytoPreview();
+	};
+
+	connect(m_kernel_size_cb, &QComboBox::activated, this, activation);
 }
-
-void BilateralFilterDialog::onActionTriggered_sigma(int action) {
-	float sigma = m_sigma_slider->sliderPosition() / 10.0;
-	m_sigma_le->setValue(sigma);
-	m_bf.setSigma(sigma);
-	startTimer();
-}
-
-void BilateralFilterDialog::onActionTriggered_sigmaIntensity(int action) {
-	float sigmaR = m_sigma_intensity_slider->sliderPosition() / 10.00;
-	m_sigma_intensity_le->setValue(sigmaR);
-	m_bf.setSigmaRange(sigmaR);
-	startTimer();
-}
-
-void BilateralFilterDialog::AddSigmaInputs() {
-
-	m_sigma_le = new DoubleLineEdit(new DoubleValidator(0.10, 24.0, 2), this);
-	m_sigma_le->setValue(m_bf.Sigma());
-	m_sigma_le->setFixedWidth(50);
-	m_sigma_le->move(140, 10);
-	m_sigma_le->addLabel(new QLabel("StdDev Spatial:   ", this));
-
-	m_sigma_slider = new QSlider(Qt::Horizontal, this);
-	m_sigma_slider->setRange(1, 240);
-	m_sigma_slider->setFixedWidth(240);
-	m_sigma_slider->setValue(m_bf.Sigma() * 10);
-	m_sigma_le->addSlider(m_sigma_slider);
-
-	connect(m_sigma_slider, &QSlider::sliderMoved, this, &BilateralFilterDialog::onActionTriggered_sigma);
-}
-
-void BilateralFilterDialog::AddSigmaIntensityInputs() {
-
-	m_sigma_intensity_le = new DoubleLineEdit(new DoubleValidator(0.10, 24.0, 2), this);
-	m_sigma_intensity_le->setValue(m_bf.SigmaRange());
-	m_sigma_intensity_le->setFixedWidth(50);
-	m_sigma_intensity_le->move(140, 45);
-	m_sigma_intensity_le->addLabel(new QLabel("StdDev Intensity:   ", this));
-
-	m_sigma_intensity_slider = new QSlider(Qt::Horizontal, this);
-	m_sigma_intensity_slider->move(205, 50);
-	m_sigma_intensity_slider->setRange(1, 240);
-	m_sigma_intensity_slider->setFixedWidth(240);
-	m_sigma_intensity_slider->setValue(m_bf.SigmaRange() * 10);
-	connect(m_sigma_intensity_slider, &QSlider::sliderMoved, this, &BilateralFilterDialog::onActionTriggered_sigmaIntensity);
-}
-
-void BilateralFilterDialog::onActivation_ks(int index) {
-	m_bf.setKernelSize(3 + 2 * index);
-	ApplytoPreview();
-}
-
 
 void BilateralFilterDialog::resetDialog() {
 
 	m_bf = BilateralFilter();
 
-	m_sigma_le->setValue(m_bf.Sigma());
-	m_sigma_slider->setSliderPosition(m_bf.Sigma() * 10);
+	m_sigma_s_le->setValue(m_bf.sigmaSpatial());
+	m_sigma_s_slider->setSliderPosition(m_bf.sigmaSpatial() * 10);
 
-	m_sigma_intensity_le->setValue(m_bf.SigmaRange());
-	m_sigma_intensity_slider->setSliderPosition(m_bf.SigmaRange() * 10);
+	m_sigma_r_le->setValue(m_bf.sigmaRange());
+	m_sigma_r_slider->setSliderPosition(m_bf.sigmaRange() * 10);
 
-	m_kerenl_size_cb->setCurrentIndex(0);
+	m_kernel_size_cb->setCurrentIndex(0);
 }
 
 void BilateralFilterDialog::showPreview() {
 	ProcessDialog::showPreview();
-	ApplytoPreview();
+	applytoPreview();
 }
 
-void BilateralFilterDialog::Apply() {
+void BilateralFilterDialog::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
 	setEnabledAll(false);
 
-	std::unique_ptr<ProgressDialog> pd(std::make_unique<ProgressDialog>(m_bf.progressSignal()));
+	//std::unique_ptr<ProgressDialog> pd(std::make_unique<ProgressDialog>(m_bf.progressSignal()));
 
 	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-	//m_bf.setSigma(m_sigma_le->text().toFloat());
-	m_bf.setKernelSize(3 + 2 * m_kerenl_size_cb->currentIndex());
-
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		iwptr->UpdateImage(m_bf, &BilateralFilter::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		iwptr->applyToSource(m_bf, &BilateralFilter::apply);
 		break;
 	}
-	case 16: {
+	case ImageType::USHORT: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->UpdateImage(m_bf, &BilateralFilter::Apply);
+		iw16->applyToSource(m_bf, &BilateralFilter::apply);
 		break;
 	}
-	case -32: {
+	case ImageType::FLOAT: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->UpdateImage(m_bf, &BilateralFilter::Apply);
+		iw32->applyToSource(m_bf, &BilateralFilter::apply);
 		break;
 	}
 	}
 
 	setEnabledAll(true);
 
-	ApplytoPreview();
+	applytoPreview();
 }
 
-void BilateralFilterDialog::ApplytoPreview() {
+void BilateralFilterDialog::applytoPreview() {
 
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = previewRecast(m_preview);
 
-	//m_bf.setSigma(m_sigma_le->text().toFloat() / iwptr->IdealZoomFactor());
-	m_bf.setKernelSize((3 + 2 * m_kerenl_size_cb->currentIndex())/ iwptr->IdealZoomFactor());
-
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
-		return iw8->UpdatePreview(m_bf, &BilateralFilter::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		return iwptr->updatePreview(m_bf, &BilateralFilter::applyTo);
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
-		return iw16->UpdatePreview(m_bf, &BilateralFilter::Apply);
+	case ImageType::USHORT: {
+		auto iw16 = previewRecast<uint16_t>(iwptr);
+		return iw16->updatePreview(m_bf, &BilateralFilter::applyTo);
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
-		return iw32->UpdatePreview(m_bf, &BilateralFilter::Apply);
+	case ImageType::FLOAT: {
+		auto iw32 = previewRecast<float>(iwptr);
+		iw32->updatePreview(m_bf, &BilateralFilter::applyTo);
 	}
 	}
 }

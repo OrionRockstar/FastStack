@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "Image.h"
 
 class FITSWindow : public QDialog {
     Q_OBJECT
@@ -12,10 +13,10 @@ class FITSWindow : public QDialog {
     QRadioButton* bd32;
     QPushButton* save;
 
-    int new_bitdepth = 8;
+    ImageType m_type =ImageType::UBYTE;
 
 public:
-    FITSWindow(QWidget* parent, int bitdepth) : QDialog(parent), new_bitdepth(bitdepth) {
+    FITSWindow(ImageType type, QWidget* parent) : m_type(type), QDialog(parent) {
         //window = new QDialog(this);
         layout = new QVBoxLayout(this);
         //window->setWindowIcon
@@ -35,14 +36,14 @@ public:
         bd32->setText("32-bit floating point");
         layout->addWidget(bd32);
 
-        switch (bitdepth) {
-        case 8:
+        switch (type) {
+        case ImageType::UBYTE:
             bd8->setChecked(true);
             break;
-        case 16:
+        case ImageType::USHORT:
             bd16->setChecked(true);
             break;
-        case -32:
+        case ImageType::FLOAT:
             bd32->setChecked(true);
             break;
         }
@@ -51,9 +52,9 @@ public:
         save->setText("Save");
         layout->addWidget(save);
 
-        connect(bd8, &QRadioButton::toggled, this, &FITSWindow::setBitdepth8);
-        connect(bd16, &QRadioButton::toggled, this, &FITSWindow::setBitdepth16);
-        connect(bd32, &QRadioButton::toggled, this, &FITSWindow::setBitdepth32);
+        connect(bd8, &QRadioButton::toggled, this, [this]() { m_type = ImageType::UBYTE; });
+        connect(bd16, &QRadioButton::toggled, this, [this]() { m_type = ImageType::USHORT; });
+        connect(bd32, &QRadioButton::toggled, this, [this]() { m_type = ImageType::FLOAT; });
 
         connect(save, &QPushButton::pressed, this, &FITSWindow::saveImage);
 
@@ -62,27 +63,13 @@ public:
         this->show();
     }
 
-private slots:
-    void setBitdepth8() { new_bitdepth = 8; }
-
-    void setBitdepth16() { new_bitdepth = 16; }
-
-    void setBitdepth32() { new_bitdepth = -32; }
-
     void saveImage() {
         this->accept();
     }
 
-
-signals:
-
-    void setBitdepth();
-
 public:
 
-    int getNewBitdepth() {
-        return new_bitdepth;
-    }
+    ImageType imageType()const { return m_type; }
 
 };
 
@@ -90,7 +77,6 @@ public:
 class TIFFWindow : public QDialog {
     Q_OBJECT
 
-        QDialog* window;
     QVBoxLayout* layout;
 
     QRadioButton* bd8;
@@ -99,18 +85,15 @@ class TIFFWindow : public QDialog {
     QCheckBox* planar;
     QPushButton* save;
 
-    int new_bitdepth = 8;
+    ImageType m_type = ImageType::UBYTE;
     bool planar_contig = true;
 
 public:
-    TIFFWindow(int bitdepth) : new_bitdepth(bitdepth) {
-        window = new QDialog;
+    TIFFWindow(ImageType type, QWidget* parent) : m_type(type), QDialog(this)  {
         layout = new QVBoxLayout;
 
-        //window->setWindowIcon
-
-        window->resize(200, 100);
-        window->setWindowTitle("FITS Save Options");
+        this->resize(200, 100);
+        this->setWindowTitle("FITS Save Options");
 
         bd8 = new QRadioButton;
         bd8->setText("8-bit unsigned int");
@@ -129,14 +112,14 @@ public:
         layout->addWidget(planar);
         planar->setCheckState(Qt::CheckState::Checked);
 
-        switch (bitdepth) {
-        case 8:
+        switch (m_type) {
+        case ImageType::UBYTE:
             bd8->setChecked(true);
             break;
-        case 16:
+        case ImageType::USHORT:
             bd16->setChecked(true);
             break;
-        case -32:
+        case ImageType::FLOAT:
             bd32->setChecked(true);
             break;
         }
@@ -145,51 +128,18 @@ public:
         save->setText("Save");
         layout->addWidget(save);
 
-        connect(bd8, &QRadioButton::toggled, this, &TIFFWindow::setBitdepth8);
-        connect(bd16, &QRadioButton::toggled, this, &TIFFWindow::setBitdepth16);
-        connect(bd32, &QRadioButton::toggled, this, &TIFFWindow::setBitdepth32);
-        connect(planar, &QCheckBox::stateChanged, this, &TIFFWindow::setPlanar);
+        connect(bd8, &QRadioButton::toggled, this, [this]() {m_type = ImageType::UBYTE; });
+        connect(bd16, &QRadioButton::toggled, this, [this]() {m_type = ImageType::UBYTE; });
+        connect(bd32, &QRadioButton::toggled, this, [this]() {m_type = ImageType::UBYTE; });
+        connect(planar, &QCheckBox::clicked, this, [this](bool v) { planar_contig = v; });
+        connect(save, &QPushButton::pressed, this, [this]() { this->accept(); });
 
-        connect(save, &QPushButton::pressed, this, &TIFFWindow::saveImage);
-        connect(window, &QDialog::finished, this, &TIFFWindow::done);
-
-        window->setLayout(layout);
+        this->setLayout(layout);
+        this->setAttribute(Qt::WA_DeleteOnClose);
     }
 
-private slots:
-    void setBitdepth8() { new_bitdepth = 8; }
+    ImageType imageType() { return m_type; }
 
-    void setBitdepth16() { new_bitdepth = 16; }
-
-    void setBitdepth32() { new_bitdepth = -32; }
-
-    void setPlanar(int state) {
-        if (state == Qt::CheckState::Checked)
-            planar_contig = true;
-        else
-            planar_contig = false;
-    }
-
-    void saveImage() {
-        window->accept();
-    }
-
-    void done(int r) {
-        delete this;
-    }
-
-signals:
-
-    void setBitdepth();
-
-public:
-
-    virtual int exec() { return window->exec(); }
-
-    int getNewBitdepth() {
-        return new_bitdepth;
-    }
-
-    bool getPlanarContig() { return planar_contig; }
+    bool planarContig() { return planar_contig; }
 
 };

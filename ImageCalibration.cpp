@@ -5,81 +5,82 @@
 #include "FastStack.h"
 //#include "ImageStackingDialog.h"
 
-void ImageCalibration::setMasterDark(std::filesystem::path path) {
+void ImageCalibrator::loadMasterDark() {
 
-	if (!std::filesystem::exists(path))
+	if (m_master_dark.exists() || !m_apply_dark || !std::filesystem::exists(m_dark_path))
 		return;
 
-	std::string ext = path.extension().string();
-
-	if (ext == ".fit" || ext == ".fits" || ext == ".fts") {
+	if (FITS::isFITS(m_dark_path)) {
 		FITS fits;
-		fits.Open(path);
-		fits.ReadAny(m_master_dark);
+		fits.open(m_dark_path);
+		fits.readAny(m_master_dark);
 	}
 
-	else if (ext == ".tif" || ext == ".tiff") {
+	else if (TIFF::isTIFF(m_dark_path)) {
 		TIFF tiff;
-		tiff.Open(path);
-		tiff.ReadAny(m_master_dark);
+		tiff.open(m_dark_path);
+		tiff.readAny(m_master_dark);
 	}
 
 	else
 		return;
 }
 
-void ImageCalibration::setMasterFlat(std::filesystem::path path) {
+void ImageCalibrator::loadMasterFlat() {
 
-	if (!std::filesystem::exists(path))
+	if (m_master_flat.exists() || !m_apply_flat || !std::filesystem::exists(m_flat_path))
 		return;
 
-	std::string ext = path.extension().string();
-
-
-	if (ext == ".fit" || ext == ".fits" || ext == ".fts") {
+	if (FITS::isFITS(m_flat_path)) {
 		FITS fits;
-		fits.Open(path);
-		fits.ReadAny(m_master_flat);
+		fits.open(m_flat_path);
+		fits.readAny(m_master_flat);
 	}
 
-	else if (ext == ".tif" || ext == ".tiff") {
+	else if (TIFF::isTIFF(m_flat_path)) {
 		TIFF tiff;
-		tiff.Open(path);
-		tiff.ReadAny(m_master_flat);
+		tiff.open(m_flat_path);
+		tiff.readAny(m_master_flat);
 	}
 
 	else
 		return;
 
-	for (int ch = 0; ch < m_master_flat.Channels(); ++ch)
-		m_flat_mean[ch] = m_master_flat.ComputeMean(ch);
+	for (int ch = 0; ch < m_master_flat.channels(); ++ch)
+		m_flat_mean[ch] = m_master_flat.computeMean(ch);
 }
 
-void ImageCalibration::CalibrateImage(Image32& src) {
+
+void ImageCalibrator::calibrateImage(Image32& src) {
+
+	loadMasterDark();
+	loadMasterFlat();
 
 	bool dark = false, flat = false;
 
-	if (m_master_dark.Exists() && src.IsSameDim(m_master_dark))
+	if (m_apply_dark && m_master_dark.exists() && src.matches(m_master_dark))
 		dark = true;
 
-	if (m_master_flat.Exists() && src.IsSameDim(m_master_flat))
+	if (m_apply_flat && m_master_flat.exists() && src.matches(m_master_flat))
 		flat = true;
 
+	for (int ch = 0; ch < src.channels(); ++ch)
+
 	if (dark && flat) {
-		for (int ch = 0; ch < src.Channels(); ++ch)
+		for (int ch = 0; ch < src.channels(); ++ch)
 			for (auto s = src.begin(ch), d = m_master_dark.begin(ch), f = m_master_flat.begin(ch); s != src.end(ch); ++s, ++d, ++f)
 				*s = Clip(((*s - *d) * m_flat_mean[ch]) / *f);
 	}
 
 	else if (dark && !flat) {
-		for (int ch = 0; ch < src.Channels(); ++ch)
+		for (int ch = 0; ch < src.channels(); ++ch)
 			for (auto s = src.begin(ch), d = m_master_dark.begin(ch); s != src.end(ch); ++s, ++d)
 				*s = Clip(*s - *d);
 	}
 
 
 	else if (dark && !flat) {
-		for (int ch = 0; ch < src.Channels(); ++ch)
+		for (int ch = 0; ch < src.channels(); ++ch)
 			for (auto s = src.begin(ch), f = m_master_flat.begin(ch); s != src.end(ch); ++s, ++f)
 				*s = Clip((*s * m_flat_mean[ch]) / *f);
 	}
@@ -90,120 +91,195 @@ void ImageCalibration::CalibrateImage(Image32& src) {
 
 
 
-DarkTab::DarkTab(const QSize& size, QWidget* parent) : QWidget(parent) {
-	this->resize(size);
-	this->setAutoFillBackground(true);
-
-	m_dfs = new FileSelection(this);
-
-	QLabel* label = new QLabel("Integration Method: ", this);
-	label->move(10, 212);
-
-	m_integration_combo = new QComboBox(this);
-	m_integration_combo->addItems({ "Average", "Median", "Minimum", "Maximum" });
-	m_integration_combo->move(150, 210);
-	connect(m_integration_combo, &QComboBox::activated, [&](int index) { m_is.setIntegrationMethod(ImageStacking::Integration(index)); });
-}
-
-void DarkTab::Reset() {
-	m_is = ImageStacking();
-	m_dfs->onClearList();
-	m_integration_combo->setCurrentIndex(int(ImageStacking::Integration::average));
-}
-
-
-DarkFlatTab::DarkFlatTab(const QSize& size, QWidget* parent) : QWidget(parent) {
-	this->resize(size);
-	this->setAutoFillBackground(true);
-
-	m_dffs = new FileSelection(this);
-
-	QLabel* text = new QLabel("*Having one Dark Flat file implies that it is a master frame.", this);
-	text->move(10, 205);
-	QFont font;
-	font.setPointSize(8);
-	text->setFont(font);
-	
-
-	m_integration_combo = new QComboBox(this);
-	m_integration_combo->addItems({ "Average", "Median", "Minimum", "Maximum" });
-	m_integration_combo->move(10, 230);
-	connect(m_integration_combo, &QComboBox::activated, [&](int index) { m_is.setIntegrationMethod(ImageStacking::Integration(index)); });
-}
-
-void DarkFlatTab::Reset() {
-	m_is = ImageStacking();
-	m_dffs->onClearList();
-	m_integration_combo->setCurrentIndex(int(ImageStacking::Integration::average));
-}
-
-
-FlatTab::FlatTab(const QSize& size, QWidget* parent) : QWidget(parent) {
-	this->resize(size);
-	this->setAutoFillBackground(true);
-
-	m_ffs = new FileSelection(this);
-
-	m_integration_combo = new QComboBox(this);
-	m_integration_combo->addItems({ "Average", "Median", "Minimum", "Maximum" });
-	m_integration_combo->move(10, 210);
-	connect(m_integration_combo, &QComboBox::activated, [&](int index) { m_is.setIntegrationMethod(ImageStacking::Integration(index)); });
-}
-
-void FlatTab::Reset() {
-	m_is = ImageStacking();
-	m_ffs->onClearList();
-	m_integration_combo->setCurrentIndex(int(ImageStacking::Integration::average));
-}
-
-
-
-
-
 using CCD = CalibrationCombinationDialog;
-CCD::CalibrationCombinationDialog(QWidget* parent) :ProcessDialog("Calibration Combination", QSize(500, 400), *reinterpret_cast<FastStack*>(parent)->workspace(), parent, false) {
+CCD::FileSelectionGroupBox::FileSelectionGroupBox(QWidget * parent) : GroupBox(parent) {
+
+	this->setMinimumHeight(235);
+	this->setMinimumWidth(520);
+
+	addFileSelection();
+}
+
+void CCD::FileSelectionGroupBox::addFileSelection() {
+
+	m_file_list_view = new QListWidget(this);
+	m_file_list_view->move(15, 25);
+	m_file_list_view->resize(365, m_file_list_view->sizeHint().height());
+
+	QPalette p;
+	p.setBrush(QPalette::ColorRole::AlternateBase, QColor(69, 0, 169));
+
+	m_file_list_view->setPalette(p);
+	m_file_list_view->setAlternatingRowColors(true);
+
+	m_add_files_pb = new PushButton("Add Files", this);
+	m_add_files_pb->move(390, 25);
+	m_add_files_pb->setFixedWidth(m_button_width);
+
+	m_remove_file_pb = new PushButton("Remove Item", this);
+	m_remove_file_pb->move(390, 65);
+	m_remove_file_pb->setFixedWidth(m_button_width);
+
+	m_clear_list_pb = new PushButton("Clear List", this);
+	m_clear_list_pb->move(390, 105);
+	m_clear_list_pb->setFixedWidth(m_button_width);
+
+
+	auto addlightfiles = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+
+		for (auto file : file_paths)
+			m_file_list_view->addItem(QFileInfo(file).fileName());
+
+		for (int i = 0; i < file_paths.size(); ++i)
+			m_paths.push_back(file_paths[i].toStdString());
+	};
+
+	auto removefile = [this]() {
+
+		if (m_file_list_view->count() == 0)
+			return;
+
+		int index = m_file_list_view->currentIndex().row();
+
+		if (index == -1)
+			index += m_paths.size();
+
+		m_file_list_view->takeItem(index);
+		m_paths.erase(m_paths.begin() + index);
+	};
+
+	auto clearlist = [this]() {
+		m_file_list_view->clear();
+		m_paths.clear();
+	};
+
+	connect(m_add_files_pb, &QPushButton::pressed, this, addlightfiles);
+	connect(m_remove_file_pb, &QPushButton::pressed, this, removefile);
+	connect(m_clear_list_pb, &QPushButton::pressed, this, clearlist);
+}
+
+void CCD::FileSelectionGroupBox::reset() {
+
+	m_clear_list_pb->pressed();
+}
+
+
+CCD::IntegrationGroupBox::IntegrationGroupBox(QWidget* parent) : GroupBox(parent) {
+
+	this->setMinimumHeight(150);
+	this->setMinimumWidth(520);
+
+	addDarkCombo();
+	addDarkFlatCombo();
+	addFlatCombo();
+}
+
+void CCD::IntegrationGroupBox::addDarkCombo() {
+
+	m_dark_combo = new ComboBox(this);
+	m_dark_combo->addItems(m_methods);
+	m_dark_combo->move(300, 25);
+	m_dark_combo->addLabel(new QLabel("Dark Integration Method:   ", this));
+	m_dark_combo->setCurrentIndex(int(m_dark_integration));
+
+	connect(m_dark_combo, &QComboBox::activated, this, [this](int index) { m_dark_integration = ImageStacking::Integration(index); });
+}
+
+void CCD::IntegrationGroupBox::addDarkFlatCombo() {
+
+	m_dflat_combo = new ComboBox(this);
+	m_dflat_combo->addItems(m_methods);
+	m_dflat_combo->move(300, 65);
+	m_dflat_combo->addLabel(new QLabel("Dark Flat Integration Method:   ", this));
+	m_dflat_combo->setCurrentIndex(int(m_dflat_integration));
+
+	connect(m_dflat_combo, &QComboBox::activated, this, [this](int index) { m_dflat_integration = ImageStacking::Integration(index); });
+}
+
+void CCD::IntegrationGroupBox::addFlatCombo() {
+
+	m_flat_combo = new ComboBox(this);
+	m_flat_combo->addItems(m_methods);
+	m_flat_combo->move(300, 105);
+	m_flat_combo->addLabel(new QLabel("Flat Integration Method:   ", this));
+	m_flat_combo->setCurrentIndex(int(m_flat_integration));
+
+	connect(m_flat_combo, &QComboBox::activated, this, [this](int index) { m_flat_integration = ImageStacking::Integration(index); });
+}
+
+void CCD::IntegrationGroupBox::reset() {
+
+	m_dark_integration = ImageStacking::Integration::median;
+	m_dflat_integration = ImageStacking::Integration::median;
+	m_flat_integration = ImageStacking::Integration::average;
+
+	m_dark_combo->setCurrentIndex(int(m_dark_integration));
+	m_dflat_combo->setCurrentIndex(int(m_dflat_integration));
+	m_flat_combo->setCurrentIndex(int(m_flat_integration));
+}
+
+
+CCD::CalibrationCombinationDialog(QWidget* parent) :ProcessDialog("Calibration Combination", QSize(540, 400), FastStack::recast(parent)->workspace(), parent, false) {
+
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &CCD::apply, &CCD::showPreview, &CCD::resetDialog);
+
+	m_toolbox = new QToolBox(this);
+	m_toolbox->setFixedWidth(520);
+	m_toolbox->move(10, 0);
+
+	m_toolbox->setBackgroundRole(QPalette::Window);
 	QPalette pal;
-	pal.setColor(QPalette::Window, Qt::lightGray);
-	//m_file_tab->setPalette(pal);
-	m_tabs = new QTabWidget(this);
+	pal.setColor(QPalette::ButtonText, Qt::white);
+	m_toolbox->setPalette(pal);
+	//m_toolbox->setPalette(QPalette(QPalette::ButtonText, Qt::white));
 
-	m_tabs->resize(size().width(), size().height() - 24);
+	m_dark_gb = new FileSelectionGroupBox();
+	m_toolbox->addItem(m_dark_gb, "Dark Frame Selection");
 
-	m_dark_tab = new DarkTab();
-	m_tabs->addTab(m_dark_tab, "Dark");
-	
-	m_dflat_tab = new DarkFlatTab();
-	m_tabs->addTab(m_dflat_tab, "Dark Flat");
+	m_dflat_gb = new FileSelectionGroupBox();
+	m_toolbox->addItem(m_dflat_gb, "Dark Flate Frame Selection");
 
-	m_flat_tab = new FlatTab();
-	m_tabs->addTab(m_flat_tab, "Flat");
+	m_flat_gb = new FileSelectionGroupBox();
+	m_toolbox->addItem(m_flat_gb, "Flat Frame Selection");
 
-	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &CCD::Apply, &CCD::showPreview, &CCD::resetDialog);
+	m_integration_gb = new IntegrationGroupBox();
+	m_toolbox->addItem(m_integration_gb, "Integration Selection");
+
+	auto selected = [this](int index) {
+		m_toolbox->resize(520, m_toolbox->currentWidget()->minimumHeight() + 35 * m_toolbox->count());
+		this->resize(QSize(this->width(), m_toolbox->height() + 35));
+	};
+
+	connect(m_toolbox, &QToolBox::currentChanged, this, selected);
+	m_toolbox->setCurrentIndex(0);
+	m_toolbox->currentChanged(0);
 
 	this->show();
 }
 
 static void ReadImageFile(std::filesystem::path path, Image32& dst) {
 
-	std::string ext = path.extension().string();
-	std::string filename = path.filename().string();
+	auto filename = path.filename();
 
-	if (ext == ".fit" || ext == ".fits" || ext == ".fts") {
+	if (FITS::isFITS(filename)) {
 		FITS fits;
-		fits.Open(path);
-		fits.ReadAny(dst);
-		fits.Close();
+		fits.open(path);
+		fits.readAny(dst);
+		fits.close();
 	}
 
-	else if (ext == ".tif" || ext == ".tiff") {
+	else if (TIFF::isTIFF(filename)) {
 		TIFF tiff;
-		tiff.Open(path);
-		tiff.ReadAny(dst);
-		tiff.Close();
+		tiff.open(path);
+		tiff.readAny(dst);
+		tiff.close();
 	}
 }
 
 static void showMessageBox(const QString& text, const QString& informative_text) {
+
 	QMessageBox mb;
 	mb.setText(text);
 	mb.setInformativeText(informative_text);
@@ -211,73 +287,63 @@ static void showMessageBox(const QString& text, const QString& informative_text)
 }
 
 void CCD::resetDialog() {
-	m_dark_tab->Reset();
-	m_dflat_tab->Reset();
-	m_flat_tab->Reset();
+
+	m_dark_gb->reset();
+	m_dflat_gb->reset();
+	m_flat_gb->reset();
+	m_integration_gb->reset();
 }
 
-void CCD::Apply() {
+void CCD::apply() {
 
-	if (m_dark_tab->DarkPaths().size() == 0 && m_dflat_tab->DarkFlatPaths().size() == 0 && m_flat_tab->FlatPaths().size() == 0)
-		return;
+	Image32 master;
+	ImageStacking is;
 
-	Image32 master_frame;
-	Image32 master_dflat;
+	if (m_dark_gb->filePaths().size() > 1) {
 
-	ImageWindow32* iw32;
+		is.setIntegrationMethod(m_integration_gb->darkIntegration());
 
-	if (m_dark_tab->DarkPaths().size() >= 1) {
-		this->setEnabledAll(false);
-		Status status = m_dark_tab->DarkImageStacker().IntegrateImages(m_dark_tab->DarkPaths(), master_frame);
-		if (status)
-			iw32 = new ImageWindow32(master_frame, "MasterDark", reinterpret_cast<Workspace*>(m_workspace));
-		else
-			showMessageBox("Unable to stack Dark frames", status.m_message);
+		std::cout << m_dark_gb->filePaths()[0] << "\n";
+		is.stackImages(m_dark_gb->filePaths(), master);
+
+		ImageWindow32* iw32 = new ImageWindow32(master, "MasterDark", reinterpret_cast<Workspace*>(m_workspace));
 	}
 
-	if (m_dflat_tab->DarkFlatPaths().size() > 1) {
-		this->setEnabledAll(false);
+	Image32 dflat;
+	if (m_dflat_gb->filePaths().size() > 1) {
 
-		Status status = m_dflat_tab->DarkFlatImageStacker().IntegrateImages(m_dflat_tab->DarkFlatPaths(), master_frame);
-		if (status)
-			iw32 = new ImageWindow32(master_frame, "MasterDarkFlat", reinterpret_cast<Workspace*>(m_workspace));
-		else
-			showMessageBox("Unable to stack Dark Flat frames", status.m_message);
+		is.setIntegrationMethod(m_integration_gb->darkFlatIntegration());
+		is.stackImages(m_dflat_gb->filePaths(), dflat);
+
+		if (m_flat_gb->filePaths().size() == 0)
+			ImageWindow32* iw32 = new ImageWindow32(dflat, "MasterDarkFlat", reinterpret_cast<Workspace*>(m_workspace));
 	}
 
-	else if (m_dflat_tab->DarkFlatPaths().size() == 1)
-		ReadImageFile(m_dflat_tab->DarkFlatPaths()[0], master_dflat);
-	
+	else if (m_dflat_gb->filePaths().size() == 1 && m_flat_gb->filePaths().size() > 1) {
+		ReadImageFile(m_dflat_gb->filePaths()[0], dflat);
+	}
 
-	if (m_flat_tab->FlatPaths().size() >= 1) {
-		this->setEnabledAll(false);
+	if (m_flat_gb->filePaths().size() > 1) {
 
-		FileVector paths = m_flat_tab->FlatPaths();
+		is.setIntegrationMethod(m_integration_gb->flatIntegration());
 
-		if (master_dflat.Exists()) {
-
-			TempFolder temp;
-
-			for (auto file_it = m_flat_tab->FlatPaths().begin(); file_it != m_flat_tab->FlatPaths().end(); ++file_it) {
-
-				ReadImageFile(*file_it, master_frame);
-
-				if (master_frame.Matches(master_dflat)) {
-					master_frame -= master_dflat;
-					temp.WriteTempFits(master_frame, *file_it);
-				}
+		if (dflat.exists()) {
+			TempFolder temp("CalibrationTemp");
+			for (auto file : m_flat_gb->filePaths()) {
+				ReadImageFile(file, master);
+				master -= dflat;
+				temp.writeTempFits(master, file);
 			}
 
-			paths = temp.Files();
+			is.stackImages(temp.filePaths(), master);
 		}
 
-		Status status = m_flat_tab->FlatImageStacker().IntegrateImages(paths, master_frame);
+		else 
+			is.stackImages(m_flat_gb->filePaths(), master);
 
-		if (status.m_success)
-			iw32 = new ImageWindow32(master_frame, "MasterFlat", reinterpret_cast<Workspace*>(m_workspace));
-		else
-			showMessageBox("Unable to stack Flat frames", status.m_message);
+		ImageWindow32* iw32 = new ImageWindow32(master, "MasterFlat", reinterpret_cast<Workspace*>(m_workspace));
 	}
 
-	this->setEnabledAll(true);
+
+	//this->setEnabledAll(true);
 }

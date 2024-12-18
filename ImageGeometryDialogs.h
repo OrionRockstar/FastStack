@@ -13,7 +13,7 @@ class RotationDialog : public ProcessDialog {
 	QDial* m_dial;
 	int m_dial_offset = 180;
 
-	QComboBox* m_interpolate_cb;
+	InterpolationComboBox* m_interpolate_cb;
 
 public:
 	RotationDialog(QWidget* parent = nullptr);
@@ -43,11 +43,11 @@ class FastRotationDialog : public ProcessDialog {
 
 	FastRotation m_fastrotation;
 
-	QRadioButton* m_90cw_rb;
-	QRadioButton* m_90ccw_rb;
-	QRadioButton* m_180_rb;
-	QRadioButton* m_hm_rb;
-	QRadioButton* m_vm_rb;
+	RadioButton* m_90cw_rb;
+	RadioButton* m_90ccw_rb;
+	RadioButton* m_180_rb;
+	RadioButton* m_hm_rb;
+	RadioButton* m_vm_rb;
 
 public:
 	FastRotationDialog(QWidget* parent = nullptr);
@@ -68,11 +68,11 @@ class IntegerResampleDialog : public ProcessDialog {
 
 	IntegerResample m_ir;
 
-	QComboBox* m_method_combo;
+	ComboBox* m_method_combo;
 
 	QButtonGroup* m_type_bg;
 
-	QSpinBox* m_factor_sb;
+	SpinBox* m_factor_sb;
 
 public:
 	IntegerResampleDialog(QWidget* parent);
@@ -82,7 +82,7 @@ private:
 
 	void showPreview() {}
 
-	void Apply();
+	void apply();
 };
 
 
@@ -90,27 +90,47 @@ private:
 
 
 
+class CropFrame : public QMdiSubWindow {
+
+	int m_pen_width = 3;
+	QRect m_default_geometry;
+
+public:
+	CropFrame(const QRect& rect, QWidget* parent = nullptr);
+
+	QRect frameRect()const;
+
+	QRect frameGeometry()const;
+
+	void resetFrame();
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+
+template<typename T>
+class CropPreview : public PreviewWindow<T> {
+
+	CropFrame* m_cf;
+
+public:
+	CropPreview(QWidget* parent);
+
+	QRect cropRect()const;
+
+	void resetFrame();
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+
 class CropDialog : public ProcessDialog {
 
-	template<typename T>
-	class CropPreview : public PreviewWindow<T> {
-
-		CropDialog* m_cd;
-		QMdiSubWindow* m_rb;
-
-	public:
-		CropPreview(CropDialog* cd, QWidget* parent);
-
-		QRect cropRect()const;
-
-		void closeEvent(QCloseEvent* e) {
-			PreviewWindow<T>::closeEvent(e);
-			m_cd->m_image_sel->setCurrentIndex(0);
-		}
-	};
-
-
-	QComboBox* m_image_sel;
+	ComboBox* m_image_sel;
 	Crop m_crop;
 
 public:
@@ -127,12 +147,33 @@ private:
 
 	void showPreview() {}
 
-	void Apply();
+	void apply();
 };
 
 
 
 
+
+class ResizeDialog : public ProcessDialog {
+
+	Resize m_rs;
+
+	IntLineEdit* m_row_le;
+	IntLineEdit* m_col_le;
+
+	InterpolationComboBox* m_interpolation_combo;
+
+public:
+	ResizeDialog(QWidget* parent);
+
+private:
+
+	void resetDialog();
+
+	void showPreview() {}
+
+	void apply();
+};
 
 
 
@@ -153,5 +194,5 @@ private:
 
 	void showPreview() {}
 
-	void Apply();
+	void apply();
 };

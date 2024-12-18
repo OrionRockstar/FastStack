@@ -23,65 +23,70 @@ void GaussianFilter::BuildGaussianKernel() {
 
 	int k_rad = (m_kernel_dim - 1) / 2;
 
-	gaussian_kernel = std::vector<float>(m_kernel_dim);
+	m_gaussian_kernel = std::vector<float>(m_kernel_dim);
 
 	float s = 2 * m_sigma * m_sigma;
-	float k1 = 1 / sqrtf(M_PI * s), k2 = 1 / s;
+	float k1 = 1 / sqrtf(std::_Pi * s), k2 = 1 / s;
 	float g_sum = 0;
 
 	for (int j = -k_rad; j <= k_rad; ++j)
-		g_sum += gaussian_kernel[j + k_rad] = k1 * expf(-k2 * (j * j));
+		g_sum += m_gaussian_kernel[j + k_rad] = k1 * expf(-k2 * (j * j));
 
-	for (auto& val : gaussian_kernel)
+	for (auto& val : m_gaussian_kernel)
 		val /= g_sum;
 }
 
 template<typename T>
 void GaussianFilter::Apply(Image<T>& img) {
 
-	Image<T> temp(img.Rows(), img.Cols(), img.Channels());
+	if (m_sigma == 0.0f)
+		return;
+
+	Image32 temp(img.rows(), img.cols());
 
 	BuildGaussianKernel();
 
-	for (int ch = 0; ch < img.Channels(); ++ch) {
+	PixelWindow window(m_kernel_dim);
 
-#pragma omp parallel for
-		for (int y = 0; y < img.Rows(); ++y) {
-			PixelWindow<T> window(m_kernel_dim);
-			window.PopulateRowWindow(img, y, ch);
-			for (int x = 0; x < img.Cols(); ++x) {
+	for (uint32_t ch = 0; ch < img.channels(); ++ch) {
+
+#pragma omp parallel for firstprivate(window)
+		for (int y = 0; y < img.rows(); ++y) {
+			window.populateRowWindow(img, { 0,y,ch });
+			for (int x = 0; x < img.cols(); ++x) {
 
 				if (x != 0)
-					window.UpdateRowWindow(img, x, y, ch);
+					window.updateRowWindow(img, { x,y,ch });
 
 				float sum = 0.0f;
 
 				for (int j = 0; j < m_kernel_dim; ++j)
-					sum += window[j] * gaussian_kernel[j];
+					sum += window[j] * m_gaussian_kernel[j];
 
-				temp(x, y, ch) = sum;
+				temp(x, y) = sum;
 
 			}
 		}
 
-#pragma omp parallel for 
-		for (int x = 0; x < img.Cols(); ++x) {
-			PixelWindow<T> window(m_kernel_dim);
-			window.PopulateColWindow(temp, x, ch);
-			for (int y = 0; y < img.Rows(); ++y) {
+#pragma omp parallel for firstprivate(window)
+		for (int x = 0; x < img.cols(); ++x) {
+			window.populateColWindow(temp, { x,0,0 });
+			for (int y = 0; y < img.rows(); ++y) {
 
 				if (y != 0)
-					window.UpdateColWindow(temp, x, y, ch);
+					window.updateColWindow(temp, { x,y,0 });
 
 				float sum = 0.0f;
 
 				for (int j = 0; j < m_kernel_dim; ++j)
-					sum += window[j] * gaussian_kernel[j];
+					sum += window[j] * m_gaussian_kernel[j];
 
-				img(x, y, ch) = sum;
+				img(x, y, ch) = Pixel<T>::toType(sum);
 			}
 		}
 	}
+
+	img.normalize();
 }
 template void GaussianFilter::Apply(Image8&);
 template void GaussianFilter::Apply(Image16&);
@@ -94,41 +99,68 @@ template void GaussianFilter::Apply(Image32&);
 
 
 
-
-GaussianFilterDialog::GaussianFilterDialog(QWidget* parent) : ProcessDialog("GaussianFilter", QSize(420, 75), *reinterpret_cast<FastStack*>(parent)->workspace(), parent) {
+GaussianFilterDialog::GaussianFilterDialog(QWidget* parent) : ProcessDialog("GaussianFilter", QSize(405, 105), FastStack::recast(parent)->workspace()) {
 	
 	setTimer(250, this, &GaussianFilterDialog::ApplytoPreview);
 
 	connect(this, &ProcessDialog::processDropped, this, &GaussianFilterDialog::Apply);
 	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &GaussianFilterDialog::Apply, &GaussianFilterDialog::showPreview, &GaussianFilterDialog::resetDialog);
 
-	m_sigma_le = new DoubleLineEdit(new DoubleValidator(0.10, 24.0, 2), this);
-	m_sigma_le->setValue(2.0);
-	m_sigma_le->setFixedWidth(50);
-	m_sigma_le->move(80, 10);
-	m_sigma_le->addLabel(new QLabel("StdDev:   ", this));
+	addSigmaInputs();
 
-	m_sigma_slider = new QSlider(Qt::Horizontal, this);
-	m_sigma_slider->setRange(1, 240);
-	m_sigma_slider->setFixedWidth(240);
-	m_sigma_slider->setValue(20);
-	m_sigma_le->addSlider(m_sigma_slider);
-	connect(m_sigma_slider, &QSlider::actionTriggered, this, &GaussianFilterDialog::onActionTriggered_sigma);
+	m_ks_label = new QLabel(this);
+	m_ks_label->move(135, 50);
+	m_ks_label->setFixedWidth(150);
+	onValueChanged(2.0);
 
 	this->show();
 }
 
-void GaussianFilterDialog::onActionTriggered_sigma(int action) {
-	float sigma = m_sigma_slider->sliderPosition() / 10.0;
-	m_sigma_le->setValue(sigma);
-	m_gf.setSigma(sigma);
-	startTimer();
+void GaussianFilterDialog::addSigmaInputs() {
+
+	m_sigma_le = new DoubleLineEdit(new DoubleValidator(0.0, 24.0, 2), this);
+	m_sigma_le->setValue(2.0);
+	m_sigma_le->setFixedWidth(50);
+	m_sigma_le->move(80, 15);
+	m_sigma_le->addLabel(new QLabel("StdDev:   ", this));
+
+	m_sigma_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_slider->setRange(0, 240);
+	m_sigma_slider->setFixedWidth(250);
+	m_sigma_slider->setValue(20);
+	m_sigma_le->addSlider(m_sigma_slider);
+
+	auto action = [this](int) {
+		float sigma = m_sigma_slider->sliderPosition() / 10.0;
+		m_sigma_le->setValue(sigma);
+		m_gf.setSigma(sigma);
+		onValueChanged(sigma);
+		startTimer();
+	};
+
+	auto edited = [this]() {
+		float sigma = m_sigma_le->valuef();;
+		m_sigma_slider->setValue(sigma * 10);
+		m_gf.setSigma(sigma);
+		onValueChanged(sigma);
+	};
+
+	connect(m_sigma_slider, &QSlider::actionTriggered, this, action);
+	connect(m_sigma_le, &QLineEdit::editingFinished, this, edited);
+}
+
+void GaussianFilterDialog::onValueChanged(float sigma) {
+	int k_rad = (3.0348 * sigma) + 0.5;
+	QString kd = QString::number(2 * k_rad + 1);
+
+	m_ks_label->setText(m_ksize + kd + " x " + kd);
 }
 
 void GaussianFilterDialog::resetDialog() {
 	m_gf = GaussianFilter();
-	m_sigma_le->setValue(2.0);
-	m_sigma_slider->setValue(20);
+	m_sigma_le->setValue(m_gf.sigma());
+	m_sigma_slider->setValue(m_gf.sigma() * 10);
+	onValueChanged(m_gf.sigma());
 }
 
 void GaussianFilterDialog::showPreview() {
@@ -143,23 +175,23 @@ void GaussianFilterDialog::Apply() {
 
 	setEnabledAll(false);
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
 
 	m_gf.setSigma(m_sigma_le->text().toFloat());
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		iwptr->UpdateImage(m_gf, &GaussianFilter::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		iwptr->applyToSource(m_gf, &GaussianFilter::Apply);
 		break;
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->UpdateImage(m_gf, &GaussianFilter::Apply);
+	case ImageType::USHORT: {
+		auto iw16 = imageRecast<uint16_t>(iwptr);
+		iw16->applyToSource(m_gf, &GaussianFilter::Apply);
 		break;
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->UpdateImage(m_gf, &GaussianFilter::Apply);
+	case ImageType::FLOAT: {
+		auto iw32 = imageRecast<float>(iwptr);
+		iw32->applyToSource(m_gf, &GaussianFilter::Apply);
 		break;
 	}
 	}
@@ -174,22 +206,22 @@ void GaussianFilterDialog::ApplytoPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = previewRecast(m_preview);
 
-	m_gf.setSigma(m_sigma_le->text().toFloat() / iwptr->IdealZoomFactor());
+	m_gf.setSigma(m_sigma_le->text().toFloat() /  iwptr->parentWindow()->computeZoomFactor()) ;
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
-		return iw8->UpdatePreview(m_gf, &GaussianFilter::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		auto iw8 = iwptr;
+		return iw8->updatePreview(m_gf, &GaussianFilter::Apply);
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
-		return iw16->UpdatePreview(m_gf, &GaussianFilter::Apply);
+	case ImageType::USHORT: {
+		auto iw16 = previewRecast<uint16_t>(iwptr);
+		return iw16->updatePreview(m_gf, &GaussianFilter::Apply);
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
-		return iw32->UpdatePreview(m_gf, &GaussianFilter::Apply);
+	case ImageType::FLOAT: {
+		auto iw32 = previewRecast<float>(iwptr);
+		return iw32->updatePreview(m_gf, &GaussianFilter::Apply);
 	}
 	}
 }

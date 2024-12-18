@@ -15,6 +15,7 @@ void Bitmap::ReadInfoHeader() {
 	m_cols = m_info_header.cols;
 	m_channels = (m_info_header.bits_per_pixel == 8) ? 1 : 3;
 	m_bitdepth = (m_info_header.bits_per_pixel == 24) ? 8 : m_info_header.bits_per_pixel;
+
 	m_px_count = m_rows * m_cols;
 
 	m_bits_per_pixel = m_info_header.bits_per_pixel;
@@ -29,18 +30,18 @@ void Bitmap::ReadInfoHeader() {
 
 void Bitmap::WriteHeaders(const Image8* src, bool compression) {
 
-	m_info_header.rows = src->Rows();
-	m_info_header.cols = src->Cols();
+	m_info_header.rows = src->rows();
+	m_info_header.cols = src->cols();
 
-	m_info_header.bits_per_pixel = (src->Channels() == 3) ? 24 : 8;
+	m_info_header.bits_per_pixel = (src->channels() == 3) ? 24 : 8;
 
 	if (m_info_header.bits_per_pixel == 24)
 		padding_length = (4 - (m_info_header.cols * 3) % 4) % 4;
 
-	else if (src->Channels() == 1)
+	else if (src->channels() == 1)
 		padding_length = (4 - (m_info_header.cols) % 4) % 4;
 
-	m_info_header.sizeof_image = src->PxCount() + padding_length * src->Rows();
+	m_info_header.sizeof_image = src->pxCount() + padding_length * src->rows();
 
 	//assumes all 8bit images are monochrome/grayscale
 	//uses color table to align with bitmap standards
@@ -84,19 +85,19 @@ void Bitmap::ReadFromColorTable(Image8& dst) {
 
 	dst = Image8(m_rows, m_cols, (is_grey) ? 1 : 3);
 
-	std::vector<uint8_t> buffer(dst.Cols());
+	std::vector<uint8_t> buffer(dst.cols());
 
-	for (int y = dst.Rows() - 1; y >= 0; --y) {
+	for (int y = dst.rows() - 1; y >= 0; --y) {
 		m_stream.read((char*)buffer.data(), buffer.size());
 		m_stream.read((char*)&pad[0], padding_length);
 
 		if (is_grey) {
-			for (int x = 0; x < dst.Cols(); ++x)
+			for (int x = 0; x < dst.cols(); ++x)
 				dst(x, y) = buffer[x];
 		}
 
 		else {
-			for (int x = 0; x < dst.Cols(); ++x) {
+			for (int x = 0; x < dst.cols(); ++x) {
 				dst(x, y, 0) = color_table[buffer[x]].red;
 				dst(x, y, 1) = color_table[buffer[x]].green;
 				dst(x, y, 2) = color_table[buffer[x]].blue;
@@ -104,7 +105,7 @@ void Bitmap::ReadFromColorTable(Image8& dst) {
 		}
 	}
 
-	Close();
+	close();
 
 }
 
@@ -138,9 +139,9 @@ void Bitmap::Read8bitCompression(Image8& dst) {
 			}
 	}
 
-	/*for (int y = dst.Rows() - 1; y >= 0; --y) {
+	/*for (int y = dst.rows() - 1; y >= 0; --y) {
 		int x = 0;
-		while (x < dst.Cols()) {
+		while (x < dst.cols()) {
 			m_stream.read((char*)&run, 2);
 
 			for (int i = 0; i < run.count; ++i)
@@ -150,7 +151,7 @@ void Bitmap::Read8bitCompression(Image8& dst) {
 		m_stream.seekg(m_stream.tellp() + (std::streampos)2);
 	}*/
 
-	Close();
+	close();
 }
 
 
@@ -168,22 +169,21 @@ bool Bitmap::isBitmap(std::filesystem::path path) {
 	return false;
 }
 
-void Bitmap::Open(std::filesystem::path path) {
-	ImageFile::Open(path);
+void Bitmap::open(std::filesystem::path path) {
+	ImageFile::open(path);
 
 	if (!isBitmap(path))
 		throw std::runtime_error("Invalid bitmap file");
 }
 
-void Bitmap::Create(std::filesystem::path path) {
+void Bitmap::create(std::filesystem::path path) {
 
-	ImageFile::Create(path);
-
+	ImageFile::create(path);
 }
 
-void Bitmap::Close() {
+void Bitmap::close() {
 
-	ImageFile::Close();
+	ImageFile::close();
 
 	m_bmp_header = BitmapHeader();
 	m_info_header = DIBHeader();
@@ -200,18 +200,18 @@ void Bitmap::Write8bitCompression(const Image<T>& src) {
 
 	WriteHeaders(reinterpret_cast<const Image8*>(&src), true);
 
-	std::vector<rle8> compress;// (src.Cols());
-	compress.reserve(src.Cols());
+	std::vector<rle8> compress;// (src.cols());
+	compress.reserve(src.cols());
 	rle8 eol = rle8(0, 0);
 	rle8 eof = rle8(0, 1);
 
 	int file_size = m_bmp_header.data_offset;
 
-	for (int y = src.Rows() - 1; y >= 0; --y) {
+	for (int y = src.rows() - 1; y >= 0; --y) {
 
 		compress.emplace_back(rle8(1, Pixel<uint8_t>::toType(src(0, y))));
 
-		for (int x = 1, xb = 0; x < src.Cols(); ++x) {
+		for (int x = 1, xb = 0; x < src.cols(); ++x) {
 
 			uint8_t val = Pixel<uint8_t>::toType(src(x, y));
 
@@ -242,7 +242,7 @@ void Bitmap::Write8bitCompression(const Image<T>& src) {
 	m_stream.seekp(2);
 	m_stream.write((char*)&file_size, 4);
 
-	Close();
+	close();
 }
 template void Bitmap::Write8bitCompression(const Image8&);
 template void Bitmap::Write8bitCompression(const Image16&);
@@ -264,18 +264,18 @@ void Bitmap::Read(Image8& dst) {
 
 	dst = Image8(m_rows, m_cols, 3);
 
-	std::vector<uint8_t> buffer(dst.Cols() * n);//+cols for alpha
+	std::vector<uint8_t> buffer(dst.cols() * n);//+cols for alpha
 
 	m_stream.seekg(m_bmp_header.data_offset);
 
-	for (int y = dst.Rows() - 1; y >= 0; --y) {
+	for (int y = dst.rows() - 1; y >= 0; --y) {
 
 		m_stream.read((char*)buffer.data(), buffer.size());
 		m_stream.read((char*)&pad[0], padding_length);
 
-		for (int x = 0, xb = 0; x < dst.Cols(); ++x) {
+		for (int x = 0, xb = 0; x < dst.cols(); ++x) {
 
-			for (int ch = dst.Channels() - 1; ch >= 0; --ch) {
+			for (int ch = dst.channels() - 1; ch >= 0; --ch) {
 				dst(x, y, ch) = buffer[xb++];
 			}
 
@@ -284,22 +284,22 @@ void Bitmap::Read(Image8& dst) {
 		}
 	}
 
-	Close();
+	close();
 }
 
 template<typename T>
 void Bitmap::Write(const Image<T>& src, bool compression) {
 
-	if (compression && src.Channels() == 1)
+	if (compression && src.channels() == 1)
 		return Write8bitCompression(src);
 
 	WriteHeaders(reinterpret_cast<const Image8*>(&src));
 
-	std::vector<uint8_t> buffer(src.Cols() * src.Channels());
+	std::vector<uint8_t> buffer(src.cols() * src.channels());
 
-	for (int y = src.Rows() - 1; y >= 0; --y) {
-		for (int x = 0, xb = 0; x < src.Cols(); ++x) {
-			for (int ch = src.Channels() - 1; ch >= 0; --ch) {
+	for (int y = src.rows() - 1; y >= 0; --y) {
+		for (int x = 0, xb = 0; x < src.cols(); ++x) {
+			for (int ch = src.channels() - 1; ch >= 0; --ch) {
 				buffer[xb++] = Pixel<uint8_t>::toType(src(x, y, ch));
 			}
 		}
@@ -307,7 +307,7 @@ void Bitmap::Write(const Image<T>& src, bool compression) {
 		m_stream.write((char*)&pad[0], padding_length);
 	}
 
-	Close();
+	close();
 }
 template void Bitmap::Write(const Image8&, bool);
 template void Bitmap::Write(const Image16&, bool);

@@ -13,52 +13,35 @@ class FITS : public ImageFile {
 
 		FITSHeader() = default;
 
-		FITSHeader(int bitpix, std::array<int, 3> axis, bool end = true) {
-			AddLogicalKeyword("SIMPLE", true, "FASTStck FITS");
-			AddIntegerKeyword("BITPIX", bitpix, "bitdepth of image");
-
-			int naxis = 2;
-			if (axis[2] == 3)
-				naxis = 3;
-
-			AddIntegerKeyword("NAXIS", naxis, "number of axis");
-			AddIntegerKeyword("NAXIS1", axis[1]);
-			AddIntegerKeyword("NAXIS2", axis[0]);
-
-			if (naxis == 3)
-				AddIntegerKeyword("NAXIS3", axis[2], "number of axis");
-
-			if (end)
-				EndHeader();
-		}
+		FITSHeader(int bitpix, std::array<uint32_t, 3> axis, bool end = true);
 
 	private:
-		void AddKW(const std::string& keyword, char* hbp, int& iter);
+		void addKeyword(const std::string& keyword, char* hbp, int& iter);
 
-		void AddKWC(const std::string& comment, char* hbp, int& iter);
+		void addKeywordComment(const std::string& comment, char* hbp, int& iter);
 
 	public:
-		void AddLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment = "");
+		void addLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment = "");
 
-		void AddIntegerKeyword(const std::string& keyword, int integer, const std::string& comment = "");
+		void addIntegerKeyword(const std::string& keyword, int integer, const std::string& comment = "");
 
-		void AddStringKeyword(const std::string& keword, const std::string& value);
+		//void addStringKeyword(const std::string& keword, const std::string& value);
 
-		void AddCommentKeyword(const std::string& data);
+		//void addCommentKeyword(const std::string& data);
 
-		void AddHistoryKeyword(const std::string& data);
+		//void addHistoryKeyword(const std::string& data);
 
-		std::string GetKeyWordValue(const std::string& keyword);
+		int keywordValue(const std::string& keyword);
 
-		void ResizeHeaderBlock() {
+		void resizeHeaderBlock() {
 			header_block.resize(header_block.size() + 36);
 		}
 
-		void EndHeader();
+		void endHeader();
 
-		void Read(std::fstream& stream);
+		void read(std::fstream& stream);
 
-		void Write(std::fstream& stream);
+		void write(std::fstream& stream);
 
 	};
 
@@ -70,56 +53,51 @@ public:
 
 	FITS() = default;
 
-	FITS(const FITS& fits) {}
-
 	FITS(FITS&& other) noexcept : ImageFile(std::move(other)) {
 		m_data_pos = other.m_data_pos;
 	}
 
-	~FITS() {}
 
 private:
-
-	bool FindImageData();
-
-	void ReadHeader();
-
-	int GetKeyWordValue(const std::string& keyword) {
-		return std::stoi(m_fits_header.GetKeyWordValue(keyword));
-	}
-
-	template<typename T>
-	void WritePixels_8(const Image<T>& src);
-
-	template<typename T>
-	void WritePixels_16(const Image<T>& src);
-
-	template<typename T>
-	void WritePixels_float(const Image<T>& src);
+	ImageType imageTypefromFile();
 
 public:
-	bool is_FitsFile();
+	static bool isFITS(std::filesystem::path file_name) {
 
-	int GetFITSBitDepth();
+		std::string ext = file_name.extension().string();
 
+		return (ext == ".fits" || ext == ".fit" || ext == ".fts");
+	}
 
-	void Open(std::filesystem::path path) override;
+	bool isFITSFile();
 
-	void Create(std::filesystem::path path) override;
+	void open(std::filesystem::path path) override;
 
-	void Close() override;
+	void create(std::filesystem::path path) override;
 
+	void close() override;
 
 	template<typename T>
-	void Read(Image<T>& dst);
+	void read(Image<T>& dst);
+
+	void readAny(Image32& dst);
 
 	template<typename T>
-	void ReadSome(T* buffer, const Point<>& start_point, int num_elements);
+	void readSome(T* buffer, const ImagePoint& start_point, int num_elements);
 
-	void ReadSome_Any(float* dst, const Point<>& start_point, int num_elements);
+	void readSome_Any(float* dst, const ImagePoint& start_point, int num_elements);
 
-	void ReadAny(Image32& dst);
+private:
+	template<typename T>
+	void writePixels_8(const Image<T>& src);
 
+	template<typename T>
+	void writePixels_16(const Image<T>& src);
+
+	template<typename T>
+	void writePixels_float(const Image<T>& src);
+
+public:
 	template <typename T>
-	void Write(const Image<T>& img, int new_bit_depth);
+	void write(const Image<T>& src, ImageType new_type);
 };

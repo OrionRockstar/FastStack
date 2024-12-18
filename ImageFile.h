@@ -1,6 +1,8 @@
 #pragma once
 #include <fstream>
 #include<filesystem>
+#include "Image.h"
+
 
 enum class FileType {
 	FITS,
@@ -15,7 +17,7 @@ protected:
 
 private:
 	std::unique_ptr<char[]> m_stream_buffer;
-	std::streamsize m_count = 0;
+	std::streamsize m_size = 0;
 
 protected:
 	int m_rows = 1;
@@ -23,17 +25,19 @@ protected:
 	int m_channels = 1;
 	int m_bitdepth = 8;
 	int m_px_count = 1;
+	ImageType m_img_type = ImageType::UBYTE;
 
 	FileType m_type;
 
-	ImageFile() = default;
 public:
+	ImageFile() = default;
+
 	ImageFile(ImageFile&& other) noexcept {
 
 		m_stream = std::move(other.m_stream);
 
 		m_stream_buffer = std::move(other.m_stream_buffer);
-		m_count = other.m_count;
+		m_size = other.m_size;
 
 		m_rows = other.m_rows;
 		m_cols = other.m_cols;
@@ -42,78 +46,71 @@ public:
 		m_px_count = other.m_px_count;
 	}
 
-	virtual ~ImageFile() {}
+	//~ImageFile() {}
 
-	int Rows()const { return m_rows; }
+	int rows()const { return m_rows; }
 
-	int Cols()const { return m_cols; }
+	int cols()const { return m_cols; }
 
-	int Channels()const { return m_channels; }
+	int channels()const { return m_channels; }
 
-	FileType Type()const { return m_type; }
+	int16_t bitdepth()const { return m_bitdepth; }
+
+	FileType type()const { return m_type; }
+
+	ImageType imageType()const { return m_img_type; }
 
 private:
-	void SetBuffer() {
 
-		m_count = m_cols;
+	void setBuffer() {
 
-		m_count *= SizeofBitdepth(m_bitdepth);
+		m_size = m_cols * typeSize(m_img_type);
 
-		m_count = (m_count > 4096) ? m_count : 4096;
+		m_size = (m_size > 4096) ? m_size : 4096;
 
-		m_stream_buffer = std::make_unique<char[]>(m_count);
-		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), m_count);
+		m_stream_buffer = std::make_unique<char[]>(m_size);
+		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), m_size);
 
 	}
 
 protected:
-	void ResizeBuffer(std::streamsize count = 0) {
+	void resizeBuffer(std::streamsize size = 0) {
 
-		if (count == 0)
-			return SetBuffer();
+		if (size == 0)
+			return setBuffer();
 
-		if (count == m_count)
+		if (size == m_size)
 			return;
 
-		m_count = count;
-		m_stream_buffer = std::make_unique<char[]>(m_count);
-		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), m_count);
+		m_size = size;
+		m_stream_buffer = std::make_unique<char[]>(m_size);
+		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), m_size);
 	}
 
-	uint32_t SizeofBitdepth(int bitdepth)const noexcept {
-		switch (bitdepth) {
-		case 8:
-			return 1;
-		case 16:
-			return 2;
-		case -32:
-			return 4;
-		default:
-			return 4;
-		}
+
+	virtual void open(std::filesystem::path path) {
+		m_stream.open(path, std::ios::in | std::ios::out | std::ios::binary);
 	}
 
-	virtual void Open(std::filesystem::path path) {
-		m_stream.open(path, std::ios::in | std::ios::binary);
-	}
-
-	virtual void Create(std::filesystem::path path) {
+	virtual void create(std::filesystem::path path) {
 		m_stream.open(path, std::ios::out | std::ios::binary | std::ios::trunc);
 	}
 
 public:
-	virtual void Close() {
+	virtual void close() {
 
 		m_stream.close();
 
 		m_stream_buffer.reset();
-		m_count = 0;
+		m_size = 0;
 
 		m_rows = 1;
 		m_cols = 1;
 		m_channels = 1;
 		m_bitdepth = 8;
 		m_px_count = 1;
+
+		m_img_type = ImageType::UBYTE;
 	}
 
 };

@@ -1,21 +1,31 @@
 #include "pch.h"
 #include "FastStack.h"
-//#include "ImageWindow.h"
-//#include "Image.h"
-//#include "CurvesTransformation.h"
+
 #include "AutomaticBackgroundExtraction.h"
-//#include "MorphologicalTransformation.h"
 #include "ImageStackingDialog.h"
-//#include "AdaptiveStretch.h"
+
 #include "ImageCalibration.h"
 #include "ImageGeometryDialogs.h"
-#include "Masks.h"
+#include "RangeMask.h"
 #include "AutoHistogram.h"
+#include "ColorSaturation.h"
+#include "ChannelCombination.h"
+#include "LRGBCombination.h"
+#include "StarMask.h"
+#include "Binerize.h"
+#include "StarAlignment.h"
+#include "Statistics.h"
+//#include "FastStackToolBar.h"
 
-FastStack::FastStack(QWidget *parent)
-    : QMainWindow(parent)
-{ 
+
+
+FastStack::FastStack(QWidget *parent) : QMainWindow(parent) { 
     ui.setupUi(this);
+
+    QIcon icon;
+    icon.addFile("./Icons//fast_stack_icon_fs2.png");
+    this->setWindowIcon(icon);
+
     this->setWindowTitle("FastStack");
     this->resize(this->screen()->availableSize());
     this->setWindowState(Qt::WindowState::WindowMaximized);
@@ -29,30 +39,32 @@ FastStack::FastStack(QWidget *parent)
     connect(m_workspace, &Workspace::sendOpen, m_menubar, &MenuBar::onWindowOpen);
     connect(m_workspace, &Workspace::sendClose, m_menubar, &MenuBar::onWindowClose);
 
-    QPalette pal = palette();
-    QColor("#708090");
-    QColor("#696969");
+    //QMdiSubWindow* sw = new QMdiSubWindow(this);
+    //ImageLabaelGL* iml = new ImageLabaelGL(this);
+    //sw->setWidget(iml);
+    //m_workspace->addSubWindow(iml)->resize(200, 300);
 
-    //QPushButton* button = new QPushButton("Stretch",this);
-   // QRect bs = { 0,22,50,50 };
-    //button->setGeometry(bs);
-    QString pbss = "QPushButton {background-color: rgb(220,0,0);"
-        "border-radius: 6px;}"
-        "QPushButton:hover {background-color: rgb(255,0,0);}"
-        "QPushButton:pressed {background-color:rgb(200,0,0)}";
+    m_toolbar = new FastStackToolBar(this);
+    this->addToolBar(Qt::ToolBarArea::BottomToolBarArea, m_toolbar);
+    connect(m_workspace, &QMdiArea::subWindowActivated, m_toolbar->imageInformationLabel(), &ImageInformationLabel::displayText);
 
-    //IntegerResampleDialog* ird = new IntegerResampleDialog(this);
-    //CropDialog* cd = new CropDialog(this);
+
+    //StatisticsDialog* sd = new StatisticsDialog(this);
+    //DrizzleIntegrationDialog* did = new DrizzleIntegrationDialog(this);
+    //StarAlignmentDialog* sad = new StarAlignmentDialog(this);
+    //CurveTransformDialog* ctd = new CurveTransformDialog(this);
+    //StarMaskDialog* smd = new StarMaskDialog(this);
+    //LRGBCombinationDialog* lcd = new LRGBCombinationDialog(this);
+    //ChannelCombinationDialog* ccd = new ChannelCombinationDialog(this);
     //AutoHistogramDialog* m_ahd = new AutoHistogramDialog(this);
     //RangeMaskDialog* rmd = new RangeMaskDialog(this);
+    //ColorSaturationDialog* csd = new ColorSaturationDialog(this);
     //ImageStackingDialog* isd = new ImageStackingDialog(this);
     //CalibrationCombinationDialog* ccd = new CalibrationCombinationDialog(this);
     //MorphologicalTransformationDialog* mtd = new MorphologicalTransformationDialog(this);
     // 
-    //AdaptiveStretchDialog* asd = new AdaptiveStretchDialog(this);
     //ASinhStretchDialog* ashd = new ASinhStretchDialog(this);
     //HistogramTransformationDialog* ht = new HistogramTransformationDialog(this);
     //CurveTransformDialog* ct = new CurveTransformDialog(this);
     //AutomaticBackgroundExtractionDialog* abed = new AutomaticBackgroundExtractionDialog(this);
- 
 }

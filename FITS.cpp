@@ -1,7 +1,28 @@
 #include "pch.h"
 #include "FITS.h"
 
-void FITS::FITSHeader::AddKW(const std::string& keyword, char* hbp, int& iter) {
+FITS::FITSHeader::FITSHeader(int bitpix, std::array<uint32_t, 3> axis, bool end) {
+
+	addLogicalKeyword("SIMPLE", true, "FASTStck FITS");
+	addIntegerKeyword("BITPIX", bitpix, "bitdepth of image");
+
+	int naxis = 2;
+	if (axis[2] == 3)
+		naxis = 3;
+
+	addIntegerKeyword("NAXIS", naxis, "number of axis");
+	addIntegerKeyword("NAXIS1", axis[1]);
+	addIntegerKeyword("NAXIS2", axis[0]);
+
+	if (naxis == 3)
+		addIntegerKeyword("NAXIS3", axis[2], "number of axis");
+
+	if (end)
+		endHeader();
+}
+
+
+void FITS::FITSHeader::addKeyword(const std::string& keyword, char* hbp, int& iter) {
 
 	for (; iter < keyword.length(); ++iter)
 		hbp[iter] = keyword[iter];
@@ -13,7 +34,7 @@ void FITS::FITSHeader::AddKW(const std::string& keyword, char* hbp, int& iter) {
 	hbp[iter++] = ' ';
 }
 
-void FITS::FITSHeader::AddKWC(const std::string& comment, char* hbp, int& iter) {
+void FITS::FITSHeader::addKeywordComment(const std::string& comment, char* hbp, int& iter) {
 	hbp[iter++] = ' ';
 	hbp[iter++] = '/';
 	hbp[iter++] = ' ';
@@ -26,15 +47,15 @@ void FITS::FITSHeader::AddKWC(const std::string& comment, char* hbp, int& iter) 
 	}
 }
 
-void FITS::FITSHeader::AddLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment) {
+void FITS::FITSHeader::addLogicalKeyword(const std::string& keyword, bool boolean, const std::string& comment) {
 	//byte number = iter + 1
 	if (keyword_count % 36 == 0 && keyword_count != 0)
-		ResizeHeaderBlock();
+		resizeHeaderBlock();
 
 	int iter = 0;
 	char* hbp = &header_block[keyword_count][0];
 
-	AddKW(keyword, hbp, iter);
+	addKeyword(keyword, hbp, iter);
 
 	for (; iter < 29; ++iter)
 		hbp[iter] = ' ';
@@ -45,7 +66,7 @@ void FITS::FITSHeader::AddLogicalKeyword(const std::string& keyword, bool boolea
 		hbp[iter++] = 'F';
 
 	if (!comment.empty())
-		AddKWC(comment, hbp, iter);
+		addKeywordComment(comment, hbp, iter);
 
 	for (; iter < 80; ++iter)
 		hbp[iter] = ' ';
@@ -53,15 +74,15 @@ void FITS::FITSHeader::AddLogicalKeyword(const std::string& keyword, bool boolea
 	keyword_count++;
 }
 
-void FITS::FITSHeader::AddIntegerKeyword(const std::string& keyword, int integer, const std::string& comment) {
+void FITS::FITSHeader::addIntegerKeyword(const std::string& keyword, int integer, const std::string& comment) {
 	//byte number = iter + 1
 	if (keyword_count % 36 == 0 && keyword_count != 0)
-		ResizeHeaderBlock();
+		resizeHeaderBlock();
 
 	int iter = 0;
 	char* hbp = &header_block[keyword_count][iter];
 
-	AddKW(keyword, hbp, iter);
+	addKeyword(keyword, hbp, iter);
 
 	for (; iter < 29; ++iter)
 		hbp[iter] = ' ';
@@ -78,7 +99,7 @@ void FITS::FITSHeader::AddIntegerKeyword(const std::string& keyword, int integer
 	iter = 30;
 
 	if (!comment.empty())
-		AddKWC(comment, hbp, iter);
+		addKeywordComment(comment, hbp, iter);
 
 	for (; iter < 80; ++iter)
 		hbp[iter] = ' ';
@@ -86,7 +107,7 @@ void FITS::FITSHeader::AddIntegerKeyword(const std::string& keyword, int integer
 	keyword_count++;
 }
 
-std::string FITS::FITSHeader::GetKeyWordValue(const std::string& keyword) {
+int FITS::FITSHeader::keywordValue(const std::string& keyword) {
 
 	for (auto hl : header_block) {
 		bool matches = true;
@@ -106,19 +127,19 @@ std::string FITS::FITSHeader::GetKeyWordValue(const std::string& keyword) {
 					value.push_back(hl[i]);
 			}
 
-			return value;
+			return std::stoi(value);
 
 		}
 	}
 
-	// would be better to throw exception?!?!
-	return "NoKeyWordFound";
+	//return "NoKeyWordFound";
+	return 0;
 }
 
-void FITS::FITSHeader::EndHeader() {
+void FITS::FITSHeader::endHeader() {
 
 	if (keyword_count % 36 == 0)
-		ResizeHeaderBlock();
+		resizeHeaderBlock();
 
 	char* db = &header_block[keyword_count][0];
 	db[0] = 'E';
@@ -138,14 +159,14 @@ void FITS::FITSHeader::EndHeader() {
 
 }
 
-void FITS::FITSHeader::Read(std::fstream& stream) {
+void FITS::FITSHeader::read(std::fstream& stream) {
 
 	stream.seekg(0);
 
 	for (int kw = 0; ; ++kw) {
 
 		if (kw != 0 && kw % 36 == 0)
-			ResizeHeaderBlock();
+			resizeHeaderBlock();
 
 		char end[4] = { 'E','N','D',' ' };
 		stream.read(header_block[kw].data(), 80);
@@ -163,13 +184,26 @@ void FITS::FITSHeader::Read(std::fstream& stream) {
 
 }
 
-void FITS::FITSHeader::Write(std::fstream& stream) {
+void FITS::FITSHeader::write(std::fstream& stream) {
 	stream.write((char*)header_block.data(), header_block.size() * 80);
 }
 
 
+ImageType FITS::imageTypefromFile() {
 
-bool FITS::is_FitsFile() {
+	switch (m_fits_header.keywordValue("BITPIX")) {
+	case 8:
+		return ImageType::UBYTE;
+	case 16:
+		return ImageType::USHORT;
+	case -32:
+		return ImageType::FLOAT;
+	default:
+		return ImageType::UBYTE;
+	}
+}
+
+bool FITS::isFITSFile() {
 
 	int cur_pos = m_stream.tellg();
 	m_stream.seekg(0);
@@ -199,51 +233,46 @@ bool FITS::is_FitsFile() {
 	return false;
 }
 
-int FITS::GetFITSBitDepth() {
+void FITS::open(std::filesystem::path path) {
 
-	m_bitdepth = GetKeyWordValue("BITPIX");
+	ImageFile::open(path);
 
-	return m_bitdepth;
-}
-
-
-void FITS::Open(std::filesystem::path path) {
-
-	ImageFile::Open(path);
-
-	if (!is_FitsFile())
+	if (!isFITSFile())
 		return;
 
-	m_type = FileType::FITS;
+	//m_type = FileType::FITS;
 
-	m_fits_header.Read(m_stream);
+	m_fits_header.read(m_stream);
 
 	m_data_pos = m_fits_header.header_block.size() * 80;
 
-	m_bitdepth = GetKeyWordValue("BITPIX");
-	int naxis = GetKeyWordValue("NAXIS");
-	m_cols = GetKeyWordValue("NAXIS1");
-	m_rows = GetKeyWordValue("NAXIS2");
+	m_img_type = imageTypefromFile();
+	//m_bitdepth = m_fits_header.keywordValue("BITPIX");
 
-	if (naxis > 2) {
-		m_channels = GetKeyWordValue("NAXIS3");
-	}
+	int naxis = m_fits_header.keywordValue("NAXIS");
+	m_cols = m_fits_header.keywordValue("NAXIS1");
+	m_rows = m_fits_header.keywordValue("NAXIS2");
 
+	if (naxis > 2) 
+		m_channels = m_fits_header.keywordValue("NAXIS3");
 	else
 		m_channels = 1;
 
-	m_px_count = m_rows * m_cols;
+	m_px_count = rows() * cols();
 
-	ResizeBuffer();
+	resizeBuffer();
 }
 
-void FITS::Create(std::filesystem::path path) {
-	ImageFile::Create(path);
+void FITS::create(std::filesystem::path path) {
+
+	path += ".fits";
+
+	ImageFile::create(path);
 }
 
-void FITS::Close() {
+void FITS::close() {
 
-	ImageFile::Close();
+	ImageFile::close();
 
 	m_fits_header = FITSHeader();
 	m_data_pos = 2880;
@@ -251,36 +280,87 @@ void FITS::Close() {
 }
 
 template<typename T>
-void FITS::Read(Image<T>& dst) {
+void FITS::read(Image<T>& dst) {
 
-	dst = Image<T>(m_rows, m_cols, m_channels);
+	dst = Image<T>(rows(), cols(), channels());
 
 	m_stream.seekg(m_data_pos);
 
 	m_stream.read((char*)dst.data.get(), dst.TotalPxCount() * sizeof(T));
 
-	if (m_bitdepth == 16) {
+	if (m_img_type == ImageType::USHORT) {
 		for (auto& pixel : dst)
 			pixel = _byteswap_ushort(pixel) + 32768;
 	}
 
-	if (m_bitdepth == -32) {
+	else if (m_img_type == ImageType::FLOAT) {
 		for (auto& pixel : dst)
 			pixel = byteswap_float(pixel);
 	}
 
 	if (dst.is_float())
-		dst.Normalize();
+		dst.normalize();
 
-	Close();
+	close();
 }
-template void FITS::Read(Image8&);
-template void FITS::Read(Image16&);
-template void FITS::Read(Image32&);
+template void FITS::read(Image8&);
+template void FITS::read(Image16&);
+template void FITS::read(Image32&);
 
+void FITS::readAny(Image32& dst) {
+
+	dst = Image32(m_rows, m_cols, m_channels);
+
+	m_stream.seekg(m_data_pos);
+
+	switch (m_img_type) {
+	case ImageType::UBYTE: {
+		std::vector<uint8_t> buffer(dst.cols());
+		int mem_size = buffer.size() * sizeof(uint8_t);
+
+		for (int ch = 0; ch < dst.channels(); ++ch) {
+			for (int y = 0; y < dst.rows(); ++y) {
+
+				m_stream.read((char*)buffer.data(), mem_size);
+
+				for (int x = 0; x < dst.cols(); ++x) {
+					dst(x, y, ch) = buffer[x] / 255.0f;
+				}
+			}
+		}
+		break;
+	}
+
+	case ImageType::USHORT: {
+		std::vector<int16_t> buffer(dst.cols());
+		int mem_size = buffer.size() * sizeof(uint16_t);
+
+		for (int ch = 0; ch < dst.channels(); ++ch) {
+			for (int y = 0; y < dst.rows(); ++y) {
+				m_stream.read((char*)buffer.data(), mem_size);
+				for (int x = 0; x < dst.cols(); ++x) {
+					dst(x, y, ch) = uint16_t(_byteswap_ushort(buffer[x]) + 32768) / 65535.0f;
+				}
+			}
+		}
+		break;
+	}
+
+	case ImageType::FLOAT: {
+		m_stream.read((char*)dst.data.get(), dst.TotalPxCount() * sizeof(float));
+
+		for (auto& pixel : dst)
+			pixel = byteswap_float(pixel);
+		dst.normalize();
+		break;
+	}
+	}
+
+	close();
+}
 
 template<typename T>
-void FITS::ReadSome(T* buffer, const Point<>& start_point, int num_elements) {
+void FITS::readSome(T* buffer, const ImagePoint& start_point, int num_elements) {
 
 	std::streampos offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x()) * sizeof(T);
 	m_stream.seekg(m_data_pos + offset);
@@ -295,113 +375,57 @@ void FITS::ReadSome(T* buffer, const Point<>& start_point, int num_elements) {
 			buffer[x] = _byteswap_ushort(buffer[x]);
 
 }
-template void FITS::ReadSome(uint8_t*, const Point<>&, int);
-template void FITS::ReadSome(uint16_t*, const Point<>&, int);
-template void FITS::ReadSome(float*, const Point<>&, int);
+template void FITS::readSome(uint8_t*, const ImagePoint&, int);
+template void FITS::readSome(uint16_t*, const ImagePoint&, int);
+template void FITS::readSome(float*, const ImagePoint&, int);
 
-void FITS::ReadSome_Any(float* dst, const Point<>& start_point, int num_elements) {
+void FITS::readSome_Any(float* dst, const ImagePoint& start_point, int num_elements) {
+
 	size_t offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x());
 
-	switch (m_bitdepth) {
-	case 8: {
+	switch (m_img_type) {
+	case ImageType::UBYTE: {
 		std::vector<uint8_t> buff(num_elements);
 		m_stream.seekg(m_data_pos + std::streampos(offset));
 		m_stream.read((char*)buff.data(), num_elements);
 		for (int x = 0; x < num_elements; ++x)
 			dst[x] = Pixel<float>::toType(buff[x]);
-		break;
+		return;
 	}
-	case 16: {
+	case ImageType::USHORT: {
 		std::vector<uint16_t> buffer(num_elements);
 		offset *= 2;
 		m_stream.seekg(m_data_pos + std::streampos(offset));
 		m_stream.read((char*)buffer.data(), num_elements * 2);
-
-		/*for (int x = num_elements - 1, m = num_elements / 2; x >= 0; --x, --m) {
-			uint16_t* p = (uint16_t*)&buffer[m];
-			buffer[x] = uint16_t(_byteswap_ushort(p[1]) + 32768) / 65535.0f;
-			buffer[--x] = uint16_t(_byteswap_ushort(p[0]) + 32768) / 65535.0f;
-
-		}*/
-
 		for (int x = 0; x < num_elements; ++x)
 			dst[x] = Pixel<float>::toType(uint16_t(_byteswap_ushort(buffer[x]) + 32768));
-		break;
+		return;
 	}
-	case -32: {
+	case ImageType::FLOAT: {
 		offset *= 4;
 		m_stream.seekg(m_data_pos + std::streampos(offset));
 		m_stream.read((char*)dst, num_elements * 4);
 		for (int x = 0; x < num_elements; ++x)
 			dst[x] = byteswap_float(dst[x]);
-		break;
+		return;
 	}
 	}
-
-}
-
-void FITS::ReadAny(Image32& dst) {
-
-	dst = Image32(m_rows, m_cols, m_channels);
-
-	m_stream.seekg(m_data_pos);
-
-	if (m_bitdepth == 8) {
-		std::vector<uint8_t> buffer(dst.Cols());
-		int mem_size = buffer.size() * sizeof(uint8_t);
-
-		for (int ch = 0; ch < dst.Channels(); ++ch) {
-			for (int y = 0; y < dst.Rows(); ++y) {
-
-				m_stream.read((char*)buffer.data(), mem_size);
-
-				for (int x = 0; x < dst.Cols(); ++x) {
-					dst(x, y, ch) = buffer[x] / 255.0f;
-				}
-			}
-		}
-	}
-
-	else if (m_bitdepth == 16) {
-
-		std::vector<int16_t> buffer(dst.Cols());
-		int mem_size = buffer.size() * sizeof(uint16_t);
-
-		for (int ch = 0; ch < dst.Channels(); ++ch) {
-			for (int y = 0; y < dst.Rows(); ++y) {
-				m_stream.read((char*)buffer.data(), mem_size);
-				for (int x = 0; x < dst.Cols(); ++x) {
-					dst(x, y, ch) = uint16_t(_byteswap_ushort(buffer[x]) + 32768) / 65535.0f;
-				}
-			}
-		}
-	}
-
-	else if (m_bitdepth == -32) {
-
-		m_stream.read((char*)dst.data.get(), dst.TotalPxCount() * sizeof(float));
-
-		for (auto& pixel : dst)
-			pixel = byteswap_float(pixel);
-	}
-
-	Close();
 }
 
 template<typename T>
-void FITS::WritePixels_8(const Image<T>& src) {
+void FITS::writePixels_8(const Image<T>& src) {
 
 	if (std::is_same<T, uint8_t>::value) {
 		m_stream.write((char*)src.data.get(), src.TotalPxCount());
 		return;
 	}
 
-	std::vector<uint8_t> buffer(src.Cols());
+	std::vector<uint8_t> buffer(src.cols());
 	std::streamsize mem_size = buffer.size();
 
 	auto bi = buffer.begin();
 
-	for (const T& pixel : src) {
+	for (T pixel : src) {
 
 		*bi++ = Pixel<uint8_t>::toType(pixel);
 
@@ -411,19 +435,19 @@ void FITS::WritePixels_8(const Image<T>& src) {
 		}
 	}
 }
-template void FITS::WritePixels_8(const Image8&);
-template void FITS::WritePixels_8(const Image16&);
-template void FITS::WritePixels_8(const Image32&);
+template void FITS::writePixels_8(const Image8&);
+template void FITS::writePixels_8(const Image16&);
+template void FITS::writePixels_8(const Image32&);
 
 template<typename T>
-void FITS::WritePixels_16(const Image<T>& src) {
+void FITS::writePixels_16(const Image<T>& src) {
 
-	std::vector<int16_t> buffer(src.Cols());
+	std::vector<int16_t> buffer(src.cols());
 	std::streamsize mem_size = buffer.size() * 2;
 
 	auto bi = buffer.begin();
 
-	for (const T& pixel : src) {
+	for (T pixel : src) {
 
 		*bi++ = _byteswap_ushort(Pixel<uint16_t>::toType(pixel) - 32768);
 
@@ -433,19 +457,19 @@ void FITS::WritePixels_16(const Image<T>& src) {
 		}
 	}
 }
-template void FITS::WritePixels_16(const Image8&);
-template void FITS::WritePixels_16(const Image16&);
-template void FITS::WritePixels_16(const Image32&);
+template void FITS::writePixels_16(const Image8&);
+template void FITS::writePixels_16(const Image16&);
+template void FITS::writePixels_16(const Image32&);
 
 template<typename T>
-void FITS::WritePixels_float(const Image<T>& src) {
+void FITS::writePixels_float(const Image<T>& src) {
 
-	std::vector<float> buffer(src.Cols());
+	std::vector<float> buffer(src.cols());
 	std::streamsize mem_size = buffer.size() * 4;
 
 	auto bi = buffer.begin();
 
-	for (const T& pixel : src) {
+	for (T pixel : src) {
 
 		*bi++ = byteswap_float(Pixel<float>::toType(pixel));
 
@@ -455,42 +479,42 @@ void FITS::WritePixels_float(const Image<T>& src) {
 		}
 	}
 }
-template void FITS::WritePixels_float(const Image8&);
-template void FITS::WritePixels_float(const Image16&);
-template void FITS::WritePixels_float(const Image32&);
+template void FITS::writePixels_float(const Image8&);
+template void FITS::writePixels_float(const Image16&);
+template void FITS::writePixels_float(const Image32&);
+
 
 template <typename T>
-void FITS::Write(const Image<T>& src, int new_bit_depth) {
+void FITS::write(const Image<T>& src, ImageType new_type) {
 
-	ResizeBuffer(src.Cols() * SizeofBitdepth(new_bit_depth));
+	resizeBuffer(src.cols() * typeSize(new_type));
 
-	m_fits_header = FITSHeader(new_bit_depth, { src.Rows(), src.Cols(), src.Channels() });
-	m_fits_header.Write(m_stream);
+	int m = (new_type == ImageType::FLOAT) ? -1 : 1;
 
-	switch (new_bit_depth) {
-		case 8:
-		{
-			WritePixels_8(src);
-			break;
-		}
-		case 16:
-		{
-			WritePixels_16(src);
-			break;
-		}
-		case -32:
-		{
-			WritePixels_float(src);
-			break;
-		}
+	m_fits_header = FITSHeader(m * typeSize(new_type) * 8, { src.rows(), src.cols(), src.channels() });
+	m_fits_header.write(m_stream);
+
+	switch (new_type) {
+	case ImageType::UBYTE: {
+		writePixels_8(src);
+		break;
+	}
+	case ImageType::USHORT: {
+		writePixels_16(src);
+		break;
+	}
+	case ImageType::FLOAT: {
+		writePixels_float(src);
+		break;
+	}
 	}
 
 	int padding_length = ceil(float(m_stream.tellp()) / m_data_pos) * m_data_pos - m_stream.tellp();
 	std::vector<uint8_t> zeros(padding_length, 0);
 	m_stream.write((char*)zeros.data(), padding_length);
 
-	Close();
+	close();
 }
-template void FITS::Write(const Image8&, int);
-template void FITS::Write(const Image16&, int);
-template void FITS::Write(const Image32&, int);
+template void FITS::write(const Image8&, ImageType);
+template void FITS::write(const Image16&, ImageType);
+template void FITS::write(const Image32&, ImageType);

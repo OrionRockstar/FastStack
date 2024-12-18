@@ -2,8 +2,9 @@
 #include "Image.h"
 #include "ImageOperations.h"
 #include "GaussianFilter.h"
+#include "ProcessDialog.h"
 
-struct NRLayers {
+/*struct NRLayers {
 	bool layer = false;
 	float threshold = 3;
 	float amount = 1;
@@ -12,26 +13,35 @@ struct NRLayers {
 	NRLayers() = default;
 };
 
-typedef std::vector<NRLayers> NRVector;
+typedef std::vector<NRLayers> NRVector;*/
 
-enum class ScalingFunction {
-	linear_3,
-	b3spline_5,
-	smallscale3_3,
-	gaussian_5
-};
 
 class Wavelet {
 
-	std::vector<float> linear = { 0.25f,0.5f,0.25f };
-	std::vector<float> b3 = { 0.0625f,0.25f,0.375f,0.25f,0.0625f };
-	std::vector<float> ss3_3 = { 0.333333f,1.0f,0.333333f };
-	std::vector<float> g_5 = { 0.01f,0.316228f,1.0f,0.316228f,0.01f };
+public:
+	enum class ScalingFunction {
+		linear_3,
+		smallscale3_3,
+		b3spline_5,
+		gaussian_5
+	};
 
-	Image32 source;
-	Image32 convolved;
-	Image32 wavelet;
-	ScalingFunction m_sf = ScalingFunction::b3spline_5;
+protected:
+	const std::vector<float> linear = { 0.25f,0.5f,0.25f };
+	const std::vector<float> ss3_3 = { 0.333333f,1.0f,0.333333f };
+	const std::vector<float> b3 = { 0.0625f,0.25f,0.375f,0.25f,0.0625f };
+	const std::vector<float> g_5 = { 0.01f,0.316228f,1.0f,0.316228f,0.01f };
+
+	ScalingFunction m_scaling_func = ScalingFunction::b3spline_5;
+	uint8_t m_layers = 5;
+
+private:
+	const std::vector<float>& scalingFunctionKernel(ScalingFunction sf) const;
+
+protected:
+	Image32 m_source = Image32();
+	Image32 m_convolved = Image32();
+	Image32 m_wavelet = Image32();
 
 	struct WaveletHistogram {
 		std::unique_ptr<uint32_t[]> histogram;
@@ -69,55 +79,120 @@ class Wavelet {
 	};
 
 public:
-
 	Wavelet() = default;
 
-private:
+	Wavelet& operator=(Wavelet&& other) {
 
-	template<typename T>
-	Wavelet(Image<T>& img) {
-		source = Image32(img.Rows(), img.Cols(), img.Channels());
+		if (this != &other) {
+			m_scaling_func = other.m_scaling_func;
+			m_layers = other.m_layers;
+			m_source = std::move(other.m_source);
+			m_convolved = std::move(other.m_convolved);
+			m_wavelet = std::move(other.m_wavelet);
+		}
 
-
-		if (img.is_float())
-			memcpy(source.data.get(), img.data.get(), img.TotalPxCount() * 4);
-
-		else
-			for (int el = 0; el < img.TotalPxCount(); ++el)
-				source[el] = Pixel<float>::toType(img[el]);
-
-		convolved = Image32(source);
-		wavelet = Image32(source);
+		return *this;
 	}
 
-	std::vector<float> GetScalingFunction(ScalingFunction sf);
+protected:
+	template<typename T>
+	void waveletInit(const Image<T>& img) {
+		m_source = Image32(img.rows(), img.cols(), img.channels());
 
-	void GetWaveletLayer();
+		for (int el = 0; el < img.TotalPxCount(); ++el)
+			m_source[el] = Pixel<float>::toType(img[el]);
 
-	void Atrous(int scale_num, ScalingFunction sf);
+		m_convolved = Image32(img.rows(), img.cols(), img.channels());
+		m_wavelet = Image32(img.rows(), img.cols(), img.channels());
+	}
 
-	const int GetSign(float val);
+	void cleanUp() {
+		m_source = Image32();
+		m_convolved = Image32();
+		m_wavelet = Image32();
+	}
+
+public:
+	ScalingFunction scalingFuntion()const { return m_scaling_func; }
+
+	void setScalingFuntion(ScalingFunction scaling_func) { m_scaling_func = scaling_func; }
+
+	uint8_t layers()const { return m_layers; }
+
+	void setLayers(uint8_t layers) { m_layers = layers; }
+
+protected:
+	void atrous(uint8_t layer);
 
 	void LinearNoiseReduction(float threshold = 3, float amount = 1);
 
 	void MedianNoiseReduction(float threshold = 3, float amount = 1);
 
-public:
+	//template<typename Image>
+	//void WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf = ScalingFunction::b3spline_5, int scale_num = 4);
 
-	template<typename Image>
-	void WaveletTransform(Image& img, std::vector<Image32>& wavelet_vector, ScalingFunction sf = ScalingFunction::b3spline_5, int scale_num = 4, bool residual = false);
+	//template<typename Image>
+	//void MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num);
 
-	template<typename Image>
-	void WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf = ScalingFunction::b3spline_5, int scale_num = 4);
-
-	template<typename Image>
-	void MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num);
-
-	template<typename Image>
-	void MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num);
-
-	Image8Vector StuctureMaps(const Image32& src, float K, bool median_blur, int num_layers);
-
-	void ChrominanceNoiseReduction(Image32& img, int layers_to_remove, int layers_to_keep);
+	//template<typename Image>
+	//void MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num);
 };
 
+
+class WaveletLayerCreator : public Wavelet {
+	bool m_residual = false;
+
+public:
+	bool residual()const { return m_residual; }
+
+	void setResidual(bool v) { m_residual = v; }
+
+	template<typename T>
+	std::vector<Image32> generateWaveletLayers(const Image<T>& src);
+};
+
+
+class StructureMaps : public Wavelet {
+
+	double m_K = 3.0;
+	bool m_median_blur = true;
+
+public:
+	StructureMaps() = default;
+
+	void setK(double K) { m_K = K; }
+
+	bool medianBlur()const { return m_median_blur; }
+
+	void applyMedianBlur(bool val) { m_median_blur = val; }
+
+private:
+	double kSigma(const Image32& img, float K = 3.0f, float eps = 0.01f, int n = 10);
+
+public:
+	template<typename T>
+	Image8Vector generateMaps(const Image<T>& img);
+};
+
+
+
+
+
+class WaveletLayersDialog : public ProcessDialog {
+
+	WaveletLayerCreator m_wavelet;
+
+	SpinBox* m_layers_sb = nullptr;
+	ComboBox* m_scaling_func_combo = nullptr;
+	CheckBox* m_residual_cb = nullptr;
+
+public:
+	WaveletLayersDialog(QWidget* parent);
+
+private:
+	void resetDialog();
+
+	void showPreview() {}
+
+	void apply();
+};

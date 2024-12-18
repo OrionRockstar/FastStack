@@ -7,53 +7,61 @@
 
 class AdaptiveStretch {
 public:
-	struct CDF_Curve {
+	class CDFCurve {
+	public:
+		std::vector<float> m_curve;
+		float m_min = 0.0;
+		float m_max = 1.0;
 
-		std::vector<float> curve;
-		float min = 0;
-		float max = 1;
+	public:
+		size_t size()const { return m_curve.size(); }
 
-		void Resize(size_t new_size) { curve.resize(new_size); }
+		void resize(size_t new_size) { m_curve.resize(new_size); }
 
-		float& operator[](int el) { return curve[el]; }
+		float& operator[](int el) { return m_curve[el]; }
+
+		float min()const { return m_min; }
+
+		void setMin(float min) { m_min = min; }
+
+		float max()const { return m_max; }
+
+		void setMax(float max) { m_max = max; }
 	};
 
 private:
-	//rename to noise thresh
 	float m_noise_thresh = 0.001;
 
 	bool m_contrast_protection = false;
-	float m_contrast = 0.0;
+	float m_contrast_threshold = 0.0001;
 
 	int m_data_points = 1'000'000;
 
-
-	CDF_Curve m_cdf_curve;
+	CDFCurve m_cdf_curve;
 
 public:
 	AdaptiveStretch() = default;
+
+	float noiseThreshold()const { return m_noise_thresh; }
 
 	void setNoiseThreshold(float noise_thresh) { m_noise_thresh = noise_thresh; }
 
 	void setContrastProtection(bool contrast_protection) { m_contrast_protection = contrast_protection; }
 
-	void setContrast(float contrast) { m_contrast = contrast; }
+	float contrastTreshold()const { return m_contrast_threshold; }
+
+	void setContrastThreshold(float contrast) { m_contrast_threshold = contrast; }
 
 	void setDataPoints(int num) { m_data_points = num; }
 
-private:
 	template<typename T>
-	std::vector<float> GetCumulativeNetForces(Image<T>&img);
-
-public:
-	template<typename T>
-	void ComputeCDF(Image<T>& img);
+	void computeCDF(const Image<T>& img);
 
 	template <typename T>
 	void Apply(Image<T>&img);
 
-	template<typename T>
-	void ApplyTo(Image<T>& src, Image<T>& dst, int factor);
+	template <typename T>
+	void Apply_NoCDF(Image<T>& img);
 };
 
 
@@ -72,60 +80,33 @@ private:
 
 	AdaptiveStretch m_as;
 
-	QLabel* m_noise_label;
 	DoubleLineEdit* m_noise_le;
-
 	DoubleLineEdit* m_noise_coef_le;
-	QSlider* m_noise_coef_slider;
-	QComboBox* m_noise_coef_exp;
+	Slider* m_noise_coef_slider;
+	SpinBox* m_noise_coef_exp;
 
-	QLabel* m_contrast_label;
 	DoubleLineEdit* m_contrast_le;
-
 	DoubleLineEdit* m_contrast_coef_le;
-	QSlider* m_contrast_coef_slider;
-	QComboBox* m_contrast_coef_exp;
+	Slider* m_contrast_coef_slider;
+	SpinBox* m_contrast_coef_exp;
 
 	QCheckBox* m_contrast_cb;
 
-	QLabel* m_curve_pts_label;
-	QLineEdit* m_curve_pts_le;
+	IntLineEdit* m_curve_pts_le;
 
-	QLineSeries* m_series;
-	QChart* m_graph;
-
-	
+	//QLineSeries* m_series;
+	//QChart* m_graph;
 public:
 	AdaptiveStretchDialog(QWidget* parent);
 
 private:
+	void addNoiseThresholdInputs();
 
-	void editingFinished_noise();
+	void connectNoiseInputs();
 
-	void editingFinished_noise_coef();
+	void addContrastProtectionInputs();
 
-	void actionSlider_noise_coef(int action);
-
-	void itemSelected_noise_coef(int index);
-
-
-
-	void editingFinished_contrast();
-
-	void editingFinished_contrast_coef();
-
-	void actionSlider_contrast_coef(int action);
-
-	void itemSelected_contrast_coef(int index);
-
-	void onClick_constrast(bool val);
-
-
-	void editingFinished_data_pts();
-
-	void AddNoiseThresholdInputs();
-
-	void AddContrastProtectionInputs();
+	void connectContrastInputs();
 
 	void showPreview();
 

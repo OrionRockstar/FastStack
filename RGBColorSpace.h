@@ -2,7 +2,7 @@
 #include "Matrix.h"
 #include "Maths.h"
 
-enum class ColorComponent {
+enum class ColorComponent : uint8_t {
     red,
     green,
     blue,
@@ -17,14 +17,28 @@ enum class ColorComponent {
 
 
 class ColorSpace {
+public:
+    enum Type : uint8_t {
+        rgb,
+        hsv,
+        hsi,
+        ciexyz,
+        cielab,
+        cielch
+    };
+
 private:
     static constexpr double _1_3 = 1.0 / 3.0;
     static constexpr double _2_3 = 2.0 / 3.0;
     static constexpr double k = 24389.0 / 27.0;
-    inline static const double esp = 216.0 / 24389.0;
-    inline static const double _16_116 = 16.0 / 116.0;
-    inline static const double k_116 = k / 116.0;
-    inline static const double _2pi = 2 * 3.14159265358979323846;
+    static constexpr double esp = 216.0 / 24389.0;
+    static constexpr double _16_116 = 16.0 / 116.0;
+    static constexpr double k_116 = k / 116.0;
+    static constexpr double _2pi = 2 * 3.14159265358979323846;
+
+    inline static const Matrix RGB_YCbCr = Matrix(3, 3, {  0.299,   0.597,   0.114,
+                                                          -0.1687, -0.3313,  0.5,
+                                                           0.5,    -0.4187, -0.0813});
 
     inline static const Matrix RGB_XYZ = Matrix(3, 3, { 0.4360747, 0.3850649, 0.1430804,
                                                         0.2225045, 0.7168786, 0.0606169,
@@ -60,9 +74,41 @@ public:
 
     }
 
+    static void RGBtoHSV(const Color<double>& color, double& H, double& S, double& V) {
+        double R = color.red();
+        double G = color.green();
+        double B = color.blue();
+
+        double max = Max(R, Max(G, B));
+        double dm = max - Min(R, Min(G, B));
+
+        V = max;
+
+        if (dm == 0) {
+            S = 0;
+            H = 0;
+            return;
+        }
+
+        S = dm / max;
+
+        if (R == max) H = (G - B) / dm;
+        else if (G == max) H = 2 + (B - R) / dm;
+        else  H = 4 + (R - G) / dm;
+
+        H /= 6;
+        if (H < 0) H += 1;
+
+    }
+
     static void RGBtoHSVL(double R, double G, double B, double& H, double& S, double& V, double& L) {
         RGBtoHSV(R, G, B, H, S, V);
         L = CIEL(R, G, B);
+    }
+
+    static void RGBtoHSVL(const Color<double>& color, double& H, double& S, double& V, double& L) {
+        RGBtoHSV(color, H, S, V);
+        L = CIEL(color);
     }
 
     static void HSVtoRGB(double H, double S, double V, double& R, double& G, double& B) {
@@ -118,11 +164,56 @@ public:
         }
     }
 
+    static Color<double> HSVtoRGB(double H, double S, double V) {
+        double R = 0, G = 0, B = 0;
+
+        if (S == 0)
+            return { V,V,V };
+        
+
+        H *= 6;
+        int vi = int(floor(H));
+        double v1 = V * (1 - S);
+        double v2 = V * (1 - S * (H - vi));
+        double v3 = V * (1 - S * (1 - (H - vi)));
+
+        switch (vi) {
+        case 0:
+            return { V,v3,v1 };
+
+        case 1:
+            return { v2,V,v1 };
+
+        case 2:
+            return { v1,V,v3 };
+
+        case 3:
+            return { v1,v2,V };
+
+        case 4:
+            return { v3,v1,V };
+
+        case 5:
+            return { V,v1,v2 };
+
+        default: return{ V,V,V };
+        }
+
+        return { V,V,V };
+    }
+
     static void HSVLtoRGB(double H, double S, double V, double L, double& R, double& G, double& B) {
         HSVtoRGB(H, S, V, R, G, B);
         double a, b, NewL;
         RGBtoCIELab(R, G, B, NewL, a, b);
         CIELabtoRGB(L, a, b, R, G, B);
+    }
+
+    static Color<double> HSVLtoRGB(double H, double S, double V, double L) {
+        Color<double> rgb = HSVtoRGB(H, S, V);
+        double a, b, NewL;
+        RGBtoCIELab(rgb, NewL, a, b);
+        return CIELabtoRGB(L, a, b);
     }
 
     static void RGBtoHSI(double R, double G, double B, double& H, double& S, double& I) {
@@ -151,19 +242,38 @@ public:
         if (H < 0) { H += 1; return; }//{ H += 1, S, V };
         if (H > 0) { H -= 1; return; }//{ H -= 1, S, V };
     }
+    
+    static void RGBtoHSI(const Color<double>& color, double& H, double& S, double& I) {
+        double R = color.red();
+        double G = color.green();
+        double B = color.blue();
 
-private:
-    static double H_RGB(double v1, double v2, double H) {
-            if (H < 0) H += 1;
-            else if (H > 1) H -= 1;
+        double max = Max(R, Max(G, B));
+        double min = Min(R, Min(G, B));
+        double dm = max - min;
 
-            if (6 * H < 1) return v1 + ((v2 - v1) * 6 * H);
-            if (2 * H < 1) return v2;
-            if (3 * H < 2) return v1 + (v2 - v1) * ((_2_3 - H) * 6);
-            return v1;
+        I = (R + G + B) / 3.0;
+
+        if (dm == 0) {
+            S = 0;
+            I = 0;
+            return;
         }
 
-public:
+        S = min / I;
+
+        double dR = (((max - R) / 6) + (max / 2)) / dm;
+        double dG = (((max - G) / 6) + (max / 2)) / dm;
+        double dB = (((max - B) / 6) + (max / 2)) / dm;
+
+        if (R == max) H = dB - dG;
+        else if (G == max) H = 0.333333f + dR - dB;
+        else if (B == max) H = 0.666666f + dG - dR;
+
+        if (H < 0) { H += 1; return; }//{ H += 1, S, V };
+        if (H > 0) { H -= 1; return; }//{ H -= 1, S, V };
+    }
+
     static void HSItoRGB(double H, double S, double I, double& R, double& G, double& B) {
         if (S == 0) {
             R = G = B = I;
@@ -178,6 +288,43 @@ public:
         B = H_RGB(v1, v2, H - _1_3);
     }
 
+    static Color<double> HSItoRGB(double H, double S, double I) {
+        if (S == 0)
+            return { I,I,I };
+       
+
+        double v2 = (I < 0.5) ? I * (1 + S) : (I + S) - (I * S);
+        double v1 = 2 * I - v2;
+
+        return { H_RGB(v1, v2, H + _1_3) , H_RGB(v1, v2, H), H_RGB(v1, v2, H - _1_3) };
+    }
+
+    static double HSI_I(double R, double G, double B) {
+        return _1_3 * (R + G + B);
+    }
+
+    static double HSI_L(double R, double G, double B) {
+        double max = Max(Max(R, G), B);
+        double min = Min(Min(R, G), B);
+        return 0.5 * (max + min);
+    }
+
+    static double HSI_V(double R, double G, double B) {
+        return  Max(Max(R, G), B);
+    }
+
+private:
+    static double H_RGB(double v1, double v2, double H) {
+            if (H < 0) H += 1;
+            else if (H > 1) H -= 1;
+
+            if (6 * H < 1) return v1 + ((v2 - v1) * 6 * H);
+            if (2 * H < 1) return v2;
+            if (3 * H < 2) return v1 + (v2 - v1) * ((_2_3 - H) * 6);
+            return v1;
+        }
+
+public:
     static double sRGBtoLinear(double pixel) {
         return (pixel <= 0.04045) ? pixel / 12.92 : pow((pixel + 0.055) / 1.055, 2.4);
     }
@@ -196,6 +343,16 @@ public:
         Z = Clip(RGB_XYZ(2, 0) * R + RGB_XYZ(2, 1) * G + RGB_XYZ(2, 2) * B);
     }
 
+    static void RGBtoXYZ(const Color<double>& color, double& X, double& Y, double& Z) {
+        double R = sRGBtoLinear(color.red());
+        double G = sRGBtoLinear(color.green());
+        double B = sRGBtoLinear(color.blue());
+
+        X = Clip(RGB_XYZ(0, 0) * R + RGB_XYZ(0, 1) * G + RGB_XYZ(0, 2) * B);
+        Y = Clip(RGB_XYZ(1, 0) * R + RGB_XYZ(1, 1) * G + RGB_XYZ(1, 2) * B);
+        Z = Clip(RGB_XYZ(2, 0) * R + RGB_XYZ(2, 1) * G + RGB_XYZ(2, 2) * B);
+    }
+
     static void XYZtoRGB(double X, double Y, double Z, double& R, double& G, double& B) {
 
         R = Clip(XYZ_RGB(0, 0) * X + XYZ_RGB(0, 1) * Y + XYZ_RGB(0, 2) * Z);
@@ -207,8 +364,27 @@ public:
         B = LineartosRGB(B);
     }
 
+    static Color<double> XYZtoRGB(double X, double Y, double Z) {
+
+        double R = Clip(XYZ_RGB(0, 0) * X + XYZ_RGB(0, 1) * Y + XYZ_RGB(0, 2) * Z);
+        double G = Clip(XYZ_RGB(1, 0) * X + XYZ_RGB(1, 1) * Y + XYZ_RGB(1, 2) * Z);
+        double B = Clip(XYZ_RGB(2, 0) * X + XYZ_RGB(2, 1) * Y + XYZ_RGB(2, 2) * Z);
+
+        R = LineartosRGB(R);
+        G = LineartosRGB(G);
+        B = LineartosRGB(B);
+
+        return { R,G,B };
+    }
+
     static double CIEL(double R, double G, double B) {
         double Y = RGB_XYZ(1, 0) * sRGBtoLinear(R) + RGB_XYZ(1, 1) * sRGBtoLinear(G) + RGB_XYZ(1, 2) * sRGBtoLinear(B);
+        XYZLab(Y);
+        return 1.16 * Y - 0.16;
+    }
+
+    static double CIEL(const Color<double>& color) {
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
         XYZLab(Y);
         return 1.16 * Y - 0.16;
     }
@@ -249,6 +425,37 @@ public:
         b = (2 * (Y - Z) + 0.9) / 1.8;
     }
 
+    static void RGBtoCIELab(const Color<double>& color, double& L, double& a, double& b) {
+        double X, Y, Z;
+        RGBtoXYZ(color, X, Y, Z);
+        X /= D50[0];
+        Z /= D50[2];
+
+        XYZLab(X);
+        XYZLab(Y);
+        XYZLab(Z);
+
+        L = 1.16 * Y - 0.16;
+        a = (5 * (X - Y) + 0.9) / 1.8;
+        b = (2 * (Y - Z) + 0.9) / 1.8;
+    }
+
+    static void RGBtoCIELabc(const Color<double>& color, double& L, double& a, double& b, double& c) {
+        double X, Y, Z;
+        RGBtoXYZ(color, X, Y, Z);
+        X /= D50[0];
+        Z /= D50[2];
+
+        XYZLab(X);
+        XYZLab(Y);
+        XYZLab(Z);
+
+        L = 1.16 * Y - 0.16;
+        a = (5 * (X - Y) + 0.9) / 1.8;
+        b = (2 * (Y - Z) + 0.9) / 1.8;
+        c = sqrt(a * a + b * b) / 1.272792206;
+    }
+
     static void CIELabtoRGB(double L, double a, double b, double& R, double& G, double& B) {
         double Y = (L + 0.16) / 1.16;
         double X = (1.8 * a - 0.9) / 5 + Y;
@@ -264,9 +471,59 @@ public:
         XYZtoRGB(X, Y, Z, R, G, B);
     }
 
+    static Color<double> CIELabtoRGB(double L, double a, double b) {
+        double Y = (L + 0.16) / 1.16;
+        double X = (1.8 * a - 0.9) / 5 + Y;
+        double Z = Y - (1.8 * b - 0.9) / 2;
+
+        LabXYZ(X);
+        LabXYZ(Y);
+        LabXYZ(Z);
+
+        X *= D50[0];
+        Z *= D50[2];
+
+        return XYZtoRGB(X, Y, Z);
+    }
+
+    static Color<double> CIELabctoRGB(double L, double a, double b, double c) {
+        double Y = (L + 0.16) / 1.16;
+        double X = (1.8 * a - 0.9) / 5 + Y;
+        double Z = Y - (1.8 * b - 0.9) / 2;
+
+        LabXYZ(X);
+        LabXYZ(Y);
+        LabXYZ(Z);
+
+        X *= D50[0];
+        Z *= D50[2];
+
+        return XYZtoRGB(X, Y, Z);
+    }
+
     static void RGBtoCIELch(double R, double G, double B, double& L, double& c, double& h) {
         double X, Y, Z;
         RGBtoXYZ(R, G, B, X, Y, Z);
+        X /= D50[0];
+        Z /= D50[2];
+
+        XYZLab(X);
+        XYZLab(Y);
+        XYZLab(Z);
+        double a, b;
+        L = 1.16 * Y - 0.16;
+        a = 5 * (X - Y);
+        b = 2 * (Y - Z);
+
+        c = sqrt(a * a + b * b) / 1.272792206;
+        h = atan2(b, a);
+        if (h < 0) h += _2pi;
+    }
+
+    static void RGBtoCIELch(const Color<double>& color, double& L, double& c, double& h) {
+        double X, Y, Z;
+        RGBtoXYZ(color, X, Y, Z);
+
         X /= D50[0];
         Z /= D50[2];
 
@@ -300,5 +557,40 @@ public:
         Z *= D50[2];
 
         XYZtoRGB(X, Y, Z, R, G, B);
+    }
+
+    static Color<double> CIELchtoRGB(double L, double c, double h) {
+        c *= 1.272792206;
+        double a = c * cos(h);
+        double b = c * sin(h);
+
+        double Y = (L + 0.16) / 1.16;
+        double X = a / 5 + Y;
+        double Z = Y - b / 2;
+
+        LabXYZ(X);
+        LabXYZ(Y);
+        LabXYZ(Z);
+
+        X *= D50[0];
+        Z *= D50[2];
+
+        return XYZtoRGB(X, Y, Z);
+    }
+
+    static void RGBtoYCbCr(const Color<uint8_t>& color, uint8_t& Y, uint8_t& Cb, uint8_t& Cr) {
+
+        Y = RGB_YCbCr(0, 0) * color.red() + RGB_YCbCr(0, 1) * color.green() + RGB_YCbCr(0, 2) * color.blue();
+        Cb = 128 - RGB_YCbCr(1, 0) * color.red() + RGB_YCbCr(1, 1) * color.green() + RGB_YCbCr(1, 2) * color.blue();
+        Cr = 128 + RGB_YCbCr(2, 0) * color.red() + RGB_YCbCr(2, 1) * color.green() + RGB_YCbCr(2, 2) * color.blue();
+    }
+
+    static Color<uint8_t> YCbCr(uint8_t Y, uint8_t Cb, uint8_t Cr) {
+
+        uint8_t r = Y + 1.402 * (Cr - 128);
+        uint8_t g = Y - 0.34414 * (Cb - 128) - 0.71414 * (Cr - 128);
+        uint8_t b = Y + 1.772 * (Cb - 128);
+
+        return { r,g,b };
     }
 };

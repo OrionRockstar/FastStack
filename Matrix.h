@@ -1,6 +1,4 @@
 #pragma once
-
-#pragma once
 #include <vector>
 #include <iostream>
 #include <assert.h>
@@ -11,16 +9,18 @@ class Matrix {
     int m_cols = 0;
     int m_count = 0;
 
-public:
     std::vector<double> data;
 
-    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols), m_count(rows* cols) {
-        data.resize(rows * cols);
+public:
+    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols), m_count(rows*cols) {
+        data.resize(rows * cols, 0);
     }
 
-    Matrix(int rows, int cols, std::initializer_list<double> list) :m_rows(rows), m_cols(cols), m_count(rows* cols) {
-        assert(m_count == list.size());
-        data = list;
+    constexpr Matrix(int rows, int cols, std::initializer_list<double> list) :m_rows(rows), m_cols(cols) {
+        data.resize(rows * cols);
+        int size = (list.size() < data.size()) ? list.size() : data.size();
+        for (int i = 0; i < size; ++i)
+            data[i] = *(list.begin() + i);
     }
 
     Matrix() = default;
@@ -28,15 +28,12 @@ public:
     Matrix(const Matrix& other) {
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_count = other.m_count;
         data = other.data;
-        //memcpy(&data[0], &other.data[0], m_size * 8);
     }
 
-    Matrix(Matrix&& other) {
+    Matrix(Matrix&& other)noexcept {
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_count = other.m_count;
         data = std::move(other.data);
     }
 
@@ -57,20 +54,17 @@ public:
         data = other.data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_count = other.m_count;
 
         return *this;
     }
 
-    Matrix& operator=(const Matrix&& other) {
-        data = std::move(other.data);
+    Matrix& operator=(const Matrix&& other)noexcept {
+        data = other.data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-        m_count = other.m_count;
 
         return *this;
     }
-
 
     Matrix operator*(const Matrix& other) {
         assert(m_cols == other.m_rows);
@@ -156,25 +150,22 @@ public:
     }
 
     void operator=(std::initializer_list<double> list) {
-        assert(m_size == list.size());
+        assert(data.size() == list.size());
         data = list;
     }
 
 
-    const int Rows()const { return m_rows; }
+    int rows()const { return m_rows; }
 
-    const int Cols()const { return m_cols; }
+    int cols()const { return m_cols; }
 
-    const int Count()const { return m_count; }
+    std::array<int, 2> size()const { return { m_rows, m_cols }; }
 
     bool isSize(int rows, int cols)const {
-        if (rows == m_rows && cols == m_cols)
-            return true;
-        else
-            return false;
+        return (rows == m_rows && cols == m_cols);
     }
 
-    void Print() {
+    void print()const {
         for (int r = 0; r < m_rows; ++r) {
             for (int c = 0; c < m_cols; ++c)
                 std::cout << data[r * m_cols + c] << " ";
@@ -184,59 +175,37 @@ public:
 
 
     template<typename T>
-    void Fill(T value) {
+    void fill(T value) {
         for (auto& el : data)
             el = value;
     }
 
-    void ModifyRow(int row, int col, std::initializer_list<double> list) {
-        assert(list.size() <= m_cols - col);
+    template<typename T = double>
+    void setRow(int row, const std::initializer_list<T>& list) {
 
-        for (auto& i : list)
-            data[row * m_cols + col++] = i;
-    }
+        int size = (list.size() < cols()) ? list.size() : cols();
 
-    template<typename T>
-    void ModifyRow(int row, int col, std::initializer_list<T> list) {
-        assert(list.size() <= m_cols - col);
-
-        for (auto& i : list)
-            data[row * m_cols + col++] = i;
-    }
-
-
-    void ModifyVector(int start, std::initializer_list<double> list) {
-        assert(m_cols == 1 || m_rows == 1 && start + list.size() <= m_size);
-
-        for (auto i : list)
-            data[start++] = i;
-    }
-
-    template<typename T>
-    void ModifyVector(int start, std::initializer_list<T> list) {
-        assert(m_cols == 1 || m_rows == 1 && start + list.size() <= m_size);
-
-        for (auto i : list)
-            data[start++] = i;
+        for (int i = 0; i < size; ++i)
+            (*this)(row, i) = *(list.begin() + i);
     }
 
 private:
-    void ScaleAndSubstractRow(int rowa, int rowb, double scale);
+    void scale_SubstractRow(int row_a, int row_b, double scale_b);
 
-    Matrix MatrixToAugument()const;
+    Matrix augumentMatrix()const;
 
-    static Matrix GetMatrixFromAugument(const Matrix& aug);
+    static Matrix getMatrixFromAugument(const Matrix& aug);
 
 public:
-    Matrix Transpose()const;
+    Matrix transpose()const;
 
-    Matrix Inverse()const;
+    Matrix inverse()const;
 
-    double Determinant()const;
+    double determinant()const;
 
-    void MatrixResize(int n_rows, int n_cols = 1);
+    void resize(int nrows, int ncols = 1);
 
-    Matrix Identity()const;
+    Matrix identity()const;
 
-    static Matrix LeastSquares(const Matrix& A, const Matrix& b);
+    static Matrix leastSquares(const Matrix& A, const Matrix& b);
 };

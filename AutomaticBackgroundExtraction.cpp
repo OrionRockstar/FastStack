@@ -95,14 +95,14 @@ void ABE::DrawSample(Image32& img, int x, int y, int ch) {
 
 
 Image32 ABE::CreateBackgroundModel(const Image32& src) {
-    Image32 background(src.Rows(), src.Cols(), src.Channels());
-    int sample_count = ((src.Rows() / m_dist) - 1) * ((src.Cols() / m_dist) - 1);
+    Image32 background(src.rows(), src.cols(), src.channels());
+    int sample_count = ((src.rows() / m_dist) - 1) * ((src.cols() / m_dist) - 1);
 
-    for (int ch = 0; ch < src.Channels(); ++ch) {
+    for (int ch = 0; ch < src.channels(); ++ch) {
 
-        float median = src.ComputeMedian(ch);
+        float median = src.computeMedian(ch);
 
-        float sigma = src.ComputeAvgDev(ch, median);//src.ComputeStdDev(ch);
+        float sigma = src.computeAvgDev(ch, median);//src.ComputeStdDev(ch);
 
         float upper = median + m_uK * sigma;
         float lower = median - m_lK * sigma;
@@ -113,8 +113,8 @@ Image32 ABE::CreateBackgroundModel(const Image32& src) {
         int row = 0;
         int buffer = m_rad + 1;
 
-        for (int y = buffer; y < src.Rows() - buffer; y += m_dist) {
-            for (int x = buffer; x < src.Cols() - buffer; x += m_dist) {
+        for (int y = buffer; y < src.rows() - buffer; y += m_dist) {
+            for (int x = buffer; x < src.cols() - buffer; x += m_dist) {
 
                 //correct
                 float val = SampleMedian(src, x, y, ch);//SampleMean(src, x, y, ch);
@@ -128,15 +128,15 @@ Image32 ABE::CreateBackgroundModel(const Image32& src) {
 
         row -= 1;
 
-        variables.MatrixResize(row, m_poly_length);
-        bgv.MatrixResize(row);
+        variables.resize(row, m_poly_length);
+        bgv.resize(row);
 
         Matrix coef(m_poly_length);
-        coef = Matrix::LeastSquares(variables, bgv);
+        coef = Matrix::leastSquares(variables, bgv);
 
 #pragma omp parallel for
-        for (int y = 0; y < src.Rows(); ++y) {
-            for (int x = 0; x < src.Cols(); ++x) {
+        for (int y = 0; y < src.rows(); ++y) {
+            for (int x = 0; x < src.cols(); ++x) {
                 background(x, y, ch) = ComputePolynomial(coef, x, y);
             }
         }
@@ -177,7 +177,7 @@ ABE::Correction ABE::CorrectionMethod(Correction correction) {
 template<typename T>
 void ABE::Apply(Image<T>& img) {
 
-    Image32 n_copy(img.Rows(), img.Cols(), img.Channels());
+    Image32 n_copy(img.rows(), img.cols(), img.channels());
 
     for (int i = 0; i < img.TotalPxCount(); ++i)
         n_copy[i] = Pixel<float>::toType(img[i]);
@@ -199,7 +199,7 @@ void ABE::Apply(Image<T>& img) {
         break;
     }
 
-    n_copy.Normalize();
+    n_copy.normalize();
 
     for (int i = 0; i < img.TotalPxCount(); ++i)
         img[i] = Pixel<T>::toType(n_copy[i]);
@@ -217,7 +217,7 @@ template void ABE::Apply(Image32&);
 
 using ABED = AutomaticBackgroundExtractionDialog;
 
-ABED::AutomaticBackgroundExtractionDialog(QWidget* parent) : ProcessDialog("AutomaticBackgroundExtraction",QSize(400,800), *reinterpret_cast<FastStack*>(parent)->m_workspace, parent, false) {
+ABED::AutomaticBackgroundExtractionDialog(QWidget* parent) : ProcessDialog("AutomaticBackgroundExtraction",QSize(400,800), FastStack::recast(parent)->workspace(), false) {
 
 
     connect(this, &ProcessDialog::processDropped, this, &ABED::Apply);
@@ -267,22 +267,23 @@ void ABED::Apply() {
 
     auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
 
-    switch (iwptr->Source().Bitdepth()) {
-    case 8: {
-        m_abe.Apply(iwptr->Source());
-        iwptr->DisplayImage();
+    switch (iwptr->type()) {
+    case ImageType::UBYTE: {
+        //m_abe.Apply(iwptr->Source());
+        //iwptr->DisplayImage();
         break;
     }
-    case 16: {
+    case ImageType::USHORT: {
         auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-        m_abe.Apply(iw16->Source());
-        iw16->DisplayImage();
+        //m_abe.Apply(iw16->Source());
+        //iw16->DisplayImage();
         break;
     }
-    case -32: {
+    case ImageType::FLOAT: {
         auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-        m_abe.Apply(iw32->Source());
-        iw32->DisplayImage();
+        iw32->applyToSource(m_abe, &ABE::Apply);
+        //m_abe.Apply(iw32->Source());
+        //iw32->DisplayImage();
         break;
     }
     }

@@ -30,12 +30,13 @@
     <Import Project="$(QtMsBuild)\qt_defaults.props" />
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
-    <QtInstall>6.2.4_msvc2019_64</QtInstall>
-    <QtModules>core;gui;widgets;charts;</QtModules>
+    <QtModules>core;gui;widgets;charts;datavisualization</QtModules>
+    <QtInstall>6.8.1_msvc2022_64</QtInstall>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
-    <QtModules>core;gui;widgets;charts;charts</QtModules>
+    <QtModules>core;gui;widgets;charts;datavisualization</QtModules>
     <QMakeCodeLines>$(QMakeCodeLines)</QMakeCodeLines>
+    <QtInstall>6.8.1_msvc2022_64</QtInstall>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
     <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
@@ -71,10 +72,10 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <OpenMPSupport>true</OpenMPSupport>
       <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <QtRcc />
   </ItemDefinitionGroup>
@@ -83,11 +84,11 @@
       <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>MinSpace</Optimization>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
@@ -110,15 +111,25 @@
     <ClCompile Include="AutoHistogram.cpp" />
     <ClCompile Include="AutomaticBackgroundExtraction.cpp" />
     <ClCompile Include="BilateralFilter.cpp" />
+    <ClCompile Include="Binerize.cpp" />
     <ClCompile Include="Bitmap.cpp" />
+    <ClCompile Include="ChannelCombination.cpp" />
+    <ClCompile Include="ColorSaturation.cpp">
+      <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
+      <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
+      <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
+      <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
+    </ClCompile>
     <ClCompile Include="CurveInterpolation.cpp" />
     <ClCompile Include="CurvesTransformation.cpp" />
     <ClCompile Include="Drizzle.cpp" />
+    <ClCompile Include="FastStackToolBar.cpp" />
     <ClCompile Include="FITS.cpp" />
     <ClCompile Include="ImageCalibration.cpp" />
     <ClCompile Include="ImageFileReader.cpp" />
     <ClCompile Include="ImageGeometry.cpp" />
     <ClCompile Include="ImageGeometryDialogs.cpp" />
+    <ClCompile Include="ImageIntegrationProcess.cpp" />
     <ClCompile Include="ImageStacking.cpp" />
     <ClCompile Include="ImageStackingDialog.cpp" />
     <ClCompile Include="LocalHistogramEqualization.cpp">
@@ -127,7 +138,8 @@
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
     </ClCompile>
-    <ClCompile Include="Masks.cpp" />
+    <ClCompile Include="LRGBCombination.cpp" />
+    <ClCompile Include="RangeMask.cpp" />
     <ClCompile Include="MenuBar.cpp" />
     <ClCompile Include="HistogramTransformation.cpp" />
     <ClCompile Include="Homography.cpp" />
@@ -141,9 +153,12 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="GaussianFilter.cpp" />
-    <ClCompile Include="Sobel.cpp" />
+    <ClCompile Include="EdgeDetection.cpp" />
+    <ClCompile Include="StarAlignment.cpp" />
     <ClCompile Include="StarDetector.cpp" />
+    <ClCompile Include="StarMask.cpp" />
     <ClCompile Include="StarMatching.cpp" />
+    <ClCompile Include="Statistics.cpp" />
     <ClCompile Include="TIFF.cpp" />
     <ClCompile Include="ProcessDialog.cpp" />
     <ClCompile Include="Wavelet.cpp" />
@@ -153,8 +168,6 @@
     <QtMoc Include="FastStack.h" />
     <ClCompile Include="FastStack.cpp" />
     <ClCompile Include="main.cpp" />
-    <QtUic Include="ImageWindow.ui" />
-    <QtUic Include="MenuBar.ui" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="Workspace.h" />
@@ -163,11 +176,15 @@
     <QtMoc Include="AutomaticBackgroundExtraction.h" />
     <ClInclude Include="AutoHistogram.h" />
     <ClInclude Include="BilateralFilter.h" />
+    <ClInclude Include="Binerize.h" />
     <ClInclude Include="Bitmap.h" />
-    <ClInclude Include="CurveInterpolation.h" />
+    <QtMoc Include="ColorSaturation.h" />
+    <QtMoc Include="CurveInterpolation.h" />
     <QtMoc Include="CurvesTransformation.h" />
+    <ClInclude Include="ChannelCombination.h" />
     <ClInclude Include="Drizzle.h" />
     <QtMoc Include="MenuBar.h" />
+    <ClInclude Include="FastStackToolBar.h" />
     <ClInclude Include="FITS.h" />
     <ClInclude Include="GaussianFilter.h" />
     <QtMoc Include="HistogramTransformation.h" />
@@ -179,23 +196,28 @@
     <ClInclude Include="ImageFileReader.h" />
     <ClInclude Include="ImageGeometry.h" />
     <ClInclude Include="ImageGeometryDialogs.h" />
+    <ClInclude Include="ImageIntegrationProcess.h" />
     <ClInclude Include="ImageOperations.h" />
     <QtMoc Include="ImageWindow.h" />
-    <ClInclude Include="ImageStacking.h" />
-    <ClInclude Include="ImageStackingDialog.h" />
+    <QtMoc Include="ImageStacking.h" />
+    <QtMoc Include="ImageStackingDialog.h" />
     <ClInclude Include="Interpolator.h" />
     <QtMoc Include="LocalHistogramEqualization.h" />
-    <QtMoc Include="Masks.h" />
+    <QtMoc Include="RangeMask.h" />
+    <ClInclude Include="LRGBCombination.h" />
     <ClInclude Include="Maths.h" />
     <ClInclude Include="Matrix.h" />
     <ClInclude Include="MorphologicalTransformation.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="RGBColorSpace.h" />
     <QtMoc Include="SaveFileOptionsWindows.h" />
-    <ClInclude Include="Sobel.h" />
+    <ClInclude Include="EdgeDetection.h" />
     <ClInclude Include="Star.h" />
+    <QtMoc Include="StarAlignment.h" />
     <ClInclude Include="StarDetector.h" />
+    <ClInclude Include="StarMask.h" />
     <ClInclude Include="StarMatching.h" />
+    <QtMoc Include="Statistics.h" />
     <ClInclude Include="TIFF.h" />
     <QtMoc Include="ProcessDialog.h" />
     <ClInclude Include="Wavelet.h" />

@@ -3,15 +3,8 @@
 class Workspace:public QMdiArea {
     Q_OBJECT
 private:
-    QString m_typelist =
-        "All Accepted Formats(*.bmp *.fits *.fts *.fit *.tiff *.tif);;"
-        "BMP file(*.bmp);;"
-        "FITS file(*.fits *.fts *.fit);;"
-        "XISF file(*.xisf);;"
-        "TIFF file(*.tiff *.tif)";
+    QUndoStack* m_process_stack;
 public:
-    //QDialog* rtp = nullptr;
-
     int m_offsetx = 0;
     int m_offsety = 0;
 

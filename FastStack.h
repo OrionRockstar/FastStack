@@ -1,26 +1,33 @@
 #pragma once
-
 //#include <QtWidgets/QMainWindow>
 #include "pch.h"
 #include "ui_FastStack.h"
-#include "Image.h"
 #include "MenuBar.h"
-#include "ImageWindow.h"
 #include <QMdiArea>
-#include <qdockwidget.h>
 #include "Workspace.h"
+#include "FastStackToolBar.h"
 
+
+//#define FASTSTACK(ptr) *reinterpret_cast<FastStack*>(ptr)
+//have 2 workspaces, one for image & one for 
 class FastStack : public QMainWindow {
     Q_OBJECT
+
+    Workspace* m_workspace;
+    MenuBar* m_menubar;
+
+    FastStackToolBar* m_toolbar;
 
 public:
     FastStack(QWidget* parent = Q_NULLPTR);
 
-    Workspace* m_workspace;
+    Workspace* workspace()const { return m_workspace; }
 
-    MenuBar* m_menubar;
+    FastStackToolBar* toolbar()const { return m_toolbar; }
 
-    Workspace* workspace() { return m_workspace; }
+    inline static FastStack* recast(QWidget* ptr) {
+        return reinterpret_cast<FastStack*>(ptr);
+    }
 
 private:
     Ui::FastStackClass ui;

@@ -8,7 +8,7 @@ class ASinhStretch {
 	float m_blackpoint = 0.0;
 	bool m_srbg = true;
 
-	float ComputeBeta();
+	float computeBeta();
 
 	template<typename T>
 	void ApplyMono(Image<T>& img);
@@ -19,18 +19,18 @@ class ASinhStretch {
 public:
 	ASinhStretch() = default;
 
-	float StretchFactor()const;
+	float stretchFactor()const { return m_stretch_factor; }
 
-	void setStretchFactor(float stretch_factor);
+	void setStretchFactor(float stretch_factor) { m_stretch_factor = stretch_factor; }
 
-	float Blackpoint()const;
+	float blackpoint()const { return m_blackpoint; }
 
-	void setBlackpoint(float blackpoint);
+	void setBlackpoint(float blackpoint) { m_blackpoint = blackpoint; }
 
 	void setsRGB(bool srgb) { m_srbg = srgb; }
 
 	template<typename T>
-	void ComputeBlackpoint(Image<T>& img);
+	void computeBlackpoint(const Image<T>& img);
 
 	template<typename Image>
 	void Apply(Image& img);
@@ -50,43 +50,28 @@ class ASinhStretchDialog : public ProcessDialog {
 
 	ASinhStretch m_ash;
 
-	QSlider* m_sf_slider;
+	Slider* m_sf_slider;
 	DoubleLineEdit* m_sf_le;
 
-	QSlider* m_bp_slider;
+	Slider* m_bp_slider;
 	DoubleLineEdit* m_bp_le;
 
 	float m_current_bp = 0;
-	QSlider* m_fine_tune;
+	Slider* m_fine_tune;
 
-	QCheckBox* m_rgb_cb;
+	CheckBox* m_rgb_cb;
+
+	PushButton* m_bp_comp = nullptr;
+
 public:
 	ASinhStretchDialog(QWidget* parent = nullptr);
 
 private:
-	void actionSlider_sf(int action);
+	void addStretchFactorInputs();
 
-	void editingFinished_sf();
+	void addBlackpointInputs();
 
-	void actionSlider_bp(int action);
-
-	void editingFinished_bp();
-
-	void sliderPressed_ft();
-
-	void sliderMoved_ft(int value);
-
-	void sliderReleased_ft();
-
-	void onClick_srgb(bool val);
-
-	void onPressed_blackpoint();
-
-	void AddStretchFactorInputs();
-
-	void AddBlackpointInputs();
-
-	void AddFinetuneInputs();
+	void addFinetuneInputs();
 
 	void computeBlackpoint();
 

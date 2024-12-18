@@ -4,81 +4,101 @@
 
 class BilateralFilter {
 
-	ProgressSignal* m_ps = new ProgressSignal();
+	//ProgressSignal* m_ps = new ProgressSignal();
 
-	float m_sigma = 2.0;
-	float m_sigma_range = 2.0;
+	float m_sigma_s = 2.0; //spatial/gaussiam
+	float m_sigma_r = 0.5; //pixel_intensity
 	int m_kernel_dim = 3;
 
-	template <typename T>
-	struct FloatKernel2D {
-		const Image<T>* m_img;
+	class FloatKernel {
 		std::unique_ptr<float[]> data;
-		int m_dim = 0;
+
+		int m_dim = 1;
 		int m_radius = 0;
 		int m_size = 0;
-
-		FloatKernel2D(const Image<T>& img, int radius) : m_radius(radius) {
-			m_img = &img;
-			m_dim = 2 * m_radius + 1;
+	public:
+		FloatKernel(int kernel_dim) : m_dim(kernel_dim) {
+			//m_img = &img;
+			//m_dim = 2 * m_radius + 1;
+			m_radius = (m_dim - 1) / 2;
 			m_size = m_dim * m_dim;
 			data = std::make_unique<float[]>(m_size);
 		}
 
-		~FloatKernel2D() {};
+		FloatKernel(const FloatKernel& other) {
+			//m_img = other.m_img;
+			m_dim = other.m_dim;
+			m_radius = other.m_radius;
+			m_size = other.m_size;
+
+			data = std::make_unique<float[]>(m_size);
+			memcpy(data.get(), other.data.get(), m_size * sizeof(float));
+		}
+
+		~FloatKernel() {};
 
 		float& operator[](int el) {
 			return data[el];
 		}
 
-		void Populate(int y, int ch) {
-
-			for (int j = -m_radius, el = 0; j <= m_radius; ++j)
-				for (int i = -m_radius; i <= m_radius; ++i)
-					data[el++] = Pixel<float>::toType(m_img->At_mirrored(i, y + j, ch));
+		float& operator()(int x, int y) {
+			return data[y * m_dim + x];
 		}
 
-		void Update(int x, int y, int ch) {
+		int count()const { return m_size; }
 
-			int xx = x + m_radius;
-			if (xx >= m_img->Cols())
-				xx = 2 * m_img->Cols() - (xx + 1);
+		int dimension()const { return m_dim; }
 
-			for (int j = 0; j < m_size; j += m_dim)
-				for (int i = 0; i < m_dim - 1; ++i)
-					data[j + i] = data[j + i + 1];
+		int radius()const { return m_radius; }
 
-			for (int j = -m_radius, el = m_dim - 1; j <= m_radius; ++j, el += m_dim) {
+		template<typename T>
+		void populate(const Image<T>& src, const ImagePoint& p) {
 
-				int yy = y + j;
+			for (int j = -radius(), el = 0; j <= radius(); ++j)
+				for (int i = -radius(); i <= radius(); ++i)
+					data[el++] = Pixel<float>::toType(src.At_mirrored(p.x() + i, p.y() + j, p.channel()));
+		}
+
+		template<typename T>
+		void update(const Image<T>& src, const ImagePoint& p) {
+
+			int xx = p.x() + radius();
+			if (xx >= src.cols())
+				xx = 2 * src.cols() - (xx + 1);
+
+			memcpy(data.get(), data.get() + 1, sizeof(float) * count() - 1);
+
+			for (int j = -radius(), el = dimension() - 1; j <= radius(); ++j, el += dimension()) {
+
+				int yy = p.y() + j;
 				if (yy < 0)
 					yy = -yy;
-				else if (yy >= m_img->Rows())
-					yy = 2 * m_img->Rows() - (yy + 1);
+				else if (yy >= src.rows())
+					yy = 2 * src.rows() - (yy + 1);
 
-				data[el] = Pixel<float>::toType((*m_img)(xx, yy, ch));
-
+				data[el] = Pixel<float>::toType(src(xx, yy, p.channel()));
 			}
-			
 		}
-
 	};
 
 public:
-	ProgressSignal* progressSignal() const { return m_ps; }
+	//ProgressSignal* progressSignal() const { return m_ps; }
 
-	float Sigma()const { return m_sigma; }
+	float sigmaSpatial()const { return m_sigma_s; }
 
-	void setSigma(float sigma) { m_sigma = sigma; }
+	void setSigmaSpatial(float sigma) { m_sigma_s = sigma; }
 
-	float SigmaRange()const { return m_sigma_range; }
+	float sigmaRange()const { return m_sigma_r; }
 
-	void setSigmaRange(float sigma_range) { m_sigma_range = sigma_range; }
+	void setSigmaRange(float sigma_range) { m_sigma_r = sigma_range; }
 
-	void setKernelSize(int kernel_dim) { m_kernel_dim = kernel_dim; }
+	void setKernelSize(int kernel_dim) { m_kernel_dim = Max(kernel_dim, 1); }
 
 	template<typename T>
-	void Apply(Image<T>& img);
+	void apply(Image<T>& img);
+
+	template<typename T>
+	void applyTo(const Image<T>&src, Image<T>& dst, int factor);
 };
 
 
@@ -92,34 +112,30 @@ class BilateralFilterDialog : public ProcessDialog {
 
 	BilateralFilter m_bf;
 
-	DoubleLineEdit* m_sigma_le;
-	QSlider* m_sigma_slider;
+	DoubleLineEdit* m_sigma_s_le;
+	Slider* m_sigma_s_slider;
 
-	DoubleLineEdit* m_sigma_intensity_le;
-	QSlider* m_sigma_intensity_slider;
+	DoubleLineEdit* m_sigma_r_le;
+	Slider* m_sigma_r_slider;
 
-	QComboBox* m_kerenl_size_cb;
+	ComboBox* m_kernel_size_cb;
 
 public:
 	BilateralFilterDialog(QWidget* parent = nullptr);
 
 private:
-	void onActionTriggered_sigma(int action);
+	void addSigmaInputs();
 
-	void onActionTriggered_sigmaIntensity(int action);
+	void addSigmaIntensityInputs();
 
-	void AddSigmaInputs();
-
-	void AddSigmaIntensityInputs();
-
-	void onActivation_ks(int index);
+	void addKernelSizeInputs();
 
 	void resetDialog();
 
 	void showPreview();
 
-	void Apply();
+	void apply();
 
-	void ApplytoPreview();
+	void applytoPreview();
 
 };

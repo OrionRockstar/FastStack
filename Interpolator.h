@@ -1,6 +1,8 @@
 #pragma once
 #include "Image.h"
 #include <array>
+#include "Maths.h"
+
 
 class Interpolator {
 public:
@@ -14,26 +16,37 @@ public:
 		lanczos3
 	};
 
+	Interpolator::Type m_type = Interpolator::Type::bicubic_spline;
+
+	Interpolator(Interpolator::Type type = Interpolator::Type::bicubic_spline) : m_type(type) {}
+
+	//void setType() {}
 private:
 	template <typename T>
-	std::array<float, 4> getKernelRow(const Image<T>& img, int x, int y, int channel) {
+	std::array<float, 4> getKernelRow(const Image<T>& img, const ImagePoint& p) {
 		std::array<float, 4> pixrow;
-		pixrow[0] = img(x - 1, y, channel);
-		pixrow[1] = img(x, y, channel);
-		pixrow[2] = img(x + 1, y, channel);
-		pixrow[3] = img(x + 2, y, channel);
+		const T* im = &img(p);
+
+		pixrow[0] = *(--im);
+		pixrow[1] = *(++im);
+		pixrow[2] = *(++im);
+		pixrow[3] = *(++im);
+
 		return pixrow;
 	}
 
 	template <typename T>
-	std::array<float, 6> getKernelRow6(const Image<T>& img, int x, int y, int channel) {
+	std::array<float, 6> getKernelRow6(const Image<T>& img, const ImagePoint& p) {
 		std::array<float, 6> pixrow;
-		pixrow[0] = img(x - 2, y, channel);
-		pixrow[1] = img(x - 1, y, channel);
-		pixrow[2] = img(x, y, channel);
-		pixrow[3] = img(x + 1, y, channel);
-		pixrow[4] = img(x + 2, y, channel);
-		pixrow[5] = img(x + 3, y, channel);
+		const T* im = &img(p);
+
+		pixrow[0] = *(im -= 2);
+		pixrow[1] = *(++im);
+		pixrow[2] = *(++im);
+		pixrow[3] = *(++im);
+		pixrow[4] = *(++im);
+		pixrow[5] = *(++im);
+
 		return pixrow;
 	}
 
@@ -127,56 +140,55 @@ private:
 	}
 
 	template <typename T>
-	float NearestNeighbor(const Image<T>& img, double x_s, double y_s, int ch) {
+	float NearestNeighbor(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		float dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		float dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		float dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		float dy = p.y() - y_f;
 
 		x_f += (dx > .5) ? 1 : 0;
 		y_f += (dy > .5) ? 1 : 0;
 
-		return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
-
+		return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 	}
 
 	template <typename T>
-	float Bilinear(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Bilinear(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		float dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		float dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		float dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		float dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 0, img.Cols() - 1) || IsOutRange(y_f, 0, img.Rows() - 1)) {
+		if (IsOutRange(x_f, 0, img.cols() - 1) || IsOutRange(y_f, 0, img.rows() - 1)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
-		float r1 = img(x_f, y_f, ch) * (1 - dx) + img(x_f + 1, y_f, ch) * dx;
-		float r2 = img(x_f, y_f + 1, ch) * (1 - dx) + img(x_f + 1, y_f + 1, ch) * dx;
+		float r1 = img(x_f, y_f, p.channel()) * (1 - dx) + img(x_f + 1, y_f, p.channel()) * dx;
+		float r2 = img(x_f, y_f + 1, p.channel()) * (1 - dx) + img(x_f + 1, y_f + 1, p.channel()) * dx;
 
 		return r1 * (1 - dy) + r2 * dy;
 	}
 
 	template <typename T>
-	float Bicubic_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Bicubic_Spline(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		double dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		double dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
+		if (IsOutRange(x_f, 1, img.cols() - 2) || IsOutRange(y_f, 1, img.rows() - 2)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
 		std::array<float, 4> vecx;
@@ -202,28 +214,33 @@ private:
 
 		std::array<float, 4> resxv;
 
-		resxv[0] = InterpolatePix(getKernelRow(img, x_f, y_f - 1, ch), vecx);
-		resxv[1] = InterpolatePix(getKernelRow(img, x_f, y_f, ch), vecx);
-		resxv[2] = InterpolatePix(getKernelRow(img, x_f, y_f + 1, ch), vecx);
-		resxv[3] = InterpolatePix(getKernelRow(img, x_f, y_f + 2, ch), vecx);
+		ImagePoint s = { x_f, y_f, p.channel() };
+		s.ry()--;
+		resxv[0] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[1] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[2] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[3] = InterpolatePix(getKernelRow(img, s), vecx);
 
 		return InterpolatePix(resxv, vecy);
 	}
 
 	template <typename T>
-	float Bicubic_B_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Bicubic_B_Spline(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		double dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		double dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
+		if (IsOutRange(x_f, 1, img.cols() - 2) || IsOutRange(y_f, 1, img.rows() - 2)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
 		double rdxm1 = R(-1 - dx);
@@ -259,19 +276,19 @@ private:
 	}
 
 	template <typename T>
-	float Cubic_B_Spline(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Cubic_B_Spline(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		double dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		double dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
+		if (IsOutRange(x_f, 1, img.cols() - 2) || IsOutRange(y_f, 1, img.rows() - 2)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
 		std::array<float, 4> vecx;
@@ -297,28 +314,33 @@ private:
 
 		std::array<float, 4> resxv;
 
-		resxv[0] = InterpolatePix(getKernelRow(img, x_f, y_f - 1, ch), vecx);
-		resxv[1] = InterpolatePix(getKernelRow(img, x_f, y_f, ch), vecx);
-		resxv[2] = InterpolatePix(getKernelRow(img, x_f, y_f + 1, ch), vecx);
-		resxv[3] = InterpolatePix(getKernelRow(img, x_f, y_f + 2, ch), vecx);
+		ImagePoint s = { x_f, y_f, p.channel() };
+		s.ry()--;
+		resxv[0] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[1] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[2] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[3] = InterpolatePix(getKernelRow(img, s), vecx);
 
 		return InterpolatePix(resxv, vecy);
 	}
 
 	template <typename T>
-	float Catmull_Rom(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Catmull_Rom(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		double dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		double dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 1, img.Cols() - 2) || IsOutRange(y_f, 1, img.Rows() - 2)) {
+		if (IsOutRange(x_f, 1, img.cols() - 2) || IsOutRange(y_f, 1, img.rows() - 2)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
 		std::array<float, 4> vecx;
@@ -344,28 +366,33 @@ private:
 
 		std::array<float, 4> resxv;
 
-		resxv[0] = InterpolatePix(getKernelRow(img, x_f, y_f - 1, ch), vecx);
-		resxv[1] = InterpolatePix(getKernelRow(img, x_f, y_f, ch), vecx);
-		resxv[2] = InterpolatePix(getKernelRow(img, x_f, y_f + 1, ch), vecx);
-		resxv[3] = InterpolatePix(getKernelRow(img, x_f, y_f + 2, ch), vecx);
+		ImagePoint s = { x_f, y_f, p.channel() };
+		s.ry()--;
+		resxv[0] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[1] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[2] = InterpolatePix(getKernelRow(img, s), vecx);
+		s.ry()++;
+		resxv[3] = InterpolatePix(getKernelRow(img, s), vecx);
 
 		return InterpolatePix(resxv, vecy);
 	}
 
 	template <typename T>
-	float Lanczos3(const Image<T>& img, double x_s, double y_s, int ch) {
+	float Lanczos3(const Image<T>& img, const DoubleImagePoint& p) {
 
-		int x_f = (int)floor(x_s);
-		double dx = x_s - x_f;
-		int y_f = (int)floor(y_s);
-		double dy = y_s - y_f;
+		int x_f = (int)floor(p.x());
+		double dx = p.x() - x_f;
+		int y_f = (int)floor(p.y());
+		double dy = p.y() - y_f;
 
-		if (IsOutRange(x_f, 2, img.Cols() - 3) || IsOutRange(y_f, 2, img.Rows() - 3)) {
+		if (IsOutRange(x_f, 2, img.cols() - 3) || IsOutRange(y_f, 2, img.rows() - 3)) {
 
 			x_f += (dx > .5) ? 1 : 0;
 			y_f += (dy > .5) ? 1 : 0;
 
-			return img.IsInBounds(x_f, y_f) ? img(x_f, y_f, ch) : 0;
+			return img.isInBounds(x_f, y_f) ? img(x_f, y_f, p.channel()) : 0;
 		}
 
 		std::array<float, 6> vecx;
@@ -400,45 +427,52 @@ private:
 
 		std::array<float, 6> resxv;
 
-		resxv[0] = InterpolatePix(getKernelRow6(img, x_f, y_f - 2, ch), vecx);
-		resxv[1] = InterpolatePix(getKernelRow6(img, x_f, y_f - 1, ch), vecx);
-		resxv[2] = InterpolatePix(getKernelRow6(img, x_f, y_f, ch), vecx);
-		resxv[3] = InterpolatePix(getKernelRow6(img, x_f, y_f + 1, ch), vecx);
-		resxv[4] = InterpolatePix(getKernelRow6(img, x_f, y_f + 2, ch), vecx);
-		resxv[5] = InterpolatePix(getKernelRow6(img, x_f, y_f + 3, ch), vecx);
+		ImagePoint s = { x_f,y_f,p.channel() };
+		s.ry() -= 2;
+		resxv[0] = InterpolatePix(getKernelRow6(img, s), vecx);
+		s.ry()++;
+		resxv[1] = InterpolatePix(getKernelRow6(img, s), vecx);
+		s.ry()++;
+		resxv[2] = InterpolatePix(getKernelRow6(img, s), vecx);
+		s.ry()++;
+		resxv[3] = InterpolatePix(getKernelRow6(img, s), vecx);
+		s.ry()++;
+		resxv[4] = InterpolatePix(getKernelRow6(img, s), vecx);	
+		s.ry()++;
+		resxv[5] = InterpolatePix(getKernelRow6(img, s), vecx);
 
 		return InterpolatePix(resxv, vecy) / GetWeight(vecx, vecy);
 	}
 
 public:
 	template <typename T>
-	T InterpolatePixel(const Image<T>& img, double x_s, double y_s, int ch, Type type = Type::Bicubic_Spline) {
+	T interpolatePixel(const Image<T>& img, const DoubleImagePoint& p) {
 		using enum Type;
 		
-		switch (type) {
+		switch (m_type) {
 		case nearest_neighbor:
-			return NearestNeighbor(img, x_s, y_s, ch);
+			return NearestNeighbor(img, p);
 
 		case bilinear:
-			return Bilinear(img, x_s, y_s, ch);
+			return Bilinear(img, p);
 
 		case bicubic_spline:
-			return img.ClipPixel(Bicubic_Spline(img, x_s, y_s, ch));
+			return img.ClipPixel(Bicubic_Spline(img, p));
 
 		case bicubic_b_spline:
-			return img.ClipPixel(Bicubic_B_Spline(img, x_s, y_s, ch));
+			return img.ClipPixel(Bicubic_B_Spline(img, p));
 
 		case cubic_b_spline:
-			return img.ClipPixel(Cubic_B_Spline(img, x_s, y_s, ch));
+			return img.ClipPixel(Cubic_B_Spline(img, p));
 
 		case catmull_rom:
-			return img.ClipPixel(Catmull_Rom(img, x_s, y_s, ch));
+			return img.ClipPixel(Catmull_Rom(img, p));
 
 		case lanczos3:
-			return img.ClipPixel(Lanczos3(img, x_s, y_s, ch));
+			return img.ClipPixel(Lanczos3(img, p));
 
 		default:
-			return img.ClipPixel(Bicubic_Spline(img, x_s, y_s, ch));
+			return img.ClipPixel(Bicubic_Spline(img, p));
 		}
 	}
 };

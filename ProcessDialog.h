@@ -1,10 +1,31 @@
 #pragma once
 #include <qwidget.h>
-#include "ImageWindow.h"
+#include "Star.h"
+#include "Matrix.h"
+
+//#include "ImageWindow.h"
 
 class PushButton : public QPushButton {
+
+	void mousePressEvent(QMouseEvent* e) {
+		setDown(true);
+		emit pressed();
+	}
+
+	void mouseReleaseEvent(QMouseEvent* e) {
+		setDown(false);
+		if (hitButton(e->pos()))
+			emit released();
+	}
+
 public:
 	PushButton(const QString& text, QWidget* parent = nullptr) : QPushButton(text, parent) {
+
+		this->setAutoDefault(false);
+		this->setStyleSheet("QToolTip {border : 0px solid dark gray; background: solid dark gray; color: white}");
+	}
+
+	PushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr) : QPushButton(icon, text, parent) {
 
 		this->setAutoDefault(false);
 		this->setStyleSheet("QToolTip {border : 0px solid dark gray; background: solid dark gray; color: white}");
@@ -14,36 +35,42 @@ public:
 class Toolbar : public QWidget {
 	Q_OBJECT
 
-	int dx = 24;
-	int dy = 24;
+	QSize m_button_size = { 24,24 };
 
-	QPushButton* m_apply_to;
+	bool m_apply_dd = true;
+	PushButton* m_apply_dd_pb = nullptr;
 	QIcon m_apply_to_icon;
 
-	QPushButton* m_apply_current;
+	bool m_apply = true;
+	PushButton* m_apply_pb = nullptr;
 	QIcon m_apply_icon;
 
-	QPushButton* m_preview;
+	bool m_preview = true;
+	PushButton* m_preview_pb = nullptr;
 	QIcon m_preview_icon;
 
-	QPushButton* m_reset;
+	PushButton* m_reset_pb = nullptr;
 	QIcon m_reset_icon;
 
 public:
-	Toolbar(QWidget* parent, bool preview = true);
+	Toolbar(QWidget* parent, bool preview = true, bool apply_dd = true, bool apply = true);
 
 	template <typename Func1, typename Func2>
 	void Connect(const QObject* receiver,Func1 apply_to_dd, Func2 apply, Func2 preview, Func2 reset) {
 
-		connect(m_apply_to, &QPushButton::pressed, receiver, apply_to_dd);
-		connect(m_apply_current, &QPushButton::released, receiver, apply);
-		connect(m_preview, &QPushButton::pressed, receiver, preview);
-		connect(m_reset, &QPushButton::pressed, receiver, reset);
+		connect(m_apply_dd_pb, &QPushButton::pressed, receiver, apply_to_dd);
+		connect(m_apply_pb, &QPushButton::released, receiver, apply);
+		connect(m_preview_pb, &QPushButton::released, receiver, preview);
+		connect(m_reset_pb, &QPushButton::released, receiver, reset);
 	}
 
-	void setDownFalse() { m_apply_to->setDown(false); }
+private:
+	void addApplyDDButton();
 
-	void enableApply(bool s) { m_apply_current->setEnabled(s); m_apply_current->setDown(s); }
+	void addApplyButton();
+
+	void addPreviewButton();
+	//void setToolTip_Apply(const QString& txt) { m_apply->setToolTip(txt); }
 };
 
 class Timer : public QTimer {
@@ -54,7 +81,11 @@ public:
 		this->setSingleShot(true);
 		this->setInterval(interval);
 	}
+
+	Timer() = default;
 };
+
+
 
 class ProgressSignal: public QObject {
 	Q_OBJECT
@@ -70,52 +101,105 @@ signals:
 };
 
 
+/*class CollapsableSection : public QWidget {
+	Q_OBJECT
+
+	QWidget* m_widget;
+	QPushButton* m_pb;
+public:
+	CollapsableSection(const QString& title, int width, QWidget* parent, bool checkable = false) : QWidget(parent) {
+
+		this->resize(width, 25);
+
+		QLabel* label = new QLabel(title, this);
+		label->move(30, 0);
+
+		m_pb = new QPushButton(this);
+		m_pb->setCheckable(true);
+		m_pb->setChecked(true);
+		m_pb->move(this->width() - 30, 0);
+		connect(m_pb, &QPushButton::clicked, this, [this](bool v) { emit clicked(v); });
+	}
+	signals:
+	void clicked(bool v);
+
+public:
+	void addWidget(QWidget* widget) { m_widget = widget; }
+};*/
+
+
+
 class ProgressDialog : public QProgressDialog {
 	Q_OBJECT
 
 public:
-	ProgressDialog(ProgressSignal* signal_object) {
 
-		//this->setAutoReset(true);
+	ProgressDialog(QWidget* parent = nullptr);
 
-		//this->setAutoClose(true);
-		this->setRange(0, 100);
-		this->setModal(true);
+	ProgressDialog(const ProgressSignal& signal_object, QWidget* parent = nullptr);
 
-		this->setMinimumDuration(0);
-		this->open();
-		this->setValue(0);
+};
 
-		connect(signal_object, &ProgressSignal::emitProgress, this, &QProgressDialog::setValue);
-		connect(signal_object, &ProgressSignal::emitText, this, &ProgressDialog::setLabelText);
+
+
+class TextDisplay : public QDialog {
+
+	Q_OBJECT
+
+		QPlainTextEdit* m_pte;
+public:
+	TextDisplay(const QString& title, QWidget* parent = nullptr);
+
+	void displayMatrix(const Matrix& m);
+
+	void displayText(const QString& txt);
+
+	void displayProgress(int progress);
+
+	void setTextLine(const QString& txt);
+
+	void displayPSFData(uint16_t size, const PSF& psf);
+
+signals:
+	void onClose();
+
+private:
+	void resizeEvent(QResizeEvent* e) {
+		QDialog::resizeEvent(e);
+		m_pte->resize(size());
 	}
 
-public slots:
-	void setLabelText(const QString& text) {
-		QProgressDialog::setLabelText(text);
-		qApp->processEvents();
+	void closeEvent(QCloseEvent* e) {
+		QDialog::closeEvent(e);
+		emit onClose();
+		e->accept();
 	}
 };
+
+
+
+
+static void MessageBox(const QString& message, QWidget* parent) {
+	QMessageBox::information(parent, "FastStack", message);
+}
+
+
 
 
 class ProcessDialog : public QDialog {
 	Q_OBJECT
 
-//protected:
-private:
-	Toolbar* m_tb;
+	Toolbar* m_toolbar = nullptr;
 	Timer* m_timer;
 
 protected:
 	QString m_name;
 	QMdiArea* m_workspace;
 
+	QDialog* m_preview = nullptr;
+
 public:
-
-	ProcessDialog(QString name, const QSize& size, QWidget* parent, bool preview = true);
-
-	ProcessDialog(QString name, const QSize& size, QMdiArea& workspace, QWidget* parent, bool preview = true);
-
+	ProcessDialog(QString name, const QSize& size, QMdiArea* parent_workspace, bool preview = true, bool apply_dd = true, bool apply = true);
 signals:
 	void onClose();
 
@@ -149,14 +233,12 @@ protected:
 	template <typename Func1, typename Func2>
 	void ConnectToolbar(const QObject* receiver, Func1 apply_to_dd, Func2 apply, Func2 preview, Func2 reset) {
 
-		m_tb->Connect(receiver, apply_to_dd, apply, preview, reset);
+		m_toolbar->Connect(receiver, apply_to_dd, apply, preview, reset);
 	}
 
 	virtual void showPreview();
 
-	QString Name()const { return m_name; }
-
-	bool PreviewProcessNameMatches(const QString& preview_name)const;
+	QString name()const { return m_name; }
 
 	bool isPreviewValid()const;
 
@@ -166,7 +248,23 @@ protected:
 				((QWidget*)child)->setEnabled(val);
 		QApplication::processEvents();
 	}
+
+	void resize(const QSize& size) {
+		QDialog::resize(size);
+		if (m_toolbar != nullptr)
+			m_toolbar->move(0, height() - m_toolbar->height());
+	}
+
+	void showDialog() {
+		QDialog::show();
+		this->activateWindow();
+	}
+
+	void updateImageLabel(const QMdiSubWindow* window);
 };
+
+
+
 
 
 class DoubleValidator : public QDoubleValidator {
@@ -176,75 +274,218 @@ public:
 	void fixup(QString& input) const;
 };
 
-class DoubleLineEdit : public QLineEdit {
-	Q_OBJECT
+class IntValidator : public QIntValidator {
+public:
+	IntValidator(int bottom, int top, QWidget* parent = nullptr) :QIntValidator(bottom, top, parent) {}
+
+	void fixup(QString& input) const;
+
+	int validate(int value)const;
+};
+
+
+
+
+class LineEdit : public QLineEdit {
+	QLabel* m_label = nullptr;
 
 public:
+	LineEdit(QWidget* parent = nullptr) : QLineEdit(parent) {}
 
+	void setLabelText(const QString& txt); 
+
+	void addLabel(QLabel* label);
+
+	void addSlider(QSlider* slider);
+};
+
+
+class IntLineEdit : public LineEdit {
+	Q_OBJECT
+
+private:
+	int m_default = 0;
+
+public:
+	IntLineEdit(int default_value, IntValidator* validator, QWidget* parent = nullptr);
+
+	const IntValidator* intValidator()const { return reinterpret_cast<const IntValidator*>(this->validator()); }
+
+	int value()const { return this->text().toInt(); }
+
+	void setValue(int value);
+
+	void reset();
+};
+
+
+class DoubleLineEdit : public LineEdit {
+	Q_OBJECT
+
+private:
+	double m_default = 0.0;
+
+public:
 	DoubleLineEdit(DoubleValidator* validator, QWidget* parent = nullptr);
 
-	DoubleLineEdit(const QString& contents, DoubleValidator* validator, QWidget* parent = nullptr);
+	DoubleLineEdit(double default_value, DoubleValidator* validator, QWidget* parent = nullptr);
 
-	DoubleLineEdit(const QString& contents, DoubleValidator* validator, int max_length, QWidget* parent = nullptr);
+	DoubleLineEdit(double default_value, DoubleValidator* validator, int max_length, QWidget* parent = nullptr);
 
-	const DoubleValidator* Validator()const { return reinterpret_cast<const DoubleValidator*>(this->validator()); }
+	const DoubleValidator* doubleValidator()const { return reinterpret_cast<const DoubleValidator*>(this->validator()); }
 
-	float Valuef()const { return this->text().toFloat(); }
+	//const IntValidator* intValidator()const { return reinterpret_cast<const IntValidator*>(this->validator()); }
 
-	double Value()const { return this->text().toDouble(); }
+	float valuef()const { return this->text().toFloat(); }
 
-	int Valuei()const { return this->text().toInt(); }
+	double value()const { return this->text().toDouble(); }
 
 	void setValue(float value);
 
 	void setValue(double value);
 
-	void setValue(int value);
-
-	void setText_Validated(const QString& text);
-
 	void removeEndDecimal();
 
 	void addTrailingZeros();
+};
+
+
+
+class ScrollBar : public QScrollBar {
+
+
+public:
+	ScrollBar(QWidget* parent = nullptr) : QScrollBar(parent) {
+		this->setAttribute(Qt::WA_NoMousePropagation);
+	}
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+class Slider : public QSlider {
+
+	int m_default = 0;
+
+public:
+	Slider(Qt::Orientation orientation, QWidget* parent = nullptr) : QSlider(orientation, parent) {}
+
+	void setDefualtValue(int value) { m_default = value; setValue(value); }
+
+	void reset() { setValue(m_default); }
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+class RadioButton : public QRadioButton {
+
+	QColor m_indicator_color = QColor(123, 0, 216);
+	QColor m_base_color = QColor(196, 196, 196);
+	//QColor m_text_color = Qt::white;
+
+public:
+	RadioButton(const QString& text, QWidget* parent = nullptr) : QRadioButton(text, parent) {}
+
+	void setIndicatorColor(const QColor& color) { m_indicator_color = color; }
+
+	void setBaseColor(const QColor& color) { m_indicator_color = color; }
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+class CheckBox : public QCheckBox {
+public:
+	CheckBox(const QString& text, QWidget* parent = nullptr) : QCheckBox(text, parent) {
+		QPalette pal;
+		pal.setBrush(QPalette::Text, QColor(123, 0, 216));
+		this->setPalette(pal);
+	}
+};
+
+
+class ComboBox : public QComboBox {
+public:
+	ComboBox(QWidget* parent = nullptr);
 
 	void addLabel(QLabel* label)const;
-
-	void addSlider(QSlider* slider)const;
 };
+
+
+class InterpolationComboBox : public ComboBox {
+	int m_defualt_index = 2;
+public:
+	InterpolationComboBox(QWidget* parent = nullptr);
+
+	void reset() { setCurrentIndex(m_defualt_index); }
+};
+
 
 class ComponentPushButton : public QPushButton {
-	Q_OBJECT
 public:
 
-	ComponentPushButton(const QString& text, QWidget* parent = nullptr) : QPushButton(text, parent) {
+	ComponentPushButton(const QString& text, QWidget* parent = nullptr);
 
-		this->setAutoFillBackground(true);
-		this->setBackgroundRole(QPalette::ColorRole::Dark);
-		this->setFlat(true);
-
-		this->setAutoDefault(false);
-		this->setCheckable(true);
-		this->setAutoExclusive(true);
-		QFont font = this->font();
-		font.setPointSize(8);
-		this->setFont(font);
-		this->resize(this->fontMetrics().horizontalAdvance(text) + 10, this->size().height());
-	}
-
-	ComponentPushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr) : QPushButton(icon, text, parent) {
-
-		this->setAutoFillBackground(true);
-		this->setBackgroundRole(QPalette::ColorRole::Dark);
-		this->setFlat(true);
-
-		this->setAutoDefault(false);
-		this->setCheckable(true);
-		this->setAutoExclusive(true);
-		QFont font = this->font();
-		font.setPointSize(8);
-		this->setFont(font);
-	}
+	ComponentPushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
+private:
+	void paintEvent(QPaintEvent* event);
 };
+
+
+class CheckablePushButton : public QPushButton {
+public:
+	CheckablePushButton(const QString& text, QWidget* parent = nullptr);
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+class SpinBox : public QSpinBox {
+
+public:
+	SpinBox(QWidget* parent = nullptr);
+
+	SpinBox(int value, int min, int max, QWidget* parent = nullptr);
+
+	void addLabel(QLabel* label)const;
+};
+
+
+class DoubleSpinBox : public QDoubleSpinBox {
+
+public:
+	DoubleSpinBox(QWidget* parent = nullptr);
+
+	DoubleSpinBox(double value, double min, double max, int precision, QWidget* parent = nullptr);
+
+	void addLabel(QLabel* label)const;
+};
+
+
+class GroupBox : public QGroupBox {
+	CheckBox* m_cb;
+
+public:
+	GroupBox(QWidget* parent) : QGroupBox(parent) {}
+
+	GroupBox(const QString& title, QWidget* parent) : QGroupBox(title, parent) {}
+
+private:
+	void paintEvent(QPaintEvent* event);
+};
+
+
+class ListWidget : public QListWidget {
+
+public:
+	ListWidget(QWidget* parent = nullptr);
+};
+
 
 class FileSelection : public QWidget {
 

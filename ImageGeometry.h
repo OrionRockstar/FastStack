@@ -14,13 +14,13 @@ public:
 
 	void setInterpolate(Interpolator::Type interpolate) { m_interpolate = interpolate; }
 
-	void Reset() {
+	void reset() {
 		m_theta = 0.0;
 		m_interpolate = Interpolator::Type::bicubic_spline;
 	}
 
 	template <typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -41,27 +41,31 @@ private:
 	Type m_frt = Type::rotate90CW;
 
 public:
+	FastRotation() = default;
+
+	FastRotation(Type type) : m_frt(type) {}
+
 	void setFastRotationType(Type type) { m_frt = type; }
 
 private:
 	template<typename T>
-	void Rotate90CW(Image<T>& src);
+	void rotate90CW(Image<T>& src);
 
 	template<typename T>
-	void Rotate90CCW(Image<T>& src);
+	void rotate90CCW(Image<T>& src);
 
 	template<typename T>
-	void Rotate180(Image<T>& src);
+	void rotate180(Image<T>& src);
 
 	template<typename T>
-	void HorizontalMirror(Image<T>& src);
+	void horizontalMirror(Image<T>& src);
 
 	template<typename T>
-	void VerticalMirror(Image<T>& src);
+	void verticalMirror(Image<T>& src);
 
 public:
 	template<typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -88,22 +92,22 @@ private:
 	Method m_method = Method::average;
 
 	template<typename T>
-	void Downsample_average(Image<T>& src);
+	void downsample_average(Image<T>& src);
 
 	template<typename T>
-	void Downsample_median(Image<T>& src);
+	void downsample_median(Image<T>& src);
 
 	template<typename T>
-	void Downsample_max(Image<T>& src);
+	void downsample_max(Image<T>& src);
 
 	template<typename T>
-	void Downsample_min(Image<T>& src);
+	void downsample_min(Image<T>& src);
 
 	template<typename T>
-	void Downsample(Image<T>& src);
+	void downsample(Image<T>& src);
 
 	template<typename T>
-	void Upsample(Image<T>& src);
+	void upsample(Image<T>& src);
 
 public:
 	uint8_t factor()const { return m_factor; }
@@ -119,7 +123,7 @@ public:
 	void setMethod(Method method) { m_method = method; }
 
 	template<typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -128,12 +132,27 @@ public:
 class Resize {
 
 	Interpolator::Type m_type = Interpolator::Type::bicubic_spline;
-	int m_new_rows = 1;
-	int m_new_cols = 1;
+	int m_new_rows = 1'000;
+	int m_new_cols = 1'000;
 
 public:
+	int newRows()const { return m_new_rows; }
+
+	int newCols()const { return m_new_cols; }
+
+	void setNewRows(int n_rows) { m_new_rows = n_rows; }
+
+	void setNewCols(int n_cols) { m_new_cols = n_cols; }
+
+	void setNewSize(int n_rows, int n_cols) {
+		m_new_cols = n_rows;
+		m_new_cols = n_cols;
+	}
+
+	void setInterpolation(Interpolator::Type type) { m_type = type; }
+
 	template<typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -155,7 +174,7 @@ public:
 	}
 
 	template<typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };
 
 
@@ -163,19 +182,19 @@ public:
 
 
 class HomographyTransformation {
-	Matrix m_homography = Matrix(3,3).Identity();
+
+	Matrix m_homography = Matrix(3,3).identity();
 	Interpolator::Type m_type = Interpolator::Type::bicubic_spline;
 public:
 	void setHomography(const Matrix& homography) {
 		if (homography.isSize(3, 3))
 			m_homography = homography;
-		m_homography.Print();
 	}
 
-	void setIinterpolationType(Interpolator::Type type) {
+	void setInterpolationType(Interpolator::Type type) {
 		m_type = type;
 	}
 
 	template<typename T>
-	void Apply(Image<T>& src);
+	void apply(Image<T>& src);
 };

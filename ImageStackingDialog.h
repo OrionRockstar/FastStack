@@ -1,209 +1,277 @@
 #pragma once
 
 #include "ProcessDialog.h"
-#include "Image.h"
-#include "Matrix.h"
+
 #include "StarDetector.h"
-#include "StarMatching.h"
-#include "Homography.h"
-#include "Interpolator.h"
+
 #include "ImageStacking.h"
+#include "Drizzle.h"
+#include "ImageCalibration.h"
 
-class TempFolder {
-	std::filesystem::path m_temp_path = std::filesystem::temp_directory_path().append("FastStackTemp");
+#include "ImageIntegrationProcess.h"
 
-public:
-	TempFolder() {
 
-		if (std::filesystem::exists(m_temp_path))
-			std::filesystem::remove_all(m_temp_path);
+class StarDetectionGroupBox : public GroupBox {
 
-		std::filesystem::create_directory(m_temp_path);
-	}
+	StarDetector* m_sd = nullptr;
+	uint16_t m_maxstars = 200;
 
-	~TempFolder() {
+	SpinBox* m_wavelet_layers_sb = nullptr;
+	ComboBox* m_scale_func_combo = nullptr;
+	CheckBox* m_median_blur_cb = nullptr;
 
-		if (std::filesystem::exists(m_temp_path))
-			std::filesystem::remove_all(m_temp_path);
-		
-	}
+	DoubleLineEdit* m_sigmaK_le = nullptr;
+	Slider* m_sigmaK_slider = nullptr;
 
-	std::filesystem::path Path() const { return m_temp_path; }
+	DoubleLineEdit* m_peak_edge_le = nullptr;
+	Slider* m_peak_edge_slider = nullptr;
 
-	FileVector Files()const {
-		FileVector fv;
-		for (auto file : std::filesystem::directory_iterator(m_temp_path))
-			fv.push_back(file);
-		return fv;
-	}
+	DoubleLineEdit* m_roundness_le = nullptr;
+	Slider* m_roundness_slider = nullptr;
 
-	void WriteTempFits(Image32& src, std::filesystem::path file_path);
-};
-
-class FileTab : public QWidget {
-
-	std::vector<std::filesystem::path> m_paths;
-
-	QPushButton* m_add_files_pb;
-	QPushButton* m_remove_file_pb;
-	QPushButton* m_clear_list;
-
-	QListWidget* m_file_list_view;
-
-	QCheckBox* m_dark_cb;
-	QLineEdit* m_dark_file;
-	QPushButton* m_add_dark_pb;
-
-	QCheckBox* m_flat_cb;
-	QLineEdit* m_flat_file;
-	QPushButton* m_add_flat_pb;
-
-	QString m_typelist =
-		"FITS file(*.fits *.fts *.fit);;"
-		"XISF file(*.xisf);;"
-		"TIFF file(*.tiff *.tif);;";
+	IntLineEdit* m_max_stars_le = nullptr;
+	Slider* m_max_stars_slider = nullptr;
 
 public:
-	FileTab(const QSize& size = QSize(500,400), QWidget* parent = nullptr);
+	StarDetectionGroupBox(StarDetector& star_detector, QWidget* parent = nullptr, bool title = false);
 
-	const std::vector<std::filesystem::path>& LightPaths()const { return m_paths; }
-
-	std::filesystem::path MasterDarkPath() { return m_dark_file->text().toStdString(); }
-
-	std::filesystem::path MasterFlatPath() { return m_flat_file->text().toStdString(); }
+	uint16_t maxStars()const { return m_maxstars; }
 
 private:
-	void onAddLightFiles();
+	void addWaveletInputs();
 
-	void onRemoveFile();
+	void addThresholdInputs();
 
-	void onClearList();
+	void addPeakEdgeRatioInputs();
 
+	void addRoundnessInputs();
 
-	void onClick_dark(bool checked);
-
-	void onAddDarkFrame();
-
-
-	void onClick_flat(bool checked);
-
-	void onAddFlatFrame();
-
-	void AddFileSelection();
-
-	void AddMasterDarkSelection();
-
-	void AddMasterFlatSelection();
-
-	void AddMasterBiasSelection();
-};
-
-class StarsTab : public QWidget {
-	StarDetector* m_sd;
-
-	DoubleLineEdit* m_K_le;
-	QSlider* m_K_slider;
-
-	DoubleLineEdit* m_max_starRadius_le;
-	QSlider* m_max_starRadius_slider;
-
-	QCheckBox* m_median_blur_cb;
-	QSpinBox* m_wavelet_layers_sb;
-
-	QComboBox* m_photometry_type_combo;
-
-	QComboBox* m_interpolation_combo;
-
-	DoubleLineEdit* m_peak_edge_response_le;
-	QSlider* m_peak_edge_response_slider;
-
-	DoubleLineEdit* m_num_stars_le;
-	QSlider* m_num_stars_slider;
-
+	void addMaxStarsInputs();
 
 public:
-	//StarsTab(const QSize& size = QSize(500, 400), QWidget* parent = nullptr);
-
-	StarsTab(StarDetector& star_detector, const QSize& size = QSize(500, 400), QWidget* parent = nullptr);
-
-	Interpolator::Type InterpolationMethod()const { return Interpolator::Type(m_interpolation_combo->currentIndex()); }
-
-private:
-	void onSliderMoved_K(int value);
-
-	void editingFinished_K();
-
-	void onSliderMoved_starRadius(int value);
-
-	void editingFinished_starRadius();
-
-	void onChange_waveletLayers(int value) {
-		value = pow(2, value - 1);
-		//m_sd->setWaveletLayers(val);
-		m_max_starRadius_slider->setMinimum((value + 1) * 10);
-		m_max_starRadius_le->setText(QString::number(m_max_starRadius_slider->value() / 10));
-	}
-
-	void onSliderMoved_peakEdge(int value);
-
-	void onSliderMoved_starsNum(int value) {
-		//std::cout << m_num_stars_slider->value() << " " << m_num_stars_slider->sliderPosition() << "\n";
-		m_num_stars_le->setText(QString::number(value/10));
-	}
-
-
-	void AddThresholdInputs();
-
-	void AddMaxStarRadiusInputs();
-
-	void AddEdgeBrightnessInputs();
-
-	void AddPeakEdgeResponseInputs();
-
-	void AddNumberofStarsInputs();
+	void reset();
 };
 
-class ImageIntegrationTab : public QWidget {
 
-	ImageStacking* m_is;
 
-	QComboBox* m_integration_combo;
-
-	QComboBox* m_normalization_combo;
-
-	QComboBox* m_rejection_combo;
-
-	DoubleLineEdit* m_sigma_low_le;
-	QSlider* m_sigma_low_slider;
-
-	DoubleLineEdit* m_sigma_high_le;
-	QSlider* m_sigma_high_slider;
-
-};
 
 
 
 
 class ImageStackingDialog:public ProcessDialog {
+	Q_OBJECT
 
-	StarDetector m_sd;
-	ImageStacking m_is;
+	class FileSelectionGroupBox : public GroupBox {
 
-	QTabWidget* m_tabs;
-	FileTab* m_file_tab;
-	StarsTab* m_star_tab;
+		const int m_button_width = 115;
+
+		std::vector<std::filesystem::path> m_paths;
+		std::vector<std::filesystem::path> m_alignment_paths;
+
+		ImageCalibrator* m_calibrator;
+
+		const QPixmap m_pix = QPixmap("./Icons//Five_Pointed_Star_Solid11x11.png");
+
+		ListWidget* m_file_list_view = nullptr;
+
+		PushButton* m_add_files_pb = nullptr;
+		PushButton* m_remove_file_pb = nullptr;
+		PushButton* m_clear_list_pb = nullptr;
+		PushButton* m_add_alignment_pb = nullptr;
+		PushButton* m_clear_alignment_pb = nullptr;
+
+		CheckBox* m_dark_cb = nullptr;
+		LineEdit* m_dark_file_le = nullptr;
+		PushButton* m_add_dark_pb = nullptr;
+
+		CheckBox* m_flat_cb = nullptr;
+		LineEdit* m_flat_file_le = nullptr;
+		PushButton* m_add_flat_pb = nullptr;
+
+
+		QString m_typelist =
+			"FITS file(*.fits *.fts *.fit);;";
+		//"TIFF file(*.tiff *.tif);;";
+
+	public:
+		FileSelectionGroupBox(ImageCalibrator& calibrator, QWidget* parent = nullptr);
+
+		const PathVector& lightPaths()const { return m_paths; }
+
+		const PathVector& alignmentPaths()const { return m_alignment_paths; }
+
+	private:
+		void addFileSelection();
+
+		void addMasterDarkSelection();
+
+		void addMasterFlatSelection();
+
+	};
+
+	class IntegrationGroupBox : public GroupBox {
+
+		ImageStacking* m_is;
+
+		InterpolationComboBox* m_interpolation_combo = nullptr;
+
+		ComboBox* m_integration_combo = nullptr;
+
+		ComboBox* m_normalization_combo = nullptr;
+
+		ComboBox* m_rejection_combo = nullptr;
+
+
+		DoubleLineEdit* m_sigma_low_le = nullptr;
+		Slider* m_sigma_low_slider = nullptr;
+
+		DoubleLineEdit* m_sigma_high_le = nullptr;
+		Slider* m_sigma_high_slider = nullptr;
+
+		CheckBox* m_weight_maps = nullptr;
+
+	public:
+		IntegrationGroupBox(ImageStacking& image_stacking, QWidget* parent = nullptr);
+
+	private:
+		void addCombos();
+
+		void addSigmaInputs();
+
+	public:
+		CheckBox* weightsCheckbox()const { return m_weight_maps; }
+
+		void reset();
+	};
+
+	ImageIntegrationProcess m_iip;
+
+	QPalette m_pal;
+
+	QToolBox* m_toolbox = nullptr;
+
+	FileSelectionGroupBox* m_fileselection_gb = nullptr;
+	StarDetectionGroupBox* m_stardetection_gb = nullptr;
+	IntegrationGroupBox* m_integration_gb = nullptr;
+
+	TextDisplay* m_text = nullptr;
+	Image32 m_output;
 
 public:
-
 	ImageStackingDialog(QWidget* parent = nullptr);
 
 private:
+	signals:
+	void processFinished(Status s);
+
+private:
+	void showTextDisplay();
+
+	void resetDialog();
+
+	void showPreview() {}
+
+	void apply();
+};
+
+
+
+
+
+class DrizzleIntegrationDialog : public ProcessDialog {
+	Q_OBJECT
+
+	class FileSelectionGroupBox : public GroupBox {
+
+		ImageCalibrator* m_calibrator;
+
+		const int m_button_width = 115;
+
+		FileVector m_paths;
+		FileVector m_alignment_paths;
+		FileVector m_weightmap_paths;
+
+		const QPixmap m_pix = QPixmap("./Icons//Five_Pointed_Star_Solid11x11.png");
+
+		ListWidget* m_file_list_view = nullptr;
+
+		PushButton* m_add_files_pb = nullptr;
+		PushButton* m_remove_file_pb = nullptr;
+		PushButton* m_clear_list_pb = nullptr;
+		PushButton* m_add_alignment_pb = nullptr;
+		PushButton* m_clear_alignment_pb = nullptr;
+		PushButton* m_add_weights_pb = nullptr;
+		PushButton* m_clear_weights_pb = nullptr;
+
+
+		CheckBox* m_dark_cb = nullptr;
+		LineEdit* m_dark_file_le = nullptr;
+		PushButton* m_add_dark_pb = nullptr;
+
+		CheckBox* m_flat_cb = nullptr;
+		LineEdit* m_flat_file_le = nullptr;
+		PushButton* m_add_flat_pb = nullptr;
+
+		QString m_typelist =
+			"FITS file(*.fits *.fts *.fit);;";
+
+	public:
+		FileSelectionGroupBox(ImageCalibrator& calibrator, QWidget* parent = nullptr);
+
+		const PathVector& lightPaths()const { return m_paths; }
+
+		const PathVector& alignmentPaths()const { return m_alignment_paths; }
+
+		const PathVector& weightmapPaths()const { return m_weightmap_paths; }
+
+	private:
+		void addFileSelection();
+
+		void addAlignmentSelection();
+
+		void addWeightMapSelection();
+
+		void addMasterDarkSelection();
+
+		void addMasterFlatSelection();
+	};
+
+	class DrizzleGroupBox : public GroupBox {
+		
+		Drizzle* m_drizzle = nullptr;
+
+		DoubleLineEdit* m_drop_le = nullptr;
+		Slider* m_drop_slider = nullptr;
+
+		DoubleSpinBox* m_dropsize_sb = nullptr;
+		SpinBox* m_scale_factor_sb = nullptr;
+
+	public:
+		DrizzleGroupBox(Drizzle& drizzle, QWidget* parent = nullptr);
+	};
+
+	DrizzleIntegrationProcesss m_dip;
+
+	FileSelectionGroupBox* m_fileselection_gb = nullptr;
+	DrizzleGroupBox* m_drizzle_gb = nullptr;
+
+	QToolBox* m_toolbox = nullptr;
+
+	TextDisplay* m_text = nullptr;
+	Image32 m_output;
+public:
+	DrizzleIntegrationDialog(QWidget* parent = nullptr);
+
+private:
+signals:
+	void processFinished(Status status);
+
+private:
+	void showTextDisplay();
 
 	void resetDialog() {}
 
 	void showPreview() {}
 
-	void Apply();
-
+	void apply();
 };
-

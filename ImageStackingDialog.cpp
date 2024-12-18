@@ -4,443 +4,831 @@
 #include "ImageCalibration.h"
 #include "FITS.h"
 #include "TIFF.h"
+#include "Homography.h"
 #include "StarMatching.h"
-#include "ImageOperations.h"
 #include "ImageStacking.h"
 #include "ImageWindow.h"
-#include "ImageGeometry.h"
 
 
-void TempFolder::WriteTempFits(Image32& src, std::filesystem::path file_path) {
-	FITS fits;
-	fits.Create(Path().append(file_path.stem().concat("_temp.fits").string()));
-	fits.Write(src, -32);
+StarDetectionGroupBox::StarDetectionGroupBox(StarDetector& star_detector, QWidget* parent, bool title) : m_sd(&star_detector), GroupBox(parent) {
+
+	this->setFixedSize(520, 230);
+
+	if (title)
+		setTitle("Star Detection");
+
+	addWaveletInputs();
+	addThresholdInputs();
+	addPeakEdgeRatioInputs();
+	addRoundnessInputs();
+	addMaxStarsInputs();
 }
 
-FileTab::FileTab(const QSize& size, QWidget* parent) {
+void StarDetectionGroupBox::addWaveletInputs() {
 
-	this->resize(size);
-	this->setAutoFillBackground(true);
+	m_wavelet_layers_sb = new SpinBox(this);
+	m_wavelet_layers_sb->move(185, 25);
+	m_wavelet_layers_sb->setRange(1, 6);
+	m_wavelet_layers_sb->setValue(5);
+	m_wavelet_layers_sb->setFixedWidth(75);
+	m_wavelet_layers_sb->addLabel(new QLabel("Wavelet Layers:   ", this));
 
-	AddFileSelection();
-	AddMasterDarkSelection();
-	AddMasterFlatSelection();
+	connect(m_wavelet_layers_sb, &QSpinBox::valueChanged, this, [this](int value) { m_sd->setWaveletLayers(value); });
 
+	m_median_blur_cb = new CheckBox("Median Blur", this);
+	m_median_blur_cb->move(335, 25);
+	m_median_blur_cb->setChecked(true);
+	connect(m_median_blur_cb, &::QCheckBox::clicked, this, [this](bool v) {m_sd->applyMedianBlur(v); });
 }
 
-void FileTab::onAddLightFiles() {
+void StarDetectionGroupBox::addThresholdInputs() {
+	QString txt = "Sets K value of star threshold defined as median + K * standard deviation.";
 
-	QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+	m_sigmaK_le = new DoubleLineEdit(1.0, new DoubleValidator(0.0, 10.0, 2), this);
+	m_sigmaK_le->move(185, 65);
+	m_sigmaK_le->addLabel(new QLabel("Star Signal Threshold:   ", this));
+	m_sigmaK_le->setToolTip(txt);
 
-	for (auto file : file_paths)
-		m_file_list_view->addItem(QFileInfo(file).fileName());
+	m_sigmaK_slider = new Slider(Qt::Horizontal, this);
+	m_sigmaK_slider->setFixedWidth(205);
+	m_sigmaK_slider->setRange(0, 200);
+	m_sigmaK_slider->setValue(20);
+	m_sigmaK_le->addSlider(m_sigmaK_slider);
+	m_sigmaK_slider->setToolTip(txt);
 
-	for (int i = 0; i < file_paths.size(); ++i)
-		m_paths.push_back(file_paths[i].toStdString());
+	auto action = [this](int) {
+		double value = m_sigmaK_slider->sliderPosition() / 20.0;
+		m_sigmaK_le->setValue(value);
+		m_sd->setSigmaK(value);
+	};
+
+	auto edited = [this]() {
+		double value = m_sigmaK_le->value();
+		m_sigmaK_slider->setValue(value * 20);
+		m_sd->setSigmaK(value);
+	};
+
+	connect(m_sigmaK_slider, &QSlider::actionTriggered, this, action);
+	connect(m_sigmaK_le, &QLineEdit::editingFinished, this, edited);
 }
 
-void FileTab::onRemoveFile() {
+void StarDetectionGroupBox::addPeakEdgeRatioInputs() {
 
-	if (m_file_list_view->count() == 0)
-		return;
+	m_peak_edge_le = new DoubleLineEdit(m_sd->peakEdge(), new DoubleValidator(0.0, 1.0, 2), this);
+	m_peak_edge_le->move(185, 105);
+	m_peak_edge_le->addLabel(new QLabel("Peak-Edge Ratio:   ", this));
 
-	int index = m_file_list_view->currentIndex().row();
+	m_peak_edge_slider = new Slider(Qt::Horizontal, this);
+	m_peak_edge_slider->setFixedWidth(205);
+	m_peak_edge_slider->setRange(0, 100);
+	m_peak_edge_slider->setValue(m_sd->peakEdge() * 100);
+	m_peak_edge_le->addSlider(m_peak_edge_slider);
 
-	if (index == -1)
-		index += m_paths.size();
+	auto action = [this](int) {
+		double value = m_peak_edge_slider->sliderPosition() / 100.0;
+		m_peak_edge_le->setValue(value);
+		m_sd->setPeakEdge(value);
+	};
 
-	m_file_list_view->takeItem(index);
-	m_paths.erase(m_paths.begin() + index);
+	auto edited = [this]() {
+		double value = m_peak_edge_le->value();
+		m_peak_edge_slider->setValue(value * 100);
+		m_sd->setPeakEdge(value);
+	};
 
+	connect(m_peak_edge_slider, &QSlider::actionTriggered, this, action);
+	connect(m_peak_edge_le, &QLineEdit::editingFinished, this, edited);
 }
 
-void FileTab::onClearList() {
+void StarDetectionGroupBox::addRoundnessInputs() {
 
-	m_file_list_view->clear();
-	m_paths.clear();
+	m_roundness_le = new DoubleLineEdit(m_sd->roundness(), new DoubleValidator(0.0, 1.0, 2), this);
+	m_roundness_le->move(185, 145);
+	m_roundness_le->addLabel(new QLabel("Roundness threshold:   ", this));
+
+	m_roundness_slider = new Slider(Qt::Horizontal, this);
+	m_roundness_slider->setFixedWidth(205);
+	m_roundness_slider->setRange(0, 100);
+	m_roundness_slider->setValue(m_sd->roundness() * 100);
+	m_roundness_le->addSlider(m_roundness_slider);
+
+	auto action = [this](int) {
+		double value = m_roundness_slider->sliderPosition() / 100.0;
+		m_roundness_le->setValue(value);
+		m_sd->setRoundness(value);
+	};
+
+	auto edited = [this]() {
+		double value = m_roundness_le->value();
+		m_roundness_slider->setValue(value * 100);
+		m_sd->setRoundness(value);
+	};
+
+	connect(m_roundness_slider, &QSlider::actionTriggered, this, action);
+	connect(m_roundness_le, &QLineEdit::editingFinished, this, edited);
 }
 
-void FileTab::onClick_dark(bool checked) {
+void StarDetectionGroupBox::addMaxStarsInputs() {
 
-	m_dark_file->setEnabled(checked);
-	m_add_dark_pb->setEnabled(checked);
+	m_max_stars_le = new IntLineEdit(m_maxstars, new IntValidator(50, 250), this);
+	m_max_stars_le->move(185, 185);
+	m_max_stars_le->addLabel(new QLabel("Stars:   ", this));
+
+	m_max_stars_slider = new Slider(Qt::Horizontal, this);
+	m_max_stars_slider->setFixedWidth(205);
+	m_max_stars_slider->setRange(50, 250);
+	m_max_stars_slider->setValue(m_maxstars);
+	m_max_stars_le->addSlider(m_max_stars_slider);
+
+	auto action = [this](int) {
+		double value = m_max_stars_slider->sliderPosition();
+		m_max_stars_le->setValue(value);
+		m_maxstars = value;
+	};
+
+	connect(m_max_stars_slider, &QSlider::actionTriggered, this, action);
 }
 
-void FileTab::onAddDarkFrame() {
+void StarDetectionGroupBox::reset() {
 
-	QString file = QFileDialog::getOpenFileName(this, tr("Open File"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+	m_wavelet_layers_sb->setValue(m_sd->waveletLayers());
+	m_median_blur_cb->setChecked(m_sd->medianBlur());
 
-	m_dark_file->setText(file);
+	m_sigmaK_le->setValue(m_sd->sigmaK());
+	m_sigmaK_le->editingFinished();
+
+	m_peak_edge_le->setValue(m_sd->peakEdge());
+	m_peak_edge_le->editingFinished();
+
+	m_roundness_le->setValue(m_sd->roundness());
+	m_roundness_le->editingFinished();
+
+	m_max_stars_le->setValue(200);
+	m_max_stars_le->editingFinished();
 }
 
 
-void FileTab::onClick_flat(bool checked) {
 
-	m_flat_file->setEnabled(checked);
-	m_add_flat_pb->setEnabled(checked);
+
+ImageStackingDialog::FileSelectionGroupBox::FileSelectionGroupBox(ImageCalibrator& calibrator, QWidget* parent) : m_calibrator(&calibrator), GroupBox(parent) {
+
+	this->setMinimumHeight(315);
+	this->setMaximumWidth(520);
+
+
+	addFileSelection();
+	addMasterDarkSelection();
+	addMasterFlatSelection();
 }
 
-void FileTab::onAddFlatFrame() {
+void ImageStackingDialog::FileSelectionGroupBox::addFileSelection() {
 
-	QString file = QFileDialog::getOpenFileName(this, tr("Open File"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
-
-	m_flat_file->setText(file);
-}
-
-
-void FileTab::AddFileSelection() {
-
-	m_file_list_view = new QListWidget(this);
-	m_file_list_view->move(10, 10);
-	m_file_list_view->size().setWidth(300);
-
+	m_file_list_view = new ListWidget(this);
+	m_file_list_view->move(15, 25);
 	m_file_list_view->resize(365, m_file_list_view->sizeHint().height());
 
-	QPalette p;
-	p.setBrush(QPalette::ColorRole::AlternateBase, QColor(127, 127, 255));
+	m_add_files_pb = new PushButton("Add Light Files", this);
+	m_add_files_pb->move(390, 25);
+	m_add_files_pb->setFixedWidth(m_button_width);
+
+	m_remove_file_pb = new PushButton("Remove Item", this);
+	m_remove_file_pb->move(390, 65);
+	m_remove_file_pb->setFixedWidth(m_button_width);
+
+	m_clear_list_pb = new PushButton("Clear List", this);
+	m_clear_list_pb->move(390, 105);
+	m_clear_list_pb->setFixedWidth(m_button_width);
+
+	m_add_alignment_pb = new PushButton("Add Alignment", this);
+	m_add_alignment_pb->move(390, 145);
+	m_add_alignment_pb->setFixedWidth(m_button_width);
+
+	m_clear_alignment_pb = new PushButton("Clear Alignment", this);
+	m_clear_alignment_pb->move(390, 185);
+	m_add_alignment_pb->setFixedWidth(m_button_width);
+
+	auto addlightfiles = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Light Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+
+		for (auto file : file_paths)
+			m_file_list_view->addItem(QFileInfo(file).fileName());
 
 
-	//p.setBrush(QPalette::ColorRole::Base, QColor(0, 255, 0));
-	m_file_list_view->setPalette(p);
-	m_file_list_view->setAlternatingRowColors(true);
+		for (int i = 0; i < file_paths.size(); ++i)
+			m_paths.push_back(file_paths[i].toStdString());
+	};
 
-	m_add_files_pb = new QPushButton("Add Light Files", this);
-	m_add_files_pb->move(380, 10);
+	auto removefile = [this]() {
 
-	m_remove_file_pb = new QPushButton("Remove Item", this);
-	m_remove_file_pb->move(380, 45);
+		if (m_file_list_view->count() == 0)
+			return;
 
-	connect(m_add_files_pb, &QPushButton::pressed, this, &FileTab::onAddLightFiles);
-	connect(m_remove_file_pb, &QPushButton::pressed, this, &FileTab::onRemoveFile);
+		int index = m_file_list_view->currentIndex().row();
 
+		if (index == -1)
+			index += m_paths.size();
 
-	//QStringList f_path = QFileDialog::getOpenFileNames(this, tr("Open Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], "*.fit");
+		m_file_list_view->takeItem(index);
+		m_paths.erase(m_paths.begin() + index);
+	};
+
+	auto clearlist = [this]() {
+		m_file_list_view->clear();
+		m_paths.clear();
+	};
+
+	auto alignment = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Alignment Files"), QString(), "INFO file(*.info)");
+
+		for (const auto file : file_paths) {
+			auto path = alignmentDataPath(file.toStdString());
+			for (int i = 0; i < m_paths.size(); ++i) {
+				if (path == m_paths[i]) {
+					m_file_list_view->item(i)->setIcon(m_pix);
+					m_alignment_paths.push_back(file.toStdString());
+				}
+			}
+		}
+	};
+
+	auto clearalignment = [this]() {
+
+		for (int i = 0; i < m_file_list_view->count(); ++i)
+			m_file_list_view->item(i)->setIcon(QPixmap());
+
+		m_alignment_paths.clear();
+	};
+
+	connect(m_add_files_pb, &QPushButton::pressed, this, addlightfiles);
+	connect(m_remove_file_pb, &QPushButton::pressed, this, removefile);
+	connect(m_clear_list_pb, &QPushButton::pressed, this, clearlist);
+	connect(m_add_alignment_pb, &QPushButton::pressed, this, alignment);
+	connect(m_clear_alignment_pb, &QPushButton::pressed, this, clearalignment);
 }
 
-void FileTab::AddMasterDarkSelection() {
+void ImageStackingDialog::FileSelectionGroupBox::addMasterDarkSelection() {
 
-	m_dark_cb = new QCheckBox(this);
-	m_dark_cb->setChecked(true);
-	m_dark_cb->move(10, 217);
+	m_dark_cb = new CheckBox("", this);
+	//m_dark_cb->setChecked(true);
+	m_dark_cb->move(10, 237);
 
-	m_dark_file = new QLineEdit(this);
-	m_dark_file->resize(345, 30);
-	m_dark_file->move(30, 210);
+	m_dark_file_le = new LineEdit(this);
+	m_dark_file_le->resize(345, 30);
+	m_dark_file_le->move(35, 230);
 
-	m_add_dark_pb = new QPushButton("Master Dark", this);
-	m_add_dark_pb->move(380, 210);
+	m_add_dark_pb = new PushButton("Master Dark", this);
+	m_add_dark_pb->move(390, 230);
+	m_add_dark_pb->setFixedWidth(m_button_width);
 
-	connect(m_add_dark_pb, &QPushButton::pressed, this, &FileTab::onAddDarkFrame);
-	connect(m_dark_cb, &QCheckBox::clicked, this, &FileTab::onClick_dark);
+	auto dark = [this]() {
+		QString file = QFileDialog::getOpenFileName(this, tr("Master Dark"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+		m_dark_file_le->setText(file);
+		m_calibrator->setMasterDarkPath(file.toStdString());
+	};
+
+	auto click = [this](bool v) {
+		m_dark_file_le->setEnabled(v);
+		m_add_dark_pb->setEnabled(v);
+		m_calibrator->setApplyMasterDark(v);
+	};
+
+	connect(m_add_dark_pb, &QPushButton::pressed, this, dark);
+	connect(m_dark_cb, &QCheckBox::clicked, this, click);
+	m_dark_cb->clicked();
 }
 
-void FileTab::AddMasterFlatSelection() {
+void ImageStackingDialog::FileSelectionGroupBox::addMasterFlatSelection() {
 
-	m_flat_cb = new QCheckBox(this);
-	m_flat_cb->setChecked(true);
-	m_flat_cb->move(10, 257);
+	m_flat_cb = new CheckBox("", this);
+	m_flat_cb->move(10, 277);
 
-	m_flat_file = new QLineEdit(this);
-	m_flat_file->resize(345, 30);
-	m_flat_file->move(30, 250);
+	m_flat_file_le = new LineEdit(this);
+	m_flat_file_le->resize(345, 30);
+	m_flat_file_le->move(35, 270);
 
-	m_add_flat_pb = new QPushButton("Master Flat", this);
-	m_add_flat_pb->move(380, 250);
+	m_add_flat_pb = new PushButton("Master Flat", this);
+	m_add_flat_pb->move(390, 270);
+	m_add_flat_pb->setFixedWidth(m_button_width);
 
-	connect(m_add_flat_pb, &QPushButton::pressed, this, &FileTab::onAddFlatFrame);
-	connect(m_flat_cb, &QCheckBox::clicked, this, &FileTab::onClick_flat);
-}
+	auto flat = [this]() {
+		QString file = QFileDialog::getOpenFileName(this, tr("Master Flat"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+		m_flat_file_le->setText(file);
+		m_calibrator->setMasterFlatPath(file.toStdString());
+	};
 
+	auto click = [this](bool v) {
+		m_flat_file_le->setEnabled(v);
+		m_add_flat_pb->setEnabled(v);
+		m_calibrator->setApplyMasterFlat(v);
+	};
 
-
-
-
-
-
-
-
-
-
-/*StarsTab::StarsTab(const QSize& size, QWidget* parent) {
-
-	this->resize(size);
-	this->setAutoFillBackground(true);
-
-	AddThresholdInputs();
-	AddMaxStarRadiusInputs();
-
-	QLabel* label = new QLabel("Wavelet Layers: ", this);
-	m_wavelet_layers_sb = new QSpinBox(this);
-	m_wavelet_layers_sb->move(125, 10);
-	m_wavelet_layers_sb->setRange(1, 6);
-	m_wavelet_layers_sb->setValue(5);
-	connect(m_wavelet_layers_sb, &QSpinBox::valueChanged, this, &StarsTab::onChange_waveletLayers);
-
-
-	/*m_interpolation_combo = new QComboBox(this);
-	m_interpolation_combo->addItem("Nearest Neighbor");
-	m_interpolation_combo->addItem("Bilinear");
-	m_interpolation_combo->addItem("Bicubic Spline");
-	m_interpolation_combo->addItem("Bicubic B Spline");
-	m_interpolation_combo->addItem("Cubic B Spline");
-	m_interpolation_combo->addItem("Catmull Rom");
-	m_interpolation_combo->addItem("Lanczos3");
-
-	m_interpolation_combo->setCurrentIndex(2);
-
-	//m_median_blur_cb = new QCheckBox("Median Blur", this);
-	//m_median_blur_cb->setChecked(true);
-
-	//m_photometry_type_combo = new QComboBox(this);
-	//m_photometry_type_combo->addItems({ "Gaussian","WCG" });
-}*/
-
-StarsTab::StarsTab(StarDetector& star_detector, const QSize& size, QWidget* parent) {
-	this->resize(size);
-	this->setAutoFillBackground(true);
-
-	m_sd = &star_detector;
-
-	AddThresholdInputs();
-	AddMaxStarRadiusInputs();
-	AddPeakEdgeResponseInputs();
-	AddNumberofStarsInputs();
-
-	QLabel* label = new QLabel("Wavelet Layers: ", this);
-	m_wavelet_layers_sb = new QSpinBox(this);
-	m_wavelet_layers_sb->move(125, 10);
-	m_wavelet_layers_sb->setRange(1, 6);
-	m_wavelet_layers_sb->setValue(5);
-	connect(m_wavelet_layers_sb, &QSpinBox::valueChanged, this, &StarsTab::onChange_waveletLayers);
-
-
-	/*m_interpolation_combo = new QComboBox(this);
-	m_interpolation_combo->addItem("Nearest Neighbor");
-	m_interpolation_combo->addItem("Bilinear");
-	m_interpolation_combo->addItem("Bicubic Spline");
-	m_interpolation_combo->addItem("Bicubic B Spline");
-	m_interpolation_combo->addItem("Cubic B Spline");
-	m_interpolation_combo->addItem("Catmull Rom");
-	m_interpolation_combo->addItem("Lanczos3");
-
-	m_interpolation_combo->setCurrentIndex(2);*/
-
-	//m_median_blur_cb = new QCheckBox("Median Blur", this);
-	//m_median_blur_cb->setChecked(true);
-
-	//m_photometry_type_combo = new QComboBox(this);
-	//m_photometry_type_combo->addItems({ "Gaussian","WCG" });
-}
-
-void StarsTab::onSliderMoved_K(int value) {
-	m_K_le->setText(QString::number(value / 100.0, 'd', (value == 1'000) ? 1 : 2));
-}
-
-void StarsTab::editingFinished_K() {
-
-	double K = m_K_le->text().toDouble();
-
-	if (K == 10.0)
-		m_K_le->setText(QString::number(K, 'd', 1));
-
-	m_K_slider->setValue(K * 100);
-}
-
-void StarsTab::onSliderMoved_starRadius(int value) {
-	m_max_starRadius_le->setText(QString::number(value / 10));
-}
-
-void StarsTab::editingFinished_starRadius() {
-	m_max_starRadius_slider->setValue(m_max_starRadius_le->text().toInt());
-}
-
-void StarsTab::onSliderMoved_peakEdge(int value) {
-	m_peak_edge_response_le->setText(QString::number(value / 100.0, 'f', 2));
+	connect(m_add_flat_pb, &QPushButton::pressed, this, flat);
+	connect(m_flat_cb, &QCheckBox::clicked, this, click);
+	m_flat_cb->clicked();
 }
 
 
-void StarsTab::AddThresholdInputs() {
+ImageStackingDialog::IntegrationGroupBox::IntegrationGroupBox(ImageStacking& image_stacking, QWidget* parent) : m_is(&image_stacking), GroupBox(parent) {
+	
+	this->setFixedSize(520, 300);
 
-	int y = 45;
+	addCombos();
+	addSigmaInputs();
 
-	QLabel* threshold = new QLabel("Star Threhsold: ", this);
-	threshold->move(10, y);
-
-	m_K_le = new DoubleLineEdit("3.00", new DoubleValidator(0.0, 10.0, 2), this);
-	m_K_le->move(125, y);
-	m_K_le->resize(50, 30);
-
-	m_K_slider = new QSlider(Qt::Horizontal, this);
-	m_K_slider->move(185, y);
-	m_K_slider->setRange(100, 1000);
-	m_K_slider->setValue(300);
-	m_K_slider->setFixedWidth(200);
-
-	connect(m_K_slider, &QSlider::sliderMoved, this, &StarsTab::onSliderMoved_K);
-	connect(m_K_le, &QLineEdit::editingFinished, this, &StarsTab::editingFinished_K);
+	m_weight_maps = new CheckBox("Generate Weight Maps", this);
+	m_weight_maps->move(160, 265);
+	//m_weight_maps->setChecked(false);
 }
 
-void StarsTab::AddMaxStarRadiusInputs() {
+void ImageStackingDialog::IntegrationGroupBox::addCombos() {
 
-	int y = 80;
+	m_interpolation_combo = new InterpolationComboBox(this);
+	m_interpolation_combo->move(195, 25);
+	m_interpolation_combo->addLabel(new QLabel("Interpolation:   ", this));
+	connect(m_interpolation_combo, &QComboBox::activated, this, [this](int index) {});
 
-	QLabel* label = new QLabel("Max Star Radius: ", this);
-	label->move(10, y);
+	m_integration_combo = new ComboBox(this);
+	m_integration_combo->move(195, 65);
+	m_integration_combo->addLabel(new QLabel("Integration Method:   ", this));
+	m_integration_combo->addItems({ "Average", "Median", "Max", "Min" });
+	connect(m_integration_combo, &QComboBox::activated, this, [this](int index) { m_is->setIntegrationMethod(ImageStacking::Integration(index)); });
 
-	m_max_starRadius_le = new DoubleLineEdit("32", new DoubleValidator(17, 50, 0), this);
-	m_max_starRadius_le->move(125, y);
-	m_max_starRadius_le->resize(50, 30);
+	m_normalization_combo = new ComboBox(this);
+	m_normalization_combo->move(195, 105);
+	m_normalization_combo->addLabel(new QLabel("Normalization Method:   ", this));
+	m_normalization_combo->addItems({ "No Normalization","Additive", "Multiplicative", "Additive Scaling", " Multiplicative Scaling" });
+	connect(m_normalization_combo, &QComboBox::activated, this, [this](int index) { m_is->setNormalation(ImageStacking::Normalization(index)); });
 
-
-	m_max_starRadius_slider = new QSlider(Qt::Horizontal, this);
-	m_max_starRadius_slider->move(185, y);
-	m_max_starRadius_slider->setRange(170, 500);
-	m_max_starRadius_slider->setValue(320);
-	m_max_starRadius_slider->setFixedWidth(200);
-
-	connect(m_max_starRadius_slider, &QSlider::sliderMoved, this, &StarsTab::onSliderMoved_starRadius);
-	connect(m_max_starRadius_le, &QLineEdit::editingFinished, this, &StarsTab::editingFinished_starRadius);
+	m_rejection_combo = new ComboBox(this);
+	m_rejection_combo->move(195, 145);
+	m_rejection_combo->addLabel(new QLabel("Pixel Rejection:   ", this));
+	m_rejection_combo->addItems({ "No Rejection", "Sigma Clipping", "Winsorized Sigma Clipping" });
+	connect(m_rejection_combo, &QComboBox::activated, this, [this](int index) { m_is->setRejectionMethod(ImageStacking::Rejection(index)); });
 }
 
-void StarsTab::AddPeakEdgeResponseInputs() {
-	int y = 115;
+void ImageStackingDialog::IntegrationGroupBox::addSigmaInputs() {
 
-	m_peak_edge_response_le = new DoubleLineEdit("0.65", new DoubleValidator(0.0, 1.0, 1), this);
-	m_peak_edge_response_le->resize(50, 30);
-	m_peak_edge_response_le->move(125, y);
+	int width = 60;
 
-	m_peak_edge_response_slider = new QSlider(Qt::Horizontal, this);
-	m_peak_edge_response_slider->move(185, y);
-	m_peak_edge_response_slider->setRange(0, 100);
-	m_peak_edge_response_slider->setValue(65);
-	m_peak_edge_response_slider->setFixedWidth(200);
+	m_sigma_low_le = new DoubleLineEdit(m_is->sigmaLow(), new DoubleValidator(0.0, 10.0, 1), this);
+	m_sigma_low_le->move(195, 185);
+	m_sigma_low_le->setFixedWidth(width);
+	m_sigma_low_le->addLabel(new QLabel("Sigma Low:   ", this));
 
-	connect(m_peak_edge_response_slider, &QSlider::sliderMoved, this, &StarsTab::onSliderMoved_peakEdge);
+	m_sigma_low_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_low_slider->setFixedWidth(205);
+	m_sigma_low_slider->setRange(0, 100);
+	m_sigma_low_slider->setValue(m_is->sigmaLow() * 10);
+	m_sigma_low_le->addSlider(m_sigma_low_slider);
+
+	auto action_low = [this](int) {
+		float v = m_sigma_low_slider->sliderPosition() / 10.0;
+		m_sigma_low_le->setValue(v);
+		m_is->setSigmaLow(v);
+	};
+
+	auto edited_low = [this]() {
+		float v = m_sigma_low_le->valuef();
+		m_sigma_low_slider->setSliderPosition(v * 10);
+		m_is->setSigmaLow(v);
+	};
+
+	connect(m_sigma_low_slider, &QSlider::actionTriggered, this, action_low);
+	connect(m_sigma_low_le, &QLineEdit::editingFinished, this, edited_low);
+
+
+
+
+
+	m_sigma_high_le = new DoubleLineEdit(m_is->sigmaHigh(), new DoubleValidator(0.0, 10.0, 1), this);
+	m_sigma_high_le->move(195, 225);
+	m_sigma_high_le->setFixedWidth(width);
+	m_sigma_high_le->addLabel(new QLabel("Sigma High:   ", this));
+
+	m_sigma_high_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_high_slider->setFixedWidth(205);
+	m_sigma_high_slider->setRange(0, 100);
+	m_sigma_high_slider->setValue(m_is->sigmaHigh() * 10);
+	m_sigma_high_le->addSlider(m_sigma_high_slider);
+
+	auto action_high = [this](int) {
+		float v = m_sigma_high_slider->sliderPosition() / 10.0;
+		m_sigma_high_le->setValue(v);
+		m_is->setSigmaHigh(v);
+	};
+
+	auto edited_high = [this]() {
+		float v = m_sigma_high_le->valuef();
+		m_sigma_high_slider->setSliderPosition(v * 10);
+		m_is->setSigmaHigh(v);
+	};
+
+	connect(m_sigma_high_slider, &QSlider::actionTriggered, this, action_high);
+	connect(m_sigma_high_le, &QLineEdit::editingFinished, this, edited_high);
 }
 
-void StarsTab::AddNumberofStarsInputs() {
-	int y = 150;
+void ImageStackingDialog::IntegrationGroupBox::reset() {
 
-	m_num_stars_le = new DoubleLineEdit("200", new DoubleValidator(0, 250, 0), this);
-	m_num_stars_le->resize(50, 30);
-	m_num_stars_le->move(125, y);
-
-
-	m_num_stars_slider = new QSlider(Qt::Horizontal, this);
-	m_num_stars_slider->move(185, y);
-	m_num_stars_slider->setRange(500, 2500);
-	m_num_stars_slider->setValue(2000);
-	m_num_stars_slider->setFixedWidth(200);
-
-	connect(m_num_stars_slider, &QSlider::sliderMoved, this, &StarsTab::onSliderMoved_starsNum);
 }
 
 
 
 
-ImageStackingDialog::ImageStackingDialog(QWidget* parent): ProcessDialog("ImageStacking", QSize(500,600), *reinterpret_cast<FastStack*>(parent)->m_workspace, parent, false) {
-	//this->resize(300, 600);
 
+ImageStackingDialog::ImageStackingDialog(QWidget* parent): ProcessDialog("ImageStacking", QSize(540,600), FastStack::recast(parent)->workspace(), false, false) {
+
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &ImageStackingDialog::apply, &ImageStackingDialog::showPreview, &ImageStackingDialog::resetDialog);
+
+	m_toolbox = new QToolBox(this);
+	m_toolbox->setFixedWidth(520);
+	m_toolbox->move(10, 0);
+
+	m_toolbox->setBackgroundRole(QPalette::Window);
 	QPalette pal;
-	pal.setColor(QPalette::Window, Qt::lightGray);
-	//m_file_tab->setPalette(pal);
+	pal.setColor(QPalette::ButtonText, Qt::white);
+	m_toolbox->setPalette(pal);
 
-	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &ImageStackingDialog::Apply, &ImageStackingDialog::showPreview, &ImageStackingDialog::resetDialog);
-
-	m_tabs = new QTabWidget(this);
-	m_tabs->resize(500, 400);
-	m_tabs->move(0, 30);
-
-	m_file_tab = new FileTab();
-	m_tabs->addTab(m_file_tab, "File Selection");
-
-	m_star_tab = new StarsTab(m_sd);
-	m_tabs->addTab(m_star_tab, "Detection && Alignment");
-
-	m_tabs->setCurrentIndex(1);
-	//m_tabs->addTab(new QWidget, "Detection && Matching");
-	m_tabs->addTab(new QWidget, "Image Integration");
+	m_fileselection_gb = new FileSelectionGroupBox(m_iip.imageCalibrator());
+	m_toolbox->addItem(m_fileselection_gb, "File Selection");
 
 
-	this->setAttribute(Qt::WA_DeleteOnClose);
+	m_stardetection_gb = new StarDetectionGroupBox(m_iip.starDetector());
+	m_toolbox->addItem(m_stardetection_gb, "Star Detection");
+
+	m_integration_gb = new IntegrationGroupBox(m_iip.imageStacker());
+	m_toolbox->addItem(m_integration_gb, "Alignment && Integration");
+	connect(m_integration_gb->weightsCheckbox(), &QCheckBox::clicked, this, [this](bool v) { m_iip.setGenerateWeightMaps(v); });
+	auto selected = [this](int index) {
+		m_toolbox->resize(520, m_toolbox->currentWidget()->minimumHeight() + 35 * m_toolbox->count());
+		this->resize(QSize(this->width(), m_toolbox->height() + 35));
+	};
+
+	connect(m_toolbox, &QToolBox::currentChanged, this, selected);
+	m_toolbox->setCurrentIndex(0);
+	m_toolbox->currentChanged(0);
+
 	this->show();
 }
 
+void ImageStackingDialog::showTextDisplay() {
 
-
-void ImageStackingDialog::Apply() {
-	
-	if (m_file_tab->LightPaths().size() == 0)
-		return;
-
-	this->setEnabledAll(false);
-
-	TempFolder temp;
-
-	Image32 img;
-	FITS fits;
-	StarVector ref_sv;
-	ImageCalibration ic;
-	StarMatching sm;
-	HomographyTransformation ht;
-
-	int ref_rows;
-	int ref_cols;
-	int ref_channels;
-
-	ic.setMasterDark(m_file_tab->MasterDarkPath());
-	ic.setMasterFlat(m_file_tab->MasterFlatPath());
-
-	for (auto file_it = m_file_tab->LightPaths().begin(); file_it != m_file_tab->LightPaths().end(); ++file_it) {
-		
-		std::string ext = (*file_it).extension().string();
-
-		if (ext == ".fit" || ext == ".fits" || ext == ".fts") {
-			FITS fits;
-			fits.Open(*file_it);
-			fits.ReadAny(img);	
-		}
-
-		else if (ext == ".tif" || ext == ".tiff") {
-			TIFF tiff;
-			tiff.Open(*file_it);
-			tiff.ReadAny(img);
-		}
-
-		//ic.CalibrateImage(img);
-		//calibrate
-		if (file_it == m_file_tab->LightPaths().begin())
-			ref_sv = m_sd.ApplyStarDetection(img);
-		
-		else {
-
-			StarVector tgt_sv = m_sd.ApplyStarDetection(img);
-
-			StarPairVector spv = sm.MatchStars(ref_sv, tgt_sv);
-
-
-			Matrix h = Homography().ComputeHomography(spv);
-\
-			if (isnan(h(0, 0)))
-				continue; //use to pass over bad frame
-
-			//if (drizzle)
-				//ImageOP::AlignedStats(img, img.homography, type);
-
-			//else
-			ht.setHomography(h);
-			ht.Apply(img);
-			//ImageOP::AlignFrame(img, img.homography, Interpolator::Type::bicubic_spline);
-		}
-
-		temp.WriteTempFits(img, *file_it);
-
+	if (m_text == nullptr) {
+		m_text = new TextDisplay("Image Stacking Info", this);
+		connect(m_text, &TextDisplay::onClose, this, [this]() { m_text = nullptr; });
+		connect(m_iip.imageStackingSignal(), &ImageStackingSignal::emitText, m_text, &TextDisplay::displayText);
+		connect(m_iip.imageStackingSignal(), &ImageStackingSignal::emitPSFData, m_text, &TextDisplay::displayPSFData);
+		connect(m_iip.imageStackingSignal(), &ImageStackingSignal::emitMatrix, m_text, &TextDisplay::displayMatrix);
+		connect(m_iip.imageStacker().imageStackingSignal(), &ImageStackingSignal::emitText, m_text, &TextDisplay::displayText);
+		connect(m_iip.imageStacker().imageStackingSignal(), &ImageStackingSignal::emitProgress, m_text, &TextDisplay::displayProgress);
 	}
+}
 
-	m_is.IntegrateImages(temp.Files(), img);
+void ImageStackingDialog::resetDialog() {
+	m_iip.starDetector() = StarDetector();
+	m_stardetection_gb->reset();
+}
 
-	ImageWindow32* iw32 = new ImageWindow32(img, "StackedImage", reinterpret_cast<Workspace*>(m_workspace));
+void ImageStackingDialog::apply() {
 
-	this->setEnabledAll(true);
+	this->setEnabled(false);
 
+	showTextDisplay();
+
+	m_iip.setLightPaths(m_fileselection_gb->lightPaths());
+	m_iip.setAlignmentPaths(m_fileselection_gb->alignmentPaths());
+	m_iip.setMaxStars(m_stardetection_gb->maxStars());
+
+	auto funca = [this]() {
+
+		Status s = m_iip.integrateImages(m_output);
+		emit processFinished(s);
+	};
+
+	auto funcb = [this](Status status) {
+
+		if (!status)
+			QMessageBox::about(this, "FastStack", status.m_message);
+		
+		else
+			ImageWindow32* iw32 = new ImageWindow32(m_output, "StackedImage", reinterpret_cast<Workspace*>(m_workspace));
+
+		if (m_output.exists())
+			m_output.~Image();
+
+		this->setEnabled(true);
+	};
+
+	if (!isSignalConnected(QMetaMethod::fromSignal(&ImageStackingDialog::processFinished)))
+		connect(this, &ImageStackingDialog::processFinished, this, funcb);
+	
+	//QtConcurrent::run(funca);
+	//QThread::create(funca)->start();
+	std::thread(funca).detach();	
+}
+
+
+
+
+
+DrizzleIntegrationDialog::FileSelectionGroupBox::FileSelectionGroupBox(ImageCalibrator& calibrator, QWidget* parent) : m_calibrator(&calibrator), GroupBox(parent) {
+
+	this->setFixedSize(520, 390);
+
+	addFileSelection();
+	addAlignmentSelection();
+	addWeightMapSelection();
+	addMasterDarkSelection();
+	addMasterFlatSelection();
+}
+
+void DrizzleIntegrationDialog::FileSelectionGroupBox::addFileSelection() {
+
+	m_file_list_view = new ListWidget(this);
+	m_file_list_view->move(15, 25);
+	m_file_list_view->resize(365, 270);
+
+
+	m_add_files_pb = new PushButton("Add Light Files", this);
+	m_add_files_pb->move(390, 25);
+	m_add_files_pb->setFixedWidth(m_button_width);
+
+	m_remove_file_pb = new PushButton("Remove Item", this);
+	m_remove_file_pb->move(390, 65);
+	m_remove_file_pb->setFixedWidth(m_button_width);
+
+	m_clear_list_pb = new PushButton("Clear List", this);
+	m_clear_list_pb->move(390, 105);
+	m_clear_list_pb->setFixedWidth(m_button_width);
+
+	auto addlightfiles = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Light Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+
+		for (auto file : file_paths)
+			m_file_list_view->addItem(QFileInfo(file).fileName());
+
+
+		for (int i = 0; i < file_paths.size(); ++i)
+			m_paths.push_back(file_paths[i].toStdString());
+	};
+
+	auto removefile = [this]() {
+
+		if (m_file_list_view->count() == 0)
+			return;
+
+		int index = m_file_list_view->currentIndex().row();
+
+		if (index == -1)
+			index += m_paths.size();
+
+		m_file_list_view->takeItem(index);
+		m_paths.erase(m_paths.begin() + index);
+	};
+
+	auto clearlist = [this]() {
+		m_file_list_view->clear();
+		m_paths.clear();
+	};
+
+	connect(m_add_files_pb, &QPushButton::released, this, addlightfiles);
+	connect(m_remove_file_pb, &QPushButton::released, this, removefile);
+	connect(m_clear_list_pb, &QPushButton::released, this, clearlist);
+}
+
+void DrizzleIntegrationDialog::FileSelectionGroupBox::addAlignmentSelection() {
+
+	m_add_alignment_pb = new PushButton("Add Alignment", this);
+	m_add_alignment_pb->move(390, 145);
+	m_add_alignment_pb->setFixedWidth(m_button_width);
+
+	m_clear_alignment_pb = new PushButton("Clear Alignment", this);
+	m_clear_alignment_pb->move(390, 185);
+	m_add_alignment_pb->setFixedWidth(m_button_width);
+
+	auto alignment = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Alignment Files"), QString(), "INFO file(*.info)");
+
+		for (const auto file : file_paths) {
+			auto path = alignmentDataPath(file.toStdString());
+			for (int i = 0; i < m_paths.size(); ++i) {
+				if (path == m_paths[i]) {
+					m_file_list_view->item(i)->setIcon(m_pix);
+					m_alignment_paths.push_back(file.toStdString());
+					break;
+				}
+			}
+		}
+	};
+
+	auto clearalignment = [this]() {
+
+		for (int i = 0; i < m_file_list_view->count(); ++i)
+			m_file_list_view->item(i)->setIcon(QPixmap());
+
+		m_alignment_paths.clear();
+	};
+
+	connect(m_add_alignment_pb, &QPushButton::released, this, alignment);
+	connect(m_clear_alignment_pb, &QPushButton::released, this, clearalignment);
+}
+
+void DrizzleIntegrationDialog::FileSelectionGroupBox::addWeightMapSelection() {
+
+	m_add_weights_pb = new PushButton("Add Weights", this);
+	m_add_weights_pb->move(390, 225);
+	m_add_weights_pb->setFixedWidth(m_button_width);
+
+	m_clear_weights_pb = new PushButton("Clear Weights", this);
+	m_clear_weights_pb->move(390, 265);
+	m_clear_weights_pb->setFixedWidth(m_button_width);
+
+	auto weights = [this]() {
+
+		QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open WieghtMap Files"), QString(), "WMI file(*.wmi);;");
+
+		for (const auto file : file_paths) {
+			std::filesystem::path path = file.toStdString();
+			auto name = path.stem();
+			for (int i = 0; i < m_paths.size(); ++i) {
+				if (name == m_paths[i].stem()) {
+					m_file_list_view->item(i)->setText("<w>" + m_file_list_view->item(i)->text());
+					m_weightmap_paths.emplace_back(path);
+					break;
+				}
+			}
+		}
+	};
+
+	auto clearwights = [this]() {
+
+		for (int i = 0; i < m_file_list_view->count(); ++i)
+			m_file_list_view->item(i)->setText(m_file_list_view->item(i)->text().sliced(3));
+
+		m_weightmap_paths.clear();
+	};
+
+	connect(m_add_weights_pb, &QPushButton::released, this, weights);
+	connect(m_clear_weights_pb, &QPushButton::released, this, clearwights);
+}
+
+void DrizzleIntegrationDialog::FileSelectionGroupBox::addMasterDarkSelection() {
+
+	m_dark_cb = new CheckBox("", this);
+	m_dark_cb->move(15, 312);
+
+	m_dark_file_le = new LineEdit(this);
+	m_dark_file_le->resize(340, 30);
+	m_dark_file_le->move(40, 305);
+
+	m_add_dark_pb = new PushButton("Master Dark", this);
+	m_add_dark_pb->setFixedWidth(m_button_width);
+	m_add_dark_pb->move(390, 305);
+
+	auto dark = [this]() {
+		QString file = QFileDialog::getOpenFileName(this, tr("Master Dark"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+		m_dark_file_le->setText(file);
+		m_calibrator->setMasterDarkPath(file.toStdString());
+	};
+
+	auto click = [this](bool v) {
+		m_dark_file_le->setEnabled(v);
+		m_add_dark_pb->setEnabled(v);
+		m_calibrator->setApplyMasterDark(v);
+	};
+
+	connect(m_add_dark_pb, &QPushButton::pressed, this, dark);
+	connect(m_dark_cb, &QCheckBox::clicked, this, click);
+	m_dark_cb->clicked();
+}
+
+void DrizzleIntegrationDialog::FileSelectionGroupBox::addMasterFlatSelection() {
+
+	m_flat_cb = new CheckBox("", this);
+	m_flat_cb->move(15, 352);
+
+	m_flat_file_le = new LineEdit(this);
+	m_flat_file_le->resize(340, 30);
+	m_flat_file_le->move(40, 345);
+
+	m_add_flat_pb = new PushButton("Master Flat", this);
+	m_add_flat_pb->move(390, 345);
+	m_add_flat_pb->setFixedWidth(m_button_width);
+
+	auto flat = [this]() {
+		QString file = QFileDialog::getOpenFileName(this, tr("Master Flat"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
+		m_flat_file_le->setText(file);
+		m_calibrator->setMasterFlatPath(file.toStdString());
+	};
+
+	auto click = [this](bool v) {
+		m_flat_file_le->setEnabled(v);
+		m_add_flat_pb->setEnabled(v);
+		m_calibrator->setApplyMasterFlat(v);
+	};
+
+	connect(m_add_flat_pb, &QPushButton::pressed, this, flat);
+	connect(m_flat_cb, &QCheckBox::clicked, this, click);
+	m_flat_cb->clicked();
+}
+
+
+
+
+DrizzleIntegrationDialog::DrizzleGroupBox::DrizzleGroupBox(Drizzle& drizzle, QWidget* parent) : m_drizzle(&drizzle), GroupBox(parent) {
+
+	this->setFixedSize(520, 70);
+
+	m_dropsize_sb = new DoubleSpinBox(m_drizzle->dropSize(), 0.10, 1.0, 2, this);
+	m_dropsize_sb->setSingleStep(0.01);
+	m_dropsize_sb->move(160, 25);
+	m_dropsize_sb->addLabel(new QLabel("Drop Size:   ", this));
+
+	connect(m_dropsize_sb, &QDoubleSpinBox::valueChanged, this, [this](double v) { m_drizzle->setDropSize(v); });
+
+	m_scale_factor_sb = new SpinBox(m_drizzle->scaleFactor(), 2, 8, this);
+	m_scale_factor_sb->move(360, 25);
+	m_scale_factor_sb->addLabel(new QLabel("Scale Factor:   ", this));
+
+	connect(m_scale_factor_sb, &QSpinBox::valueChanged, this, [this](int v) { m_drizzle->setScaleFactor(v); });
+}
+
+DrizzleIntegrationDialog::DrizzleIntegrationDialog(QWidget* parent) : ProcessDialog("Drizzle Integration", QSize(540,600), FastStack::recast(parent)->workspace(), false, false) {
+
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &DrizzleIntegrationDialog::apply, &DrizzleIntegrationDialog::showPreview, &DrizzleIntegrationDialog::resetDialog);
+
+	m_toolbox = new QToolBox(this);
+	m_toolbox->setFixedWidth(520);
+	m_toolbox->move(10, 0);
+
+	m_toolbox->setBackgroundRole(QPalette::Window);
+	QPalette pal;
+	pal.setColor(QPalette::ButtonText, Qt::white);
+	m_toolbox->setPalette(pal);
+
+	auto selected = [this](int index) {
+		m_toolbox->resize(520, m_toolbox->currentWidget()->minimumHeight() + 35 * m_toolbox->count());
+		this->resize(QSize(this->width(), m_toolbox->height() + 35));
+	};
+
+	connect(m_toolbox, &QToolBox::currentChanged, this, selected);
+
+	m_fileselection_gb = new FileSelectionGroupBox(m_dip.imageCalibrator(), this);
+	m_toolbox->addItem(m_fileselection_gb, "File Selection");
+
+	m_drizzle_gb = new DrizzleGroupBox(m_dip.drizzle(), this);
+	m_toolbox->addItem(m_drizzle_gb, "Drizzle Settings");
+
+	selected(0);
+	this->show();
+}
+
+void DrizzleIntegrationDialog::showTextDisplay() {
+
+	if (m_text == nullptr) {
+		m_text = new TextDisplay("Drizzle Info", this);
+		connect(m_text, &TextDisplay::onClose, this, [this]() { m_text = nullptr; });
+		connect(m_dip.imageStackingSignal(), &ImageStackingSignal::emitText, m_text, &TextDisplay::displayText);
+		connect(m_dip.imageStackingSignal(), &ImageStackingSignal::emitProgress, m_text, &TextDisplay::displayProgress);
+	}
+}
+
+void DrizzleIntegrationDialog::apply() {
+
+	this->setEnabled(false);
+
+	showTextDisplay();
+
+	m_dip.setLightPaths(m_fileselection_gb->lightPaths());
+	m_dip.setAlignmentPaths(m_fileselection_gb->alignmentPaths());
+	m_dip.setWeightPaths(m_fileselection_gb->weightmapPaths());
+
+	auto funca = [this]() {
+
+		Status s = m_dip.drizzleImages(m_output);
+		emit processFinished(s);
+	};
+
+	auto funcb = [this](Status status) {
+
+		if (!status)
+			QMessageBox::about(this, "FastStack", status.m_message);
+
+		else
+			//increment title
+			ImageWindow32* iw32 = new ImageWindow32(m_output, "DrizzledImage", reinterpret_cast<Workspace*>(m_workspace));
+
+		if (m_output.exists())
+			m_output.~Image();
+
+		this->setEnabled(true);
+	};
+
+	if (!isSignalConnected(QMetaMethod::fromSignal(&DrizzleIntegrationDialog::processFinished)))
+		connect(this, &DrizzleIntegrationDialog::processFinished, this, funcb);
+
+	std::thread(funca).detach();
 }

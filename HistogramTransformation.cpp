@@ -1,26 +1,12 @@
 #include "pch.h"
 #include "HistogramTransformation.h"
+#include "Histogram.h"
 #include "FastStack.h"
+
 
 using HT = HistogramTransformation;
 
-void HT::MTFCurve::setShadow(float shadow) {
-	m_shadow = shadow;
-	dv = 1.0 / (m_highlights - m_shadow);
-}
-
-void HT::MTFCurve::setMidtone(float midtone) {
-	m_midtone = midtone;
-	m1 = m_midtone - 1;
-	m2 = 2 * m_midtone - 1;
-}
-
-void HT::MTFCurve::setHighlight(float hightlight) {
-	m_highlights = hightlight;
-	dv = 1.0 / (m_highlights - m_shadow);
-}
-
-float HT::MTFCurve::MTF(float pixel) {
+float HT::MTFCurve::MTF(float pixel)const {
 
 	if (pixel <= 0.0f) return 0;
 
@@ -32,7 +18,7 @@ float HT::MTFCurve::MTF(float pixel) {
 
 }
 
-float HT::MTFCurve::TransformPixel(float pixel) {
+float HT::MTFCurve::transformPixel(float pixel)const {
 	pixel = (pixel - m_shadow) * dv;
 
 	return MTF(pixel);
@@ -41,13 +27,13 @@ float HT::MTFCurve::TransformPixel(float pixel) {
 void HT::MTFCurve::Generate16Bit_LUT() {
 	m_lut.resize(65536);
 	for (int el = 0; el < 65536; ++el)
-		m_lut[el] = TransformPixel(el / 65535.0f) * 65535;
+		m_lut[el] = transformPixel(el / 65535.0f) * 65535;
 }
 
 void HT::MTFCurve::Generate8Bit_LUT() {
 	m_lut.resize(256);
 	for (int el = 0; el < 256; ++el)
-		m_lut[el] = TransformPixel(el / 255.0f) * 255;
+		m_lut[el] = transformPixel(el / 255.0f) * 255;
 }
 
 template <typename T>
@@ -55,7 +41,7 @@ void HT::MTFCurve::ApplyChannel(Image<T>& img, int ch) {
 	if (img.is_float())
 
 		for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel)
-			*pixel = TransformPixel(*pixel);
+			*pixel = transformPixel(*pixel);
 
 	else {
 		if (img.is_uint8())
@@ -73,53 +59,32 @@ template void HT::MTFCurve::ApplyChannel(Image16&, int);
 template void HT::MTFCurve::ApplyChannel(Image32&, int);
 
 
-float HistogramTransformation::Shadow(ColorComponent component) const{
-	return (*this)[component].Shadow();
+
+
+
+
+
+float HT::transformPixel(ColorComponent component, float pixel)const {
+	return (*this)[component].transformPixel(pixel);
 }
-
-float HistogramTransformation::Midtone(ColorComponent component) const {
-	return (*this)[component].Midtone();
-}
-
-float HistogramTransformation::Highlight(ColorComponent component) const {
-	return (*this)[component].Highlight();
-}
-
-void HistogramTransformation::setShadow(ColorComponent component, float shadow) {
-	(*this)[component].setShadow(shadow);
-}
-
-void HistogramTransformation::setMidtone(ColorComponent component, float midtone) {
-	(*this)[component].setMidtone(midtone);
-}
-
-void HistogramTransformation::setHighlight(ColorComponent component, float highligt) {
-	(*this)[component].setHighlight(highligt);
-}
-
-float HistogramTransformation::TransformPixel(ColorComponent component, float pixel) {
-	return (*this)[component].TransformPixel(pixel);
-}
-
-
 
 template<typename T>
 static T AverageMedian(Image<T>& img) {
 	float sum = 0;
-	for (int ch = 0; ch < img.Channels(); ++ch)
+	for (int ch = 0; ch < img.channels(); ++ch)
 		sum += img.Median(ch);
-	return sum / img.Channels();
+	return sum / img.channels();
 }
 
 template<typename T>
 static T AverageMAD(Image<T>& img) {
 	float sum = 0;
-	for (int ch = 0; ch < img.Channels(); ++ch)
+	for (int ch = 0; ch < img.channels(); ++ch)
 		sum += img.MAD(ch);
-	return sum / img.Channels();
+	return sum / img.channels();
 }
 
-float HistogramTransformation::MTF(float pixel, float midtone) {
+float HT::MTF(float pixel, float midtone) {
 
 	if (pixel <= 0.0f) return 0;
 
@@ -132,61 +97,35 @@ float HistogramTransformation::MTF(float pixel, float midtone) {
 }
 
 template<typename T>
-void HistogramTransformation::ComputeSTFCurve(Image<T>& img){
+void HT::computeSTFCurve(const Image<T>& img){
 
-	auto rgbk = (*this)[ColorComponent::rgb_k];
-	rgbk.setMidtone(0.25);
-
-	float median = 0, nMAD = 0;
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-		T cm = img.ComputeMedian(ch, true);
-		median += cm;
-		nMAD += img.ComputeMAD(ch, cm, true);
-	}
-
-	median = Pixel<float>::toType(T(median / img.Channels()));
-	nMAD = Pixel<float>::toType(T(1.4826f * (nMAD / img.Channels())));
-
-	float shadow = (median > 2.8 * nMAD) ? median - 2.8f * nMAD : 0;
-	float midtone = rgbk.MTF(median - shadow);
-
-	rgbk.setShadow(shadow);
-	rgbk.setMidtone(midtone);
-}
-template void HT::ComputeSTFCurve(Image8&);
-template void HT::ComputeSTFCurve(Image16&);
-template void HT::ComputeSTFCurve(Image32&);
-
-template<typename T>
-void HistogramTransformation::STFStretch(Image<T>& img) {
-	auto rgbk = (*this)[ColorComponent::rgb_k];
-	rgbk.setMidtone(0.25);
+	auto rgbk = &(*this)[ColorComponent::rgb_k];
+	rgbk->setMidtone(0.25);
 
 	float median = 0, nMAD = 0;
-	for (int ch = 0; ch < img.Channels(); ++ch) {
-		T cm = img.ComputeMedian(ch, true);
+	for (int ch = 0; ch < img.channels(); ++ch) {
+		T cm = img.computeMedian(ch, true);
 		median += cm;
-		nMAD += img.ComputeMAD(ch, cm, true);
+		nMAD += img.compute_nMAD(ch, cm, true);
 	}
 
-	median = Pixel<float>::toType(T(median / img.Channels()));
-	nMAD = Pixel<float>::toType(T(1.4826f * (nMAD / img.Channels())));
+	median = Pixel<float>::toType(T(median / img.channels()));
+	nMAD = Pixel<float>::toType(T(nMAD / img.channels()));
 
 	float shadow = (median > 2.8 * nMAD) ? median - 2.8f * nMAD : 0;
-	float midtone = rgbk.MTF(median - shadow);
+	float midtone = rgbk->MTF(median - shadow);
 
-	rgbk.setShadow(shadow);
-	rgbk.setMidtone(midtone);
-
-	Apply(img);
+	rgbk->setShadow(shadow);
+	rgbk->setMidtone(midtone);
 
 }
-template void HT::STFStretch(Image8&);
-template void HT::STFStretch(Image16&);
-template void HT::STFStretch(Image32&);
+template void HT::computeSTFCurve(const Image8&);
+template void HT::computeSTFCurve(const Image16&);
+template void HT::computeSTFCurve(const Image32&);
+
 
 template<typename T>
-void HistogramTransformation::Apply(Image<T>& img) {
+void HT::Apply(Image<T>& img) {
 
 	using enum ColorComponent;
 
@@ -195,7 +134,7 @@ void HistogramTransformation::Apply(Image<T>& img) {
 
 		if (img.is_float())
 			for (auto& pixel : img)
-				pixel = rgbk.TransformPixel(pixel);
+				pixel = rgbk.transformPixel(pixel);
 
 		else {
 			if (img.is_uint8())
@@ -210,7 +149,7 @@ void HistogramTransformation::Apply(Image<T>& img) {
 
 	}
 
-	if (img.Channels() == 1)
+	if (img.channels() == 1)
 		return;
 
 	if (!(*this)[red].IsIdentity())
@@ -229,10 +168,13 @@ template void HT::Apply(Image32&);
 
 
 
-//middle of slider be slider position
-//align slider/slider handles with hist graph
+
+
+
 HistogramSlider::HistogramSlider(Qt::Orientation orientation, QWidget* parent) : QSlider(parent) {
+
 	this->setOrientation(orientation);
+
 	initStyleOption(&m_shadow);
 	m_shadow.sliderPosition = 0;
 	m_shadow.subControls = QStyle::SC_SliderHandle;
@@ -245,28 +187,33 @@ HistogramSlider::HistogramSlider(Qt::Orientation orientation, QWidget* parent) :
 	m_highlight.sliderPosition = max_val;
 	m_highlight.subControls = QStyle::SC_SliderHandle;
 
-	AddStyleSheet();
+	initStyleOption(&m_trackbar);
+	m_trackbar.subControls = QStyle::SC_SliderGroove;
+
+	//AddStyleSheet();
 }
 
 void HistogramSlider::setMedian(float median) { m_med = median; }
 
 int HistogramSlider::sliderPosition_shadow()const { return m_shadow.sliderPosition; }
 
-void HistogramSlider::setSliderPosition_shadow(int pos) { 
-	m_shadow.sliderPosition = pos; 
+void HistogramSlider::setSliderPosition_Shadow(int pos) {
+	m_shadow.sliderValue = m_shadow.sliderPosition = pos;
+	emit valueChanged(pos);
 	update(); 
 }
 
 int HistogramSlider::sliderPosition_midtone()const { return m_midtone.sliderPosition; }
 
-void HistogramSlider::setSliderPosition_midtone(int pos) { 
-	m_midtone.sliderPosition = pos; 
+void HistogramSlider::setSliderPosition_Midtone(int pos) {
+	m_midtone.sliderValue = m_midtone.sliderPosition = pos; 
+	emit valueChanged(pos);
 	update(); 
 }
 
 int HistogramSlider::sliderPosition_highlight()const { return m_highlight.sliderPosition; }
 
-void HistogramSlider::setSliderPosition_highlight(int pos) { 
+void HistogramSlider::setSliderPosition_Highlight(int pos) {
 	m_highlight.sliderPosition = pos; 
 	update(); 
 }
@@ -284,15 +231,11 @@ void HistogramSlider::resetSliderPositions() {
 void HistogramSlider::mousePressEvent(QMouseEvent* event) {
 
 	if (event->buttons() == Qt::LeftButton) {
-		QStyle* style = QApplication::style();
-		QStyleOptionSlider opt;
-		initStyleOption(&opt);
-
-		if (style->hitTestComplexControl(QStyle::CC_Slider, &opt, event->pos(), this) == QStyle::SC_SliderGroove)
+		if (style()->hitTestComplexControl(QStyle::CC_Slider, &m_trackbar, event->pos(), this) == QStyle::SC_SliderGroove) {
 			m_shadow_act = m_midtone_act = m_highlight_act = false;
-		
+		}
 
-		if (style->hitTestComplexControl(QStyle::CC_Slider, &m_shadow, event->pos(), this) == QStyle::SC_SliderHandle) {
+		if (style()->hitTestComplexControl(QStyle::CC_Slider, &m_shadow, event->pos(), this) == QStyle::SC_SliderHandle) {
 			click_x = event->x();
 			m_shadow_act = true;
 			m_midtone_act = m_highlight_act = false;
@@ -301,7 +244,7 @@ void HistogramSlider::mousePressEvent(QMouseEvent* event) {
 			this->setSliderDown(true);
 		}
 
-		if (style->hitTestComplexControl(QStyle::CC_Slider, &m_midtone, event->pos(), this) == QStyle::SC_SliderHandle) {
+		if (style()->hitTestComplexControl(QStyle::CC_Slider, &m_midtone, event->pos(), this) == QStyle::SC_SliderHandle) {
 			click_x = event->x();
 			m_midtone_act = true;
 			m_shadow_act = m_highlight_act = false;
@@ -310,7 +253,7 @@ void HistogramSlider::mousePressEvent(QMouseEvent* event) {
 			this->setSliderDown(true);
 		}
 
-		if (style->hitTestComplexControl(QStyle::CC_Slider, &m_highlight, event->pos(), this) == QStyle::SC_SliderHandle) {
+		if (style()->hitTestComplexControl(QStyle::CC_Slider, &m_highlight, event->pos(), this) == QStyle::SC_SliderHandle) {
 			click_x = event->x();
 			m_highlight_act = true;
 			m_shadow_act = m_midtone_act = false;
@@ -324,7 +267,6 @@ void HistogramSlider::mousePressEvent(QMouseEvent* event) {
 
 void HistogramSlider::mouseMoveEvent(QMouseEvent* event) {
 	if (event->buttons() == Qt::LeftButton) {
-
 		if (m_shadow_act) {
 			int x = m_shadow.sliderPosition + (event->x() - click_x);
 			click_x = event->x();
@@ -336,6 +278,9 @@ void HistogramSlider::mouseMoveEvent(QMouseEvent* event) {
 				x = m_highlight.sliderValue = m_highlight.sliderPosition = m_highlight.sliderPosition + 1;
 				emit sliderMoved_highlight(m_highlight.sliderPosition);
 			}
+
+			else if (x > maximum())
+				x = maximum();
 
 			m_shadow.sliderValue = m_shadow.sliderPosition = x;
 
@@ -372,6 +317,9 @@ void HistogramSlider::mouseMoveEvent(QMouseEvent* event) {
 				emit sliderMoved_shadow(m_shadow.sliderPosition);
 			}
 
+			else if (x < minimum())
+				x = minimum();
+
 			m_highlight.sliderValue = m_highlight.sliderPosition = x;
 			m_midtone.sliderValue = m_midtone.sliderPosition = m_shadow.sliderPosition + (m_highlight.sliderPosition - m_shadow.sliderPosition) * m_med;
 
@@ -385,53 +333,87 @@ void HistogramSlider::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void HistogramSlider::paintEvent(QPaintEvent* event) {
-	//Q_UNUSED(ev);
-	QPainter p(this);
+	QStylePainter p(this);
+	p.setRenderHint(QPainter::Antialiasing);
+
 	QStyleOptionSlider opt;
-
-
 	initStyleOption(&opt);
+
+	QPen pen;
+	pen.setWidthF(0.5);
+	pen.setColor(Qt::white);
+	p.setPen(pen);
 
 	//trackbar
 	opt.subControls = QStyle::SC_SliderGroove;
-	style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
+	m_trackbar.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderGroove);
+	m_trackbar.rect.translate(0, 2);
+	m_trackbar.rect.setHeight(6);
+	p.drawRect(m_trackbar.rect);
+	//p.drawComplexControl(QStyle::CC_Slider, opt);
+
 
 	opt.subControls = QStyle::SC_SliderHandle;
+	p.setPen("#5c5c5c");
 
-	//shadow handle
+	//shadow handle	
 	opt.sliderPosition = m_shadow.sliderPosition;
 	m_shadow.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle);
-	style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
-	//QPixmap pm = style()->standardPixmap(QStyle::SP_TitleBarShadeButton);
-	//pm = pm.scaled(18,18, Qt::KeepAspectRatio);
-	//style()->drawItemPixmap(&p, m_shadow.rect, 0, pm);
+	drawHandle(m_shadow.rect, opt, p);
+	//p.drawComplexControl(QStyle::CC_Slider, opt);
+
 	// 
 	//midtone handle
 	opt.sliderPosition = m_midtone.sliderPosition;
 	m_midtone.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle);
-	style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
+	drawHandle(m_midtone.rect, opt, p);
+	//p.drawComplexControl(QStyle::CC_Slider, opt);
 
 	//highlight handle
 	opt.sliderPosition = m_highlight.sliderPosition;
 	m_highlight.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle);
-	style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
+	drawHandle(m_highlight.rect, opt, p);
+	//p.drawComplexControl(QStyle::CC_Slider, opt);
+}
+
+void HistogramSlider::drawHandle(const QRect& rect, const QStyleOptionSlider& opt, QPainter& p) {
+
+	QRect r = rect;
+	r.translate((opt.sliderPosition - r.x()) - 3, 0);
+
+	r.adjust(6, 4, -6, -1);
+
+	QPainterPath pp;
+	pp.moveTo(r.bottomLeft().x(), r.bottomLeft().y() + 1);
+
+	float hw = r.width() / 2.0;
+	int h = r.height() - hw;
+
+	pp.lineTo(r.x(), h);
+	pp.lineTo(r.x() + hw, r.y());
+	pp.lineTo(r.topRight().x() + 1, h);
+	pp.lineTo(r.bottomRight().x() + 1, r.bottomRight().y() + 1);
+	pp.closeSubpath();
+
+	p.drawPath(pp);
+	p.fillPath(pp, m_brush);
 }
 
 void HistogramSlider::AddStyleSheet() {
 	QString str = "QSlider::groove:horizontal{"
 		"border: 1px solid #999999;"
 		"height: 8px;"
-		"background: qlineargradient(x1 : 0, y1 : 0, x2 : 0, y2 : 1, stop : 0 #B1B1B1, stop:1 #c4c4c4);"
-		"margin: 0px 0;}"
+		"background: ;"
+		"margin: 0px 0;}";
 
-		"QSlider::handle:horizontal{"
-		"background: qlineargradient(x1 : 0, y1 : 0, x2 : 1, y2 : 1, stop : 0 #b4b4b4, stop:1 #8f8f8f);"
+		/*"QSlider::handle:horizontal{"
+		"background: white;"
 		"border: 1px solid #5c5c5c;"
 		"width: 6px;"
 		"margin: -3px 0;"
 		"border-top-left-radius: 2px;"
 		"border-top-right-radius: 2px;"
-		"}";
+		"}";*/
 
 	this->setStyleSheet(str);
 }
@@ -441,10 +423,68 @@ void HistogramSlider::AddStyleSheet() {
 
 
 
+using HTV = HistogramTransformationView;
+HTV::HistogramTransformationView(HistogramTransformation& ht, const QSize& size, QWidget* parent) : m_ht(&ht), HistogramView(size, parent) {
+
+	drawMTFCurve();
+	this->show();
+}
+
+void HTV::drawScene() {
+
+	this->drawHistogram();
+	this->drawMTFCurve();
+}
+
+void HTV::clearScene(bool draw_grid) {
+
+	HistogramView::clearScene(draw_grid);
+	m_mtf_curve = nullptr;
+}
+
+void HTV::resetScene() {
+
+	this->clearHistogram();
+	this->drawMTFCurve();
+}
+
+void HTV::drawMTFCurve() {
+
+	if (m_mtf_curve != nullptr && !m_mtf_curve->isVisible())
+		return;
+
+	for (auto item : scene()->items())
+		if (item == m_mtf_curve) {
+			scene()->removeItem(item);
+		}
+
+	int w = scene()->width();
+	int h = scene()->height();
+
+	int start = m_ht->shadow(colorComponent()) * w;// m_histogram_slider->sliderPosition_shadow();
+	int end = m_ht->highlight(colorComponent()) * w;
+
+	double dx = 1.0 / w;
+
+	QPolygonF line(end - start + 2);
+
+	double s = m_ht->shadow(colorComponent());
+
+	for (int i = 0; i < line.size(); ++i, ++start, s += dx)
+		line[i] = QPointF(start, (1 - m_ht->transformPixel(colorComponent(), s)) * h);
+
+	QPainterPath path;
+	path.addPolygon(line);
+	m_mtf_curve = scene()->addPath(path, m_pens[int(colorComponent())]);
+}
 
 
 
-HistogramTransformationDialog::HistogramTransformationDialog(QWidget* parent): ProcessDialog("HistogramTransformation", QSize(420, 400), *reinterpret_cast<FastStack*>(parent)->m_workspace, parent) {
+
+
+
+
+HistogramTransformationDialog::HistogramTransformationDialog(QWidget* parent): ProcessDialog("HistogramTransformation", QSize(422, 400), FastStack::recast(parent)->workspace()) {
 
 	using HTD = HistogramTransformationDialog;
 
@@ -453,139 +493,138 @@ HistogramTransformationDialog::HistogramTransformationDialog(QWidget* parent): P
 	connect(this, &ProcessDialog::processDropped, this, &HTD::Apply);
 	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &HTD::Apply, &HTD::showPreview, &HTD::resetDialog);
 	
-	AddHistogramChart();
-	AddHistogramSlider();
-	AddLineEdits();
-	AddChannelSelection();
-	AddImageSelectionCombo();
-	AddMTFPushButton();
-	AddResolutionCombo();
+	m_htv = new HistogramTransformationView(m_ht, { 402,200 }, this);
+	m_htv->move(10, 10);
+
+	addHistogramSlider();
+	addLineEdits();
+	addChannelSelection();
+	addImageSelectionCombo();
+	addMTFPushButton();
+	addResolutionCombo();
 
 	this->show();
-
 }
 
 void HistogramTransformationDialog::onWindowOpen() {
-	QString str = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->ImageName();
+	QString str = reinterpret_cast<ImageWindow8*>(m_workspace->subWindowList().last()->widget())->name();
 	m_image_sel->addItem(str);
 }
 
 void HistogramTransformationDialog::onWindowClose() {
-	QString str = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->ImageName();
-		int index = m_image_sel->findText(str);
-		if (index == m_image_sel->currentIndex())
-			resetScene();
+	QString str = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->name();
+	int index = m_image_sel->findText(str);
 
-		m_image_sel->removeItem(index);
-		m_image_sel->setCurrentIndex(0);
+	if (index == m_image_sel->currentIndex())
+		m_htv->resetScene();
+
+	m_image_sel->removeItem(index);
+	m_image_sel->setCurrentIndex(0);
 }
 
 
 void HistogramTransformationDialog::onActivation_imageSelection(int index) {
-	for (auto sw : m_workspace->subWindowList()) {
-		auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
-		if (m_image_sel->currentText() == ptr->ImageName()) {
-			switch (ptr->Source().Bitdepth()) {
-			case 8:
-				showHistogram(ptr->Source());
-				break;
-			case 16:
-				showHistogram(reinterpret_cast<ImageWindow16*>(ptr)->Source());
-				break;
-			case -32:
-				showHistogram(reinterpret_cast<ImageWindow32*>(ptr)->Source());
-				break;
-			}
-			return ApplytoPreview();
-		}
 
-		else
-			resetScene();
+	for (auto sw : m_workspace->subWindowList()) {
+		auto ptr = imageRecast(sw->widget());
+		if (m_image_sel->itemText(index) == ptr->name()) {
+			switch (ptr->type()) {
+			case ImageType::UBYTE:
+				m_htv->constructHistogram(ptr->source());
+				return m_htv->drawScene();
+			case ImageType::USHORT:
+				m_htv->constructHistogram(imageRecast<uint16_t>(ptr)->source());
+				return m_htv->drawScene();
+			case ImageType::FLOAT:
+				m_htv->constructHistogram(imageRecast<float>(ptr)->source());
+				return m_htv->drawScene();
+			}
+		}
 	}
+
+	m_htv->resetScene();
 }
 
 void HistogramTransformationDialog::onActivation_resolution(int index) {
 
-	std::array<int, 5> r = { 8,10,12,14,16 };
-	m_current_hist_res = r[index];
+	auto hr = HistogramView::Resolution(m_hist_res_combo->itemData(index).toInt());
 
 	for (auto sw : m_workspace->subWindowList()) {
-		auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
-		if (m_image_sel->currentText() == ptr->ImageName()) {
-			switch (ptr->Source().Bitdepth()) {
-			case 8:
-				showHistogram(ptr->Source());
+		auto ptr = imageRecast(sw->widget());
+		if (m_image_sel->currentText() == ptr->name()) {
+			switch (ptr->type()) {
+			case ImageType::UBYTE:
+				m_htv->constructHistogram(ptr->source(), hr);				
 				break;
-			case 16:
-				showHistogram(reinterpret_cast<ImageWindow16*>(ptr)->Source());
+			case ImageType::USHORT:
+				m_htv->constructHistogram(imageRecast<uint16_t>(ptr)->source(), hr);
 				break;
-			case -32:
-				showHistogram(reinterpret_cast<ImageWindow32*>(ptr)->Source());
+			case ImageType::FLOAT:
+				m_htv->constructHistogram(imageRecast<float>(ptr)->source(), hr);
 				break;
 			}
-			return ApplytoPreview();
 		}
-
-		else
-			resetScene();
 	}
+	m_htv->drawScene();
 }
 
 
 void HistogramTransformationDialog::onClick(int id) {
 
 	m_current_comp = ColorComponent(id);
+	m_htv->setColorComponent(m_current_comp);
+	m_histogram_slider->setHandleColor(m_colors[id]);
 
-	float shadow = m_ht.Shadow(m_current_comp);
-	float midtone = m_ht.Midtone(m_current_comp);
-	float highlight = m_ht.Highlight(m_current_comp);
+	float shadow = m_ht.shadow(m_current_comp);
+	float midtone = m_ht.midtone(m_current_comp);
+	float highlight = m_ht.highlight(m_current_comp);
 
 	m_shadow_le->setText(QString::number(shadow, 'f', 8));
 	m_midtone_le->setText(QString::number(midtone, 'f', 8));
 	m_highlight_le->setText(QString::number(highlight, 'f', 8));
 
-	m_histogram_slider->setSliderPosition_shadow(shadow * m_histogram_slider->maximum());
-	m_histogram_slider->setSliderPosition_midtone((midtone + shadow) * (highlight + shadow) * m_histogram_slider->maximum());
-	m_histogram_slider->setSliderPosition_highlight(highlight * m_histogram_slider->maximum());
+	m_histogram_slider->setSliderPosition_Shadow(shadow * m_histogram_slider->maximum());
+	m_histogram_slider->setSliderPosition_Midtone((midtone + shadow) * (highlight + shadow) * m_histogram_slider->maximum());
+	m_histogram_slider->setSliderPosition_Highlight(highlight * m_histogram_slider->maximum());
 
 	m_histogram_slider->setMedian(midtone);
 
-	showMTFCurve();
-
-	onActivation_imageSelection(m_image_sel->currentIndex());
-
+	m_htv->drawHistogram();
+	m_htv->drawMTFCurve();
 }
 
 
-void HistogramTransformationDialog::sliderMoved_shadow(int value) {
-	float s = float(value) / m_histogram_slider->maximum();
+void HistogramTransformationDialog::sliderMoved_shadow(int pos) {
+	float s = float(pos) / m_histogram_slider->maximum();
 
 	m_shadow_le->setValue(s);
 	m_ht.setShadow(m_current_comp, s);
-	showMTFCurve();
+
+	m_htv->drawMTFCurve();
 
 	startTimer();
 }
 
-void HistogramTransformationDialog::sliderMoved_midtone(int value) {
+void HistogramTransformationDialog::sliderMoved_midtone(int pos) {
 	int s = m_histogram_slider->sliderPosition_shadow();
 	int h = m_histogram_slider->sliderPosition_highlight();
-	float m = float(value - s) / (h - s);
+	float m = float(pos - s) / (h - s);
 
 	m_midtone_le->setValue(m);
 	m_ht.setMidtone(m_current_comp, m);
 
-	showMTFCurve();
+	m_htv->drawMTFCurve();
 
 	startTimer();
 }
 
-void HistogramTransformationDialog::sliderMoved_highlight(int value) {
-	float h = double(value) / m_histogram_slider->maximum();
+void HistogramTransformationDialog::sliderMoved_highlight(int pos) {
+	float h = double(pos) / m_histogram_slider->maximum();
 
 	m_highlight_le->setValue(h);
 	m_ht.setHighlight(m_current_comp, h);
-	showMTFCurve();
+
+	m_htv->drawMTFCurve();
 
 	startTimer();
 }
@@ -603,178 +642,55 @@ void HistogramTransformationDialog::editingFinished_smh() {
 	if (h < s)
 		h = s;
 
-	m_histogram_slider->setSliderPosition_shadow(s);
+	m_histogram_slider->setSliderPosition_Shadow(s);
 	m_ht.setShadow(m_current_comp, shadow);
 
-	m_histogram_slider->setSliderPosition_midtone(midtone * (h - s) + s);
+	m_histogram_slider->setSliderPosition_Midtone(midtone * (h - s) + s);
 	m_ht.setMidtone(m_current_comp, midtone);
 
-	m_histogram_slider->setSliderPosition_highlight(h);
+	m_histogram_slider->setSliderPosition_Highlight(h);
 	m_ht.setHighlight(m_current_comp, highlight);
 
-	showMTFCurve();
+	m_htv->drawMTFCurve();
 
 	ApplytoPreview();
 }
 
 
+void HistogramTransformationDialog::addHistogramSlider() {
 
-void HistogramTransformationDialog::AddHistogramChart() {
-
-	for (auto pen : m_pens)
-		pen.setWidthF(0.9);
-
-	m_gs = new QGraphicsScene(0, 0, 400, 200);
-	m_gs->setBackgroundBrush(QBrush("#404040"));
-
-	m_gv = new QGraphicsView(m_gs, this);
-	m_gv->setRenderHints(QPainter::Antialiasing);
-	m_gv->scale(1, -1);
-	m_gv->setGeometry(10, 10, 400, 200);
-	m_gv->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	m_gv->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-	addGrid();
-}
-
-void HistogramTransformationDialog::resetScene() {
-	m_gs->clear();
-	m_mtf_curve = nullptr;
-	addGrid();
-	showMTFCurve();
-}
-
-void HistogramTransformationDialog::addGrid() {
-
-	QPen pen = QColor(255, 255, 255);
-	pen.setWidthF(0.5);
-
-	for (int i = 50; i < 200; i += 50)
-		m_gs->addLine(0, i, 400, i, pen);
-
-	for (int x = 100; x < 400; x += 100)
-		m_gs->addLine(x, 0, x, 200, pen);
-}
-
-template<typename T>
-void HistogramTransformationDialog::showHistogram(Image<T>& img) {
-
-	using enum ColorComponent;
-
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	resetScene();
-
-	ColorComponent id = m_current_comp;
-
-	if (img.Channels() == 1 && (id == red || id == green || id == blue))
-		return;
-
-	int max = 0;
-	int bins = m_gs->width();
-
-	QPolygonF line(m_gs->width());
-
-	int start = 0;
-	int end = img.Channels();
-
-	if (id == red || id == green || id == blue)
-		end = 1 + (start = int(id));
-
-	std::array<Histogram, 3> hist_array;
-
-	for (int ch = start; ch < end; ++ch) {
-
-		hist_array[ch].ConstructHistogram(img.cbegin(ch), img.cend(ch));
-		Histogram* histogram = &hist_array[ch];
-		histogram->Resample(m_current_hist_res);
-
-		for (int i = 1; i < (*histogram).Size() - 1; ++i)
-			if ((*histogram)[i] > max)
-				max = (*histogram)[i];
-	}
-
-	float spb = float(hist_array[start].Size()) / bins;
-
-	for (int ch = start; ch < end; ++ch) {
-		Histogram* histogram = &hist_array[ch];
-
-		float s = 0;
-		for (int i = 0; i < bins; ++i, s += spb) {
-
-			int M = 0;
-
-			for (int j = 0; j < spb; ++j)
-				if ((*histogram)[s + j] > M)
-					M = (*histogram)[s + j];
-
-
-			line[i] = QPointF(i, (double(M) / max) * m_gs->height());
-		}
-
-		QPainterPath path;
-		path.addPolygon(line);
-		if (img.Channels() == 3)
-			m_gs->addPath(path, m_pens[ch]);
-		else 
-			m_gs->addPath(path, m_pens[3]);
-	}
-
-}
-template void HistogramTransformationDialog::showHistogram(Image8&);
-template void HistogramTransformationDialog::showHistogram(Image16&);
-template void HistogramTransformationDialog::showHistogram(Image32&);
-
-void HistogramTransformationDialog::showMTFCurve() {
-
-	if (m_mtf_curve != nullptr)
-		m_gs->removeItem(m_mtf_curve);
-
-	QPolygonF line(m_gs->width());
-	for (int i = 0; i < m_gs->width(); ++i)
-		line[i] = QPointF(i, m_ht.TransformPixel(m_current_comp, 0.5 * i / m_gs->height()) * m_gs->height());
-
-	QPainterPath path;
-	path.addPolygon(line);
-	m_mtf_curve = m_gs->addPath(path, m_pens[m_component_bg->checkedId()]);
-	
-	if (!m_mtf_curve_pb->isChecked())
-		m_mtf_curve->setVisible(false);
-}
-
-void HistogramTransformationDialog::AddHistogramSlider() {
 	m_histogram_slider = new HistogramSlider(Qt::Horizontal, this);
 
-	m_histogram_slider->setFixedWidth(412);//orrig 392
-	m_histogram_slider->setRange(0, 400);//orig380
-	//m_histogram_slider->style()->standardIcon(QStyle::SP_TitleBarShadeButton);
-	m_histogram_slider->move(4, 208);
+	m_histogram_slider->setFixedWidth(412);
+	m_histogram_slider->setRange(0, 400);
+	m_histogram_slider->move(5, 208);
+
 
 	connect(m_histogram_slider, &HistogramSlider::sliderMoved_shadow, this, &HistogramTransformationDialog::sliderMoved_shadow);
 	connect(m_histogram_slider, &HistogramSlider::sliderMoved_midtone, this, &HistogramTransformationDialog::sliderMoved_midtone);
 	connect(m_histogram_slider, &HistogramSlider::sliderMoved_highlight, this, &HistogramTransformationDialog::sliderMoved_highlight);
 }
 
+void HistogramTransformationDialog::addChannelSelection() {
 
-void HistogramTransformationDialog::AddChannelSelection() {
+	using CC = ColorComponent;
 
 	m_component_bg = new QButtonGroup(this);
 
 	ComponentPushButton* pb = new ComponentPushButton("Red", this);
-	m_component_bg->addButton(pb, int(ColorComponent::red));
-	pb->move(350, 235);
+	m_component_bg->addButton(pb, int(CC::red));
+	pb->move(250, 235);
 
 	pb = new ComponentPushButton("Green", this);
-	m_component_bg->addButton(pb, int(ColorComponent::green));
+	m_component_bg->addButton(pb, int(CC::green));
 	pb->move(300, 235);
 
 	pb = new ComponentPushButton("Blue", this);
-	m_component_bg->addButton(pb, int(ColorComponent::blue));
-	pb->move(250, 235);
+	m_component_bg->addButton(pb, int(CC::blue));
+	pb->move(350, 235);
 
 	pb = new ComponentPushButton("RGB/K", this);
-	m_component_bg->addButton(pb, int(ColorComponent::rgb_k));
+	m_component_bg->addButton(pb, int(CC::rgb_k));
 	pb->setChecked(true);
 	pb->move(200, 235);
 
@@ -784,24 +700,19 @@ void HistogramTransformationDialog::AddChannelSelection() {
 	connect(m_component_bg, &QButtonGroup::idClicked, this, &HistogramTransformationDialog::onClick);
 }
 
-void HistogramTransformationDialog::AddLineEdits() {
-	m_shadow_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 8), this);
-	m_shadow_le->setValue(0.0);
+void HistogramTransformationDialog::addLineEdits() {
+	
+	m_shadow_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 6), this);
 	m_shadow_le->move(85, 235);
 	m_shadow_le->addLabel(new QLabel("Shadow:   ", this));
-	//connect(m_shadow_le, &QLineEdit::editingFinished, this, &HistogramTransformationDialog::editingFinished_shadow);
 
-	m_midtone_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 8), this);
-	m_midtone_le->setValue(0.5);
+	m_midtone_le = new DoubleLineEdit(0.5, new DoubleValidator(0.0, 1.0, 6), this);
 	m_midtone_le->move(85, 270);
 	m_midtone_le->addLabel(new QLabel("Midtone:   ", this));
-	//connect(m_midtone_le, &QLineEdit::editingFinished, this, &HistogramTransformationDialog::editingFinished_midtone);
 
-	m_highlight_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 8), this);
-	m_highlight_le->setValue(1.0);
+	m_highlight_le = new DoubleLineEdit(1.0, new DoubleValidator(0.0, 1.0, 6), this);
 	m_highlight_le->move(85, 305);
 	m_highlight_le->addLabel(new QLabel("Highlight:   ", this));
-	//connect(m_highlight_le, &QLineEdit::editingFinished, this, &HistogramTransformationDialog::editingFinished_highlight);
 
 	connect(m_shadow_le, &QLineEdit::editingFinished, this, &HistogramTransformationDialog::editingFinished_smh);
 	connect(m_midtone_le, &QLineEdit::editingFinished, this, &HistogramTransformationDialog::editingFinished_smh);
@@ -809,39 +720,42 @@ void HistogramTransformationDialog::AddLineEdits() {
 
 }
 
-void HistogramTransformationDialog::AddImageSelectionCombo() {
+void HistogramTransformationDialog::addImageSelectionCombo() {
 	using HTD = HistogramTransformationDialog;
 
-	m_image_sel = new QComboBox(this);
+	m_image_sel = new ComboBox(this);
 	m_image_sel->addItem("No Image Selected");
 	m_image_sel->move(225, 305);
 	for (auto sw : m_workspace->subWindowList())
-		m_image_sel->addItem(reinterpret_cast<const ImageWindow8*>(sw->widget())->ImageName());
+		m_image_sel->addItem(reinterpret_cast<const ImageWindow8*>(sw->widget())->name());
 
 	connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::sendClose, this, &HTD::onWindowClose);
 	connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::sendOpen, this, &HTD::onWindowOpen);
 	connect(m_image_sel, &QComboBox::activated, this, &HTD::onActivation_imageSelection);
 }
 
-void HistogramTransformationDialog::AddMTFPushButton() {
-	m_mtf_curve_pb = new QPushButton("MTF Curve", this);
-	m_mtf_curve_pb->setCheckable(true);
+void HistogramTransformationDialog::addMTFPushButton() {
+	m_mtf_curve_pb = new CheckablePushButton("MTF Curve", this);
 	m_mtf_curve_pb->setChecked(true);
-	m_mtf_curve_pb->setAutoDefault(false);
 	m_mtf_curve_pb->move(260, 270);
-	connect(m_mtf_curve_pb, &QPushButton::clicked, this, &HistogramTransformationDialog::onButtonPress);
-	showMTFCurve();
+
+	connect(m_mtf_curve_pb, &QPushButton::clicked, this, [this](bool v) { m_htv->mtfCurve()->setVisible(v); m_htv->drawMTFCurve(); });
 }
 
-void HistogramTransformationDialog::AddResolutionCombo() {
-	QComboBox* hr = new QComboBox(this);
-	hr->addItems({ "8-bit", "10-bit", "12-bit", "14-bit", "16-bit" });
-	hr->setCurrentIndex(4);
-	hr->move(250, 340);
-	connect(hr, &QComboBox::activated, this, &HistogramTransformationDialog::onActivation_resolution);
+void HistogramTransformationDialog::addResolutionCombo() {
+	m_hist_res_combo = new ComboBox(this);
+	m_hist_res_combo->addItems({ "8-bit", "10-bit", "12-bit", "14-bit", "16-bit" });
+	
+
+	for (int i = 0, s = 8; i < m_hist_res_combo->count(); ++i, s += 2)
+		m_hist_res_combo->setItemData(i, 1 << s);
+	
+	m_hist_res_combo->setCurrentIndex(4);
+	m_hist_res_combo->move(250, 340);
+	connect(m_hist_res_combo, &QComboBox::activated, this, &HistogramTransformationDialog::onActivation_resolution);
 
 	QLabel* l = new QLabel("Histogram Resolution:   ", this);
-	l->move(hr->geometry().x() - l->fontMetrics().horizontalAdvance(l->text()), 342);
+	l->move(m_hist_res_combo->geometry().x() - l->fontMetrics().horizontalAdvance(l->text()), 342);
 }
 
 
@@ -849,12 +763,11 @@ void HistogramTransformationDialog::resetDialog() {
 
 	m_ht = HistogramTransformation();
 	
-	m_shadow_le->setValue(m_ht.Shadow(ColorComponent::rgb_k));
-	m_midtone_le->setValue(m_ht.Midtone(ColorComponent::rgb_k));
-	m_highlight_le->setValue(m_ht.Highlight(ColorComponent::rgb_k));
+	m_shadow_le->setValue(m_ht.shadow(ColorComponent::rgb_k));
+	m_midtone_le->setValue(m_ht.midtone(ColorComponent::rgb_k));
+	m_highlight_le->setValue(m_ht.highlight(ColorComponent::rgb_k));
 	m_histogram_slider->resetSliderPositions();
-
-	showMTFCurve();
+	m_mtf_curve_pb->clicked(true);
 
 	ApplytoPreview();
 }
@@ -871,37 +784,26 @@ void HistogramTransformationDialog::Apply() {
 
 	setEnabledAll(false);
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	ImageWindow8* iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		iwptr->UpdateImage(m_ht, &HT::Apply);
-
-		if (m_image_sel->currentText() == iwptr->ImageName())
-			showHistogram(iwptr->Source());
-
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		iwptr->applyToSource(m_ht, &HT::Apply);
 		break;
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->UpdateImage(m_ht, &HT::Apply);
-
-		if (m_image_sel->currentText() == iw16->ImageName())
-			showHistogram(iw16->Source());
-
+	case ImageType::USHORT: {
+		auto iw16 = imageRecast<uint16_t>(iwptr);
+		iw16->applyToSource(m_ht, &HT::Apply);
 		break;
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->UpdateImage(m_ht, &HT::Apply);
-
-		if (m_image_sel->currentText() == iw32->ImageName())
-			showHistogram(iw32->Source());
-
+	case ImageType::FLOAT: {
+		auto iw32 = imageRecast<float>(iwptr);
+		iw32->applyToSource(m_ht, &HT::Apply);
 		break;
 	}
 	}
 
+	onActivation_imageSelection(m_image_sel->currentIndex());
 	setEnabledAll(true);
 
 	ApplytoPreview();
@@ -912,20 +814,20 @@ void HistogramTransformationDialog::ApplytoPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	PreviewWindow8* iwptr = previewRecast(m_preview);
 
-	switch (iwptr->Source().Bitdepth()) {
-	case 8: {
-		auto iw8 = reinterpret_cast<PreviewWindow8*>(iwptr->Preview());
-		return iw8->UpdatePreview(m_ht, &HT::Apply);
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		auto iw8 = iwptr;
+		return iw8->updatePreview(m_ht, &HT::Apply);
 	}
-	case 16: {
-		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr->Preview());
-		return iw16->UpdatePreview(m_ht, &HT::Apply);
+	case ImageType::USHORT: {
+		auto iw16 = previewRecast<uint16_t>(iwptr);
+		return iw16->updatePreview(m_ht, &HT::Apply);
 	}
-	case -32: {
-		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr->Preview());
-		return iw32->UpdatePreview(m_ht, &HT::Apply);
+	case ImageType::FLOAT: {
+		auto iw32 = previewRecast<float>(iwptr);
+		return iw32->updatePreview(m_ht, &HT::Apply);
 	}
 	}
 }

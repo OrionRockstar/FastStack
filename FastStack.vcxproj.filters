@@ -136,13 +136,40 @@
     <ClCompile Include="BilateralFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Masks.cpp">
+    <ClCompile Include="RangeMask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AutoHistogram.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Sobel.cpp">
+    <ClCompile Include="EdgeDetection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ColorSaturation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LRGBCombination.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ChannelCombination.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FastStackToolBar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StarMask.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Binerize.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StarAlignment.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageIntegrationProcess.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Statistics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -177,16 +204,10 @@
     <ClInclude Include="GaussianFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="StarDetector.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Star.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Wavelet.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CurveInterpolation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
@@ -204,9 +225,6 @@
     <ClInclude Include="TIFF.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ImageStackingDialog.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Histogram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -214,9 +232,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ImageCalibration.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ImageStacking.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ImageFileReader.h">
@@ -234,7 +249,28 @@
     <ClInclude Include="AutoHistogram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Sobel.h">
+    <ClInclude Include="EdgeDetection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LRGBCombination.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ChannelCombination.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FastStackToolBar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StarMask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Binerize.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StarDetector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageIntegrationProcess.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -272,16 +308,26 @@
     <QtMoc Include="Workspace.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="Masks.h">
+    <QtMoc Include="RangeMask.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-  </ItemGroup>
-  <ItemGroup>
-    <QtUic Include="MenuBar.ui">
-      <Filter>Form Files</Filter>
-    </QtUic>
-    <QtUic Include="ImageWindow.ui">
-      <Filter>Form Files</Filter>
-    </QtUic>
+    <QtMoc Include="ColorSaturation.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="CurveInterpolation.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="StarAlignment.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ImageStackingDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ImageStacking.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="Statistics.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
   </ItemGroup>
 </Project>

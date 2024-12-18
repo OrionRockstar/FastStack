@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "Wavelet.h"
 #include "MorphologicalTransformation.h"
+#include "FastStack.h"
+#include "FITS.h"
 
 float Wavelet::WaveletHistogram::Median() {
 	int occurrences = 0;
@@ -46,7 +48,7 @@ float Wavelet::WaveletHistogram::MAD() {
 	return Median() + 1;
 }
 
-std::vector<float> Wavelet::GetScalingFunction(ScalingFunction sf) {
+const std::vector<float>& Wavelet::scalingFunctionKernel(ScalingFunction sf) const {
 	using enum ScalingFunction;
 
 	switch (sf) {
@@ -54,11 +56,11 @@ std::vector<float> Wavelet::GetScalingFunction(ScalingFunction sf) {
 	case linear_3:
 		return linear;
 
-	case b3spline_5:
-		return b3;
-
 	case smallscale3_3:
 		return ss3_3;
+
+	case b3spline_5:
+		return b3;
 
 	case gaussian_5:
 		return g_5;
@@ -68,18 +70,11 @@ std::vector<float> Wavelet::GetScalingFunction(ScalingFunction sf) {
 	}
 }
 
-void Wavelet::GetWaveletLayer() {
+void Wavelet::atrous(uint8_t layer) {
 
-	for (auto s = source.begin(), c = convolved.begin(), w = wavelet.begin(); s != source.end(); ++s, ++c, ++w)
-		*w = *s - *c;
+	int _2i = pow(2, layer);
 
-	convolved.CopyTo(source);
-}
-
-void Wavelet::Atrous(int scale_num, ScalingFunction sf) {
-	int _2i = pow(2, scale_num);
-
-	std::vector<float> sfv = GetScalingFunction(sf);
+	const std::vector<float>& sfv = scalingFunctionKernel(m_scaling_func);
 
 	float sfv_sum = 0;
 	for (float v : sfv)
@@ -87,36 +82,39 @@ void Wavelet::Atrous(int scale_num, ScalingFunction sf) {
 
 	int left = -(int(sfv.size() - 1) / 2) * _2i;
 
-	for (int ch = 0; ch < source.Channels(); ++ch) {
+	for (int ch = 0; ch < m_source.channels(); ++ch) {
 #pragma omp parallel for
-		for (int y = 0; y < source.Rows(); ++y)
-			for (int x = 0; x < source.Cols(); ++x) {
+		for (int y = 0; y < m_source.rows(); ++y)
+			for (int x = 0; x < m_source.cols(); ++x) {
 
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += source.At_mirrored(x + d, y, ch) * sfv[i];
+					sum += m_source.At_mirrored(x + d, y, ch) * sfv[i];
 
-				wavelet(x, y, ch) = sum / sfv_sum;
+				m_wavelet(x, y, ch) = sum / sfv_sum;
 			}
 
 #pragma omp parallel for
-		for (int y = 0; y < wavelet.Rows(); ++y)
-			for (int x = 0; x < wavelet.Cols(); ++x) {
+		for (int y = 0; y < m_wavelet.rows(); ++y)
+			for (int x = 0; x < m_wavelet.cols(); ++x) {
 
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += wavelet.At_mirrored(x, y + d, ch) * sfv[i];
+					sum += m_wavelet.At_mirrored(x, y + d, ch) * sfv[i];
 
-				convolved(x, y, ch) = sum / sfv_sum;
+				m_convolved(x, y, ch) = sum / sfv_sum;
 			}
 	}
 
-	GetWaveletLayer();
+	for (int el = 0; el < m_source.TotalPxCount(); ++el)
+		m_wavelet[el] = m_source[el] - m_convolved[el];
+
+	m_convolved.copyTo(m_source);
 }
 
-const int Wavelet::GetSign(float val) {
+const int8_t getSign(float val) {
 	return (val < 0) ? -1 : 1;
 }
 
@@ -124,16 +122,16 @@ void Wavelet::LinearNoiseReduction(float threshold, float amount) {
 
 	amount = fabsf(amount - 1);
 
-	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
+	for (int ch = 0; ch < m_wavelet.channels(); ++ch) {
 
-		WaveletHistogram histogram(wavelet, ch);
+		WaveletHistogram histogram(m_wavelet, ch);
 		float median = histogram.Median();
-		histogram = WaveletHistogram(wavelet, ch, median);
+		histogram = WaveletHistogram(m_wavelet, ch, median);
 		threshold *= histogram.MAD() / 0.6745;
 
-		for (float& w : image_channel(wavelet, ch)) {
+		for (float& w : image_channel(m_wavelet, ch)) {
 			float val = fabsf(w);
-			w = (val < threshold) ? w * amount : GetSign(w) * (val - threshold);
+			w = (val < threshold) ? w * amount : getSign(w) * (val - threshold);
 		}
 	}
 }
@@ -142,63 +140,52 @@ void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 
 	amount = fabsf(amount - 1);
 
-	for (int ch = 0; ch < wavelet.Channels(); ++ch) {
+	for (int ch = 0; ch < m_wavelet.channels(); ++ch) {
 
-		WaveletHistogram histogram(wavelet, ch);
+		WaveletHistogram histogram(m_wavelet, ch);
 		float median = histogram.Median();
-		histogram = WaveletHistogram(wavelet, ch, median);
+		histogram = WaveletHistogram(m_wavelet, ch, median);
 		threshold *= histogram.MAD() / 0.6745;
 
-		for (float& w : image_channel(wavelet, ch))
+		for (float& w : image_channel(m_wavelet, ch))
 			w = (abs(w) < threshold) ? w * amount : w;
 
 	}
 
 }
 
-template<typename Image>
-void Wavelet::WaveletTransform(Image& img, std::vector<Image32>& wavelet_vector, ScalingFunction sf, int scale_num, bool residual) {
-	if (!img.Exists())
-		return;
 
-	*this = Wavelet(img);
 
-	if (residual)
-		wavelet_vector.reserve(scale_num + 1);
-	else
-		wavelet_vector.reserve(scale_num);
 
-	for (int i = 0; i < scale_num; ++i) {
+template<typename T>
+std::vector<Image32> WaveletLayerCreator::generateWaveletLayers(const Image<T>& src) {
 
-		wavelet = Image32(wavelet.Rows(), wavelet.Cols(), wavelet.Channels());
+	std::vector<Image32> imgs;
+	imgs.reserve(m_layers);
 
-		Atrous(i, sf);
+	waveletInit(src);
 
-		wavelet_vector.emplace_back(std::move(wavelet));
-
+	for (int i = 0; i < m_layers; ++i) {
+		atrous(i);
+		m_wavelet.normalize();
+		imgs.push_back(m_wavelet);
 	}
 
-	if (residual)
-		wavelet_vector.emplace_back(std::move(convolved));
+	if (m_residual)
+		imgs.push_back(m_convolved);
 
+	cleanUp();
+	return imgs;
 }
-template void Wavelet::WaveletTransform(Image8& img, std::vector<Image32>&, ScalingFunction, int, bool);
-template void Wavelet::WaveletTransform(Image16& img, std::vector<Image32>&, ScalingFunction, int, bool);
-template void Wavelet::WaveletTransform(Image32& img, std::vector<Image32>&, ScalingFunction, int, bool);
+template std::vector<Image32> WaveletLayerCreator::generateWaveletLayers(const Image8&);
+template std::vector<Image32> WaveletLayerCreator::generateWaveletLayers(const Image16&);
+template std::vector<Image32> WaveletLayerCreator::generateWaveletLayers(const Image32&);
 
-//copys data if both src&&dest are float
-//otherwise scales fp src to dest respective numerical range 
-template<typename B>
-static void CopyData(Image32& src, Image<B>& dest) {
-	if (dest.is_float())
-		memcpy(dest.data.get(), src.data.get(), src.TotalPxCount() * 4);
 
-	else
-		for (int el = 0; el < dest.TotalPxCount(); ++el)
-			Pixel<float>::fromType(src[el], dest[el]);
-}
 
-template<typename Image>
+
+
+/*template<typename Image>
 void Wavelet::WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf, int scale_num) {
 	assert(scale_num <= 4 && nrvector.size() <= scale_num);
 	if (!img.Exists())
@@ -206,7 +193,7 @@ void Wavelet::WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf, 
 
 	*this = Wavelet(img);
 
-	Image32 result(img.Rows(), img.Cols(), img.Channels());
+	Image32 result(img.rows(), img.cols(), img.channels());
 
 	for (int i = 0; i < scale_num; ++i) {
 
@@ -220,7 +207,7 @@ void Wavelet::WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf, 
 
 	result += convolved;
 
-	result.Truncate(0, 1);
+	result.truncate(0, 1);
 
 	CopyData(result, img);
 }
@@ -235,9 +222,9 @@ void Wavelet::MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num) {
 		return;
 
 	*this = Wavelet(img);
-	source.CopyTo(convolved);
+	source.copyTo(convolved);
 
-	Image32 result(img.Rows(), img.Cols(), img.Channels());
+	Image32 result(img.rows(), img.cols(), img.channels());
 	GaussianFilter gf;
 
 	for (int i = 0; i < scale_num; ++i) {
@@ -257,7 +244,7 @@ void Wavelet::MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num) {
 
 	result += convolved;
 
-	result.Truncate(0, 1);
+	result.truncate(0, 1);
 
 	CopyData(result, img);
 }
@@ -273,11 +260,11 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 
 	*this = Wavelet(img);
 
-	Image32 result(img.Rows(), img.Cols(), img.Channels());
+	Image32 result(img.rows(), img.cols(), img.channels());
 
 	for (int i = 0; i < scale_num; ++i) {
 
-		source.CopyTo(convolved);
+		source.copyTo(convolved);
 		
 		MorphologicalTransformation mt(2 * (i + 1) + 1);
 		mt.setMorphologicalFilter(MorphologicalFilter::median);
@@ -295,52 +282,178 @@ void Wavelet::MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num) {
 
 	result += convolved;
 
-	result.Truncate(0, 1);
+	result.truncate(0, 1);
 
 	CopyData(result, img);
 }
 template void Wavelet::MultiscaleMedianNR(Image8&, NRVector, int);
 template void Wavelet::MultiscaleMedianNR(Image16&, NRVector, int);
-template void Wavelet::MultiscaleMedianNR(Image32&, NRVector, int);
+template void Wavelet::MultiscaleMedianNR(Image32&, NRVector, int);*/
 
-Image8Vector Wavelet::StuctureMaps(const Image32& src, float K, bool median_blur, int num_layers) {
+//only works on non-normalized wavelet images
+double StructureMaps::kSigma(const Image32& img, float K, float eps, int n) {
 
-	Image8Vector star_imgs;
-	star_imgs.reserve(num_layers);
+	std::vector<float> pixels(img.TotalPxCount());
+	memcpy(&pixels[0], img.data.get(), img.TotalPxCount() * sizeof(float));
 
-	source = Image32(src.Rows(), src.Cols(), src.Channels());
+	double s0 = 0;
+	for (int it = 0; it < n; ++it) {
 
-	src.CopyTo(source);
+		if (pixels.size() < 2)
+			return 0;
 
-	if (median_blur) {
-		MorphologicalTransformation mt(3);
-		mt.setMorphologicalFilter(MorphologicalFilter::median);
-		mt.Apply(source);
+		double s = StandardDeviation(pixels);
+
+		if (1 + s == 1)
+			return 0;
+		if (eps > 0 && it > 1 && (s0 - s) / s0 < eps)
+			return s;
+		s0 = s;
+
+		std::vector<float> other;
+		other.reserve(pixels.size());
+
+		double Ks = K * s;
+
+		for (float val : pixels)
+			if (abs(val) < Ks)
+				other.emplace_back(val);
+
+		std::swap(pixels, other);
 	}
 
-	source.RGBtoGray();
+	return 0;
+}
 
-	convolved = Image32(src.Rows(), src.Cols());
-	wavelet = Image32(src.Rows(), src.Cols());
+template<typename T>
+Image8Vector StructureMaps::generateMaps(const Image<T>& img) {
 
-	for (int i = 0; i < num_layers; ++i) {
+	Image8Vector star_imgs;
+	star_imgs.reserve(m_layers);
 
-		Atrous(i, ScalingFunction::b3spline_5);
+	waveletInit(img);
 
-		wavelet.Normalize();
+	m_source.RGBtoGray();
 
-		float median = wavelet.ComputeMedian(0, true);
-		float avgdev = wavelet.ComputeAvgDev(0, median, true);
-		float threshold = median + K * avgdev;
+	if (m_median_blur) {
+		MorphologicalTransformation mt(3);
+		mt.setMorphologicalFilter(MorphologicalFilter::median);
+		mt.apply(m_source);
+	}
 
-		Image8 bi_wavelet(src.Rows(), src.Cols());
+	m_convolved = Image32(img.rows(), img.cols());
+	m_wavelet = Image32(img.rows(), img.cols());
+
+	for (int i = 0; i < m_layers; ++i) {
+
+		atrous(i);
+
+		m_wavelet.normalize();
+
+		float median = m_wavelet.computeMedian(0, true);
+		float avgdev = m_wavelet.computeAvgDev(0, median, true);
+
+		float threshold = median + 3 * avgdev;
+
+		Image8 bi_wavelet(img.rows(), img.cols());
 
 		for (int el = 0; el < bi_wavelet.TotalPxCount(); ++el)
-			bi_wavelet[el] = (wavelet[el] >= threshold) ? 1 : 0;
+			bi_wavelet[el] = (m_wavelet[el] >= threshold) ? 1 : 0;
 
 		star_imgs.emplace_back(std::move(bi_wavelet));
 	}
 
+	cleanUp();
 	return star_imgs;
+}
+template Image8Vector StructureMaps::generateMaps(const Image8&);
+template Image8Vector StructureMaps::generateMaps(const Image16&);
+template Image8Vector StructureMaps::generateMaps(const Image32&);
 
+
+
+
+
+
+WaveletLayersDialog::WaveletLayersDialog(QWidget* parent) : ProcessDialog("WaveletLayers", QSize(350, 125), FastStack::recast(parent)->workspace(), false) {
+
+	connect(this, &ProcessDialog::processDropped, this, &WaveletLayersDialog::apply);
+	ConnectToolbar(this, &ProcessDialog::CreateDragInstance, &WaveletLayersDialog::apply, &WaveletLayersDialog::showPreview, &WaveletLayersDialog::resetDialog);
+
+	m_layers_sb = new SpinBox(this);
+	m_layers_sb->move(150, 15);
+	m_layers_sb->addLabel(new QLabel("Wavelet layers:   ", this));
+	m_layers_sb->setRange(1, 6);
+	m_layers_sb->setValue(m_wavelet.layers());
+	connect(m_layers_sb, &QSpinBox::valueChanged, this, [this](int val) { m_wavelet.setLayers(val); });
+
+	m_residual_cb = new CheckBox("Residual", this);
+	m_residual_cb->move(225, 17);
+	connect(m_residual_cb, &QCheckBox::clicked, this, [this](bool v) { m_wavelet.setResidual(v); });
+
+	m_scaling_func_combo = new ComboBox(this);
+	m_scaling_func_combo->addItems({ "3x3 Linear Interpolation", "3x3 Small Scale", "5x5 B3 Spline","5x5 Gaussian" });
+	m_scaling_func_combo->setCurrentIndex(int(m_wavelet.scalingFuntion()));
+	m_scaling_func_combo->move(140, 55);
+	m_scaling_func_combo->addLabel(new QLabel("Scaling Function:   ", this));
+
+	connect(m_scaling_func_combo, &QComboBox::activated, this, [this](int index) { m_wavelet.setScalingFuntion(Wavelet::ScalingFunction(index)); });
+	//auto activate = [this](int index)
+
+	this->show();
+}
+
+void WaveletLayersDialog::resetDialog() {
+
+	m_wavelet = WaveletLayerCreator();
+
+	m_layers_sb->setValue(m_wavelet.layers());
+	m_residual_cb->setChecked(false);
+	m_scaling_func_combo->setCurrentIndex(int(m_wavelet.scalingFuntion()));
+}
+
+void WaveletLayersDialog::apply() {
+
+	if (m_workspace->subWindowList().size() == 0)
+		return;
+
+	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+
+	setEnabledAll(false);
+
+	std::vector<Image32> wavelet_vector;
+
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		wavelet_vector = m_wavelet.generateWaveletLayers(iwptr->source());
+		break;
+	}
+	case ImageType::USHORT: {
+		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
+		wavelet_vector = m_wavelet.generateWaveletLayers(iw16->source());
+		break;
+	}
+	case ImageType::FLOAT: {
+		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
+		wavelet_vector = m_wavelet.generateWaveletLayers(iw32->source());
+		break;
+	}
+	}
+
+	for (int i = 0; i < wavelet_vector.size(); ++i) {
+
+		std::string name = "WaveletImage"  + std::to_string(i);
+		int count = 0;
+
+		for (auto sw : m_workspace->subWindowList()) {
+			auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
+			std::string img_name = ptr->name().toStdString();
+			if (name == img_name)
+				name += "_" + std::to_string(++count);
+		}
+
+		ImageWindow32* iw = new ImageWindow32(wavelet_vector[i], QString::fromStdString(name), m_workspace);
+	}
+
+	setEnabledAll(true);
 }

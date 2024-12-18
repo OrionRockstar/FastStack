@@ -1,60 +1,51 @@
 #include "pch.h"
 #include "ImageStacking.h"
+#include "Drizzle.h"
 
-//need to scale both drizzle and not drizzle
-//drizzle need aligned stats but unaligned image
-
-ImageStacking::PixelRows::PixelRows(int num_imgs, int cols, ImageStacking& isp) : m_cols(cols), m_num_imgs(num_imgs), m_isp(&isp) {
-    m_size = num_imgs * m_cols;
+ImageStacking::PixelRows::PixelRows(int num_imgs, int width, ImageStacking& is) : m_width(width), m_num_imgs(num_imgs), m_is(&is) {
+    m_size = num_imgs * m_width;
     m_pixels = std::vector<float>(m_size);
 }
 
-void ImageStacking::PixelRows::Fill(const Point<>& start_point) {
+void ImageStacking::PixelRows::fill(const ImagePoint& start_point) {
 
-    //#pragma omp parallel for num_threads(m_max_threads)
-                //for (int i = 0; i < m_isp->m_fits_vector.size(); ++i) {
-                    //m_isp->m_fits_vector[i].ReadSome_Any(&(*this)(0, i), start_point, m_cols);
-                //}
 #pragma omp parallel for num_threads(m_max_threads)
-    for (int i = 0; i < m_isp->m_imgfile_vector.size(); ++i) {
-        switch (m_isp->m_imgfile_vector[i]->Type()) {
+    for (int i = 0; i < m_is->m_imgfile_vector.size(); ++i) {
+        switch (m_is->m_imgfile_vector[i]->type()) {
         case FileType::FITS:
-            reinterpret_cast<FITS*>(m_isp->m_imgfile_vector[i].get())->ReadSome_Any(&(*this)(0, i), start_point, m_cols);
+            reinterpret_cast<FITS*>(m_is->m_imgfile_vector[i].get())->readSome_Any(&(*this)(0, i), start_point, m_width);
             break;
         }
     }
-
 }
 
-void ImageStacking::PixelRows::FillPixelStack(std::vector<float>& pixelstack, int x, int ch) {
+void ImageStacking::PixelRows::fillPixelStack(std::vector<float>& pixelstack, int x, int ch) {
 
     using enum Normalization;
 
     if (pixelstack.size() != pixelstack.capacity())
         pixelstack.resize(pixelstack.capacity());
 
-    switch (m_isp->m_normalization) {
+    switch (m_is->m_normalization) {
     case additive:
-        for (int i = 0; i < pixelstack.size(); ++i)
-            pixelstack[i] = Pixel<float>::toType((*this)(x, i)) - m_isp->mle[i][ch] + m_isp->mle[0][ch];
 
         for (int i = 0; i < pixelstack.size(); ++i)
-            pixelstack[i] = (*this)(x, i) - m_isp->mle[i][ch] + m_isp->mle[0][ch];
+            pixelstack[i] = (*this)(x, i) - m_is->m_le[i][ch] + m_is->m_le[0][ch];
         return;
 
     case multiplicative:
         for (int i = 0; i < pixelstack.size(); ++i)
-            pixelstack[i] = (*this)(x, i) * (m_isp->mle[0][ch] / m_isp->mle[i][ch]);
+            pixelstack[i] = (*this)(x, i) * (m_is->m_le[0][ch] / m_is->m_le[i][ch]);
         return;
 
     case additive_scaling:
         for (int i = 0; i < pixelstack.size(); ++i)
-            pixelstack[i] = m_isp->msf[i][ch] * ((*this)(x, i) - m_isp->mle[i][ch]) + m_isp->mle[0][ch];
+            pixelstack[i] = m_is->m_sf[i][ch] * ((*this)(x, i) - m_is->m_le[i][ch]) + m_is->m_le[0][ch];
         return;
 
     case multiplicative_scaling:
         for (int i = 0; i < pixelstack.size(); ++i)
-            pixelstack[i] = m_isp->msf[i][ch] * (*this)(x, i) * (m_isp->mle[0][ch] / m_isp->mle[i][ch]);
+            pixelstack[i] = m_is->m_sf[i][ch] * (*this)(x, i) * (m_is->m_le[0][ch] / m_is->m_le[i][ch]);
         return;
 
     case none:
@@ -62,64 +53,31 @@ void ImageStacking::PixelRows::FillPixelStack(std::vector<float>& pixelstack, in
             pixelstack[i] = (*this)(x, i);
         return;
     }
-
 }
 
 
 
-
-
-void ImageStacking::RemoveOutliers(std::vector<float>& pixstack, float l_limit, float u_limit) {
-
-    for (auto it = pixstack.begin(); it != pixstack.end(); ++it)
-        if (*it<l_limit || *it>u_limit) {
-            pixstack.erase(it);
-            it--;
-        }
-}
-
-static float StandardDeviation(const std::vector<float>& pixelstack, float mean) {
-
-    double d;
-    double var = 0;
-
-    for (const float& pixel : pixelstack) {
-        d = pixel - mean;
-        var += d * d;
-    }
-
-    return (float)sqrt(var / pixelstack.size());
-}
-
-
-float ImageStacking::Mean(const std::vector<float>& pixelstack) {
+float ImageStacking::mean(const std::vector<float>& pixelstack) {
 
     float mean = 0;
 
-    for (const float& pixel : pixelstack)
+    for (float pixel : pixelstack)
         mean += pixel;
 
     return mean / pixelstack.size();
 }
 
-float ImageStacking::Median(std::vector<float>& pixelstack) {
-
-    std::nth_element(pixelstack.begin(), pixelstack.begin() + pixelstack.size() / 2, pixelstack.end());
-
-    return pixelstack[pixelstack.size() / 2];
-}
-
-float ImageStacking::StandardDeviation(const std::vector<float>& pixelstack) {
+float ImageStacking::standardDeviation(const std::vector<float>& pixelstack) {
 
     float mean = 0;
-    for (const float& pixel : pixelstack)
+    for (float pixel : pixelstack)
         mean += pixel;
 
     mean /= pixelstack.size();
 
     double d;
     double var = 0;
-    for (const float& pixel : pixelstack) {
+    for (float pixel : pixelstack) {
         d = pixel - mean;
         var += d * d;
     }
@@ -127,22 +85,29 @@ float ImageStacking::StandardDeviation(const std::vector<float>& pixelstack) {
     return (float)sqrt(var / pixelstack.size());
 }
 
-float Min(const std::vector<float>& pixelstack) {
+float ImageStacking::median(std::vector<float>& pixelstack) {
+
+    std::nth_element(pixelstack.begin(), pixelstack.begin() + pixelstack.size() / 2, pixelstack.end());
+
+    return pixelstack[pixelstack.size() / 2];
+}
+
+float ImageStacking::min(const std::vector<float>& pixelstack) {
 
     float min = std::numeric_limits<float>::max();
 
-    for (const float& pixel : pixelstack)
+    for (float pixel : pixelstack)
         if (pixel < min)
             min = pixel;
 
     return min;
 }
 
-float Max(const std::vector<float>& pixelstack) {
+float ImageStacking::max(const std::vector<float>& pixelstack) {
 
     float max = std::numeric_limits<float>::min();
 
-    for (const float& pixel : pixelstack)
+    for (float pixel : pixelstack)
         if (pixel > max)
             max = pixel;
 
@@ -182,70 +147,32 @@ static void MinMax(std::vector<float>& pixstack, int num_min, int num_max) {
         pixstack.pop_back();
 }
 
-void ImageStacking::PercintileClipping(std::vector<float>& pixelstack, float p_low, float p_high) {
-
-    float median = Median(pixelstack);
-
-    if (median == 0)
-        return;
-
-    for (auto it = pixelstack.begin(); it != pixelstack.end(); ++it)
-        if ((median - *it) / median > p_low || (*it - median) / median > p_high) {
-            pixelstack.erase(it);
-            it--;
-        }
-}
-
-void ImageStacking::SigmaClip(std::vector<float>& pixelstack, float l_sigma, float u_sigma) {
+void ImageStacking::sigmaClip(std::vector<float>& pixelstack, float l_sigma, float u_sigma) {
 
     std::sort(pixelstack.begin(), pixelstack.end());
     float old_stddev = 0;
 
-    for (int iter = 0; iter < 5; iter++) {
+    for (int iter = 0; iter < 5; ++iter) {
         float median = pixelstack[pixelstack.size() / 2];
-        float stddev = StandardDeviation(pixelstack);
+        float stddev = standardDeviation(pixelstack);
 
         if (stddev == 0 || (old_stddev - stddev) == 0)  break;
 
         float l_limit = median - l_sigma * stddev;
         float u_limit = median + u_sigma * stddev;
-        //RemoveOutliers(pixelstack, median - l_sigma * stddev, median + u_sigma * stddev);
-        for (auto it = pixelstack.begin(); it != pixelstack.end(); ++it)
-            if (*it<l_limit || *it>u_limit) {
-                pixelstack.erase(it);
-                it--;
-            }
 
+        for (auto it = pixelstack.begin(); it != pixelstack.end(); ) {
+            if (*it<l_limit || *it>u_limit)
+                it = pixelstack.erase(it);
+            else
+                it++;
+        }
+            
         old_stddev = stddev;
     }
 }
 
-//weight map needs to include channels
-//find alternative to individual weight maps/ use weight maps only for drizzle
-// have vector of points
-//rejection vec  rej[i] =(x,y,ch), i being nth image in stavk,
-// rej[i] = (image#,x,y,ch)
-//store coordinates in meta text
-//below wrong, see below
-//store rejected pixels in seperate vec in sigma clip
-
-void SetWeightMaps(std::vector<Image8>& weight_maps, int x, int y, int ch, const std::vector<float>& orig_pix, const std::vector<float>& mod_pix) {
-    //if (mod_pix.size() == orig_pix.size())
-        //return;
-
-    for (int i = 0; i < orig_pix.size(); ++i) {
-        for (const float& m : mod_pix) {
-            if (orig_pix[i] == m)
-                goto not_outlier;
-        }
-        weight_maps[i](x, y, ch) = 0;
-
-    not_outlier:;
-    }
-
-}
-
-void ImageStacking::WinsorizedSigmaClip(std::vector<float>& pixelstack, float l_sigma, float u_sigma) {
+void ImageStacking::winsorizedSigmaClip(std::vector<float>& pixelstack, float l_sigma, float u_sigma) {
 
     int mid_point = pixelstack.size() / 2;
 
@@ -254,7 +181,7 @@ void ImageStacking::WinsorizedSigmaClip(std::vector<float>& pixelstack, float l_
 
     for (int iter = 0; iter < 5; iter++) {
         float median = pixelstack[mid_point];
-        float stddev = StandardDeviation(pixelstack);
+        float stddev = standardDeviation(pixelstack);
 
         if (stddev == 0 || (old_stddev - stddev) == 0) break;
 
@@ -271,50 +198,67 @@ void ImageStacking::WinsorizedSigmaClip(std::vector<float>& pixelstack, float l_
     }
 }
 
-void ImageStacking::PixelRejection(std::vector<float>& pixelstack) {
+void ImageStacking::percintileClipping(std::vector<float>& pixelstack, float p_low, float p_high) {
+
+    float med = median(pixelstack);
+
+    if (med == 0)
+        return;
+
+    for (auto it = pixelstack.begin(); it != pixelstack.end();) {
+        if ((med - *it) / med > p_low || (*it - med) / med > p_high)
+            it = pixelstack.erase(it);
+        else
+            it++;
+    }
+}
+
+void ImageStacking::pixelRejection(std::vector<float>& pixelstack) {
     using enum Rejection;
 
     switch (m_rejection) {
     case none:
         return;
     case sigma_clip:
-        return SigmaClip(pixelstack, m_l_sigma, m_u_sigma);
+        return sigmaClip(pixelstack, m_sigma_low, m_sigma_high);
 
     case winsorized_sigma_clip:
-        return WinsorizedSigmaClip(pixelstack, m_l_sigma, m_u_sigma);
+        return winsorizedSigmaClip(pixelstack, m_sigma_low, m_sigma_high);
 
     case percintile_clip:
-        return PercintileClipping(pixelstack, 0.1, 0.9);
+        return percintileClipping(pixelstack, 0.1f, 0.9f);
 
     default:
         return;
     }
 }
 
-float ImageStacking::PixelIntegration(std::vector<float>& pixelstack) {
-
-    using enum Integration;
+float ImageStacking::pixelIntegration(std::vector<float>& pixelstack) {
 
     switch (m_integration) {
-    case average:
-        return Mean(pixelstack);
+    case Integration::average:
+        return mean(pixelstack);
 
-    case median:
-        return Median(pixelstack);
+    case Integration::median:
+        return median(pixelstack);
 
+    case Integration::min:
+        return min(pixelstack);
+
+    case Integration::max:
+        return max(pixelstack);
     default:
         return 0.0f;
     }
 }
 
-void ImageStacking::OpenFiles() {
+void ImageStacking::openFiles() {
 
     m_imgfile_vector.reserve(m_file_paths.size());
 
     for (int i = 0; i < m_file_paths.size(); ++i) {
         std::unique_ptr<FITS> fits(std::make_unique<FITS>());
-        //FITS* fits = new FITS;
-        fits->Open(m_file_paths[i]);
+        fits->open(m_file_paths[i]);
         m_imgfile_vector.push_back(std::move(fits));
     }
 }
@@ -322,189 +266,399 @@ void ImageStacking::OpenFiles() {
 bool ImageStacking::isFilesSameDimenisions() {
     int r_rows = 0, r_cols = 0, r_channels = 1;
 
+    FITS fits;
+    for (int i = 0; i < m_file_paths.size(); ++i) {
+        fits.open(m_file_paths[i]);
 
-    for (auto imgf = m_imgfile_vector.begin(); imgf != m_imgfile_vector.end(); ++imgf) {
-        if (imgf == m_imgfile_vector.begin()) {
-            r_rows = (*imgf)->Rows();
-            r_cols = (*imgf)->Cols();
-            r_channels = (*imgf)->Channels();
+        if (i == 0) {
+            r_rows = fits.rows();
+            r_cols = fits.cols();
+            r_channels = fits.channels();
         }
 
         else {
-            if (r_rows != (*imgf)->Rows())
+            if (r_rows != fits.rows())
                 return false;
-            if (r_cols != (*imgf)->Cols())
+            if (r_cols != fits.cols())
                 return false;
-            if (r_channels != (*imgf)->Channels())
+            if (r_channels != fits.channels())
                 return false;
         }
+
+        fits.close();
     }
 
     return true;
 }
 
-void ImageStacking::CloseFiles() {
+void ImageStacking::closeFiles() {
 
     for (auto& ifp : m_imgfile_vector)
-        ifp->Close();
-
+        ifp->close();
 }
 
-
-void ImageStacking::ComputeScaleEstimators() {
+void ImageStacking::computeScaleEstimators() {
     using enum Normalization;
 
     if (m_normalization == none || m_file_paths.size() == 0)
-        return;
+        return m_iss.emitText("Normalization: none");
+
+    m_iss.emitText("Computing Scale Estimators...");
+    //m_iss.emitText("Scale Estimator: ");
 
     std::vector<std::array<float, 3>> mse(m_file_paths.size()); //scale estimators
 
-    mle.resize(m_file_paths.size());
-    msf.resize(m_file_paths.size());
+    m_le.resize(m_file_paths.size());
+    m_sf.resize(m_file_paths.size());
 
     Image32 temp;
     FITS fits;
 
-    long fp[3] = { 1,1,1 };
-
     for (int i = 0; i < m_file_paths.size(); ++i) {
-        fits.Open(m_file_paths[i]);
-        fits.ReadAny(temp);
-        for (int ch = 0; ch < temp.Channels(); ++ch) {
+        fits.open(m_file_paths[i]);
+        fits.readAny(temp);
+        for (int ch = 0; ch < temp.channels(); ++ch) {
             if (m_normalization == additive_scaling || m_normalization == multiplicative_scaling) {
-                mle[i][ch] = temp.ComputeMedian(ch, true);
-                mse[i][ch] = temp.ComputeBWMV(ch, mle[i][ch], true);
+                m_le[i][ch] = temp.computeMedian(ch, true);
+                mse[i][ch] = temp.computeBWMV(ch, m_le[i][ch], true);
                 //mle[i][ch] = temp.Median(ch);
-                msf[i][ch] = mse[0][ch] / mse[i][ch];
+                m_sf[i][ch] = mse[0][ch] / mse[i][ch];
             }
             else
-                mle[i][ch] = temp.ComputeMedian(ch, true);
+                m_le[i][ch] = temp.computeMedian(ch, true);
         }
-        fits.Close();
+        fits.close();
     }
+
+    std::array<QString, 5> n = { "none", "additive", "multiplicative", "additive scaling","multiplicative_scaling" };
+
+    m_iss.emitText("Normalization: " + n[int(m_normalization)]);
 }
 
-void ImageStacking::GenerateWeightMaps_forDrizzle(FileVector paths) {
-    m_file_paths = paths;
-
-    using enum Rejection;
-
-    if (m_normalization != Normalization::none)
-        ComputeScaleEstimators();
-
-    OpenFiles();
-
-    int rows = m_imgfile_vector[0]->Rows(), cols = m_imgfile_vector[0]->Cols(), channels = m_imgfile_vector[0]->Channels();
-
-    PixelRows pixel_rows(m_imgfile_vector.size(), cols, *this);
-
-    std::vector<float> pixelstack(m_imgfile_vector.size());
-    std::vector<float> original_pix(pixelstack.size());
-
-    Image8Vector weight_maps(pixelstack.size());
-
-    for (auto& wm : weight_maps) {
-        wm = Image8(rows, cols);
-        wm.FillValue(0);
-    }
-
-    int max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
-
-    for (int ch = 0; ch < channels; ++ch) {
-
-        std::array<int, 3> spixel = { 0,0,ch };
-
-        for (int y = 0; y < rows; ++y, ++spixel[1]) {
-
-            //pixel_rows.Fill(spixel);
-
-#pragma omp parallel for firstprivate(pixelstack, original_pix) num_threads(max_threads)
-            for (int x = 0; x < cols; ++x) {
-
-                pixel_rows.FillPixelStack(pixelstack, x, ch);
-                memcpy(original_pix.data(), pixelstack.data(), pixelstack.size() * 4);
-
-                switch (m_rejection) {
-                case none:
-                    break;
-                case sigma_clip:
-                    SigmaClip(pixelstack, m_l_sigma, m_u_sigma);
-                    break;
-                case winsorized_sigma_clip:
-                    WinsorizedSigmaClip(pixelstack, m_l_sigma, m_u_sigma);
-                    break;
-                case percintile_clip:
-                    PercintileClipping(pixelstack, 0.1, 0.9);
-                    break;
-                default:
-                    break;
-                }
-
-                SetWeightMaps(weight_maps, x, y, ch, original_pix, pixelstack);
-
-            }
-        }
-    }
-
-    for (int i = 0; i < paths.size(); ++i) {
-        //Bitmap bmp;
-        std::cout << paths[i].parent_path().append(paths[i].stem().string()).concat(".bmp") << "\n";
-        //bmp.Create(paths[i].parent_path().append(paths[i].stem().string()).string() + ".bmp");
-
-        //bmp.Write(weight_maps[i], true);
-    }
-
-    //for (auto& fits : m_fits_vector)
-        //fits.Close();
-}
-
-Status ImageStacking::IntegrateImages(FileVector paths, Image32& output) {
+Status ImageStacking::stackImages(const FileVector& paths, Image32& output) {
 
     if (paths.size() < 2)
         return { false, "Must have at least two frames to stack." };
     
     m_file_paths = paths;
 
-    ComputeScaleEstimators();
+    if (!isFilesSameDimenisions()) {
+        m_imgfile_vector.clear();
+        return { false, "Frames must be of same dimensions." };
+    }
 
-    OpenFiles();
+    
+    computeScaleEstimators();
+    openFiles();
+
+    output = Image32(m_imgfile_vector[0]->rows(), m_imgfile_vector[0]->cols(), m_imgfile_vector[0]->channels());
+
+    PixelRows pixel_rows(m_imgfile_vector.size(), output.cols(), *this);
+
+    std::vector<float> pixelstack(pixel_rows.count());
+
+    int max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
+
+    m_iss.emitText("Stacking " + QString::number(m_file_paths.size()) + " Images...");
+
+    for (uint32_t ch = 0; ch < output.channels(); ++ch) {
+
+        for (int y = 0; y < output.rows(); ++y) {
+
+            pixel_rows.fill({ 0, y, ch });
+
+#pragma omp parallel for firstprivate(pixelstack) num_threads(max_threads)
+            for (int x = 0; x < output.cols(); ++x) {
+
+                pixel_rows.fillPixelStack(pixelstack, x, ch);
+
+                pixelRejection(pixelstack);
+
+                output(x,y,ch) = pixelIntegration(pixelstack);
+
+            }
+
+            m_iss.emitProgress(((ch + 1) * (y + 1) * 100) / (output.channels() * output.rows()));
+        }
+    }
+
+    if (m_normalization != Normalization::none)
+        output.normalize();
+
+    closeFiles();
+
+    m_file_paths.clear();
+    m_imgfile_vector.clear();
+
+    return { true, "" };
+}
+
+
+
+
+
+
+
+void ImageStackingWeightMap::PixelRows_t::fillPixelStack(Pixelstack_t& pixelstack, int x, int ch) {
+
+    using enum Normalization;
+
+    if (pixelstack.size() != pixelstack.capacity())
+        pixelstack.resize(pixelstack.capacity());
+
+    std::vector<float> ps(pixelstack.size());
+
+    PixelRows::fillPixelStack(ps, x, ch);
+
+    for (int i = 0; i < pixelstack.size(); ++i) {
+        pixelstack[i].value = ps[i];
+        pixelstack[i].img_num = i;
+    }
+}
+
+
+
+float ImageStackingWeightMap::mean(const Pixelstack_t& pixelstack) {
+
+    float mean = 0;
+
+    for (const Pixel_t& pixel : pixelstack)
+        mean += pixel.value;
+
+    return mean / pixelstack.size();
+}
+
+float ImageStackingWeightMap::standardDeviation(const Pixelstack_t& pixelstack) {
+
+    float mean = 0;
+    for (const Pixel_t& pixel : pixelstack)
+        mean += pixel.value;
+
+    mean /= pixelstack.size();
+
+    double d;
+    double var = 0;
+    for (const Pixel_t& pixel : pixelstack) {
+        d = pixel.value - mean;
+        var += d * d;
+    }
+
+    return (float)sqrt(var / pixelstack.size());
+}
+
+float ImageStackingWeightMap::median(Pixelstack_t& pixelstack) {
+    std::nth_element(pixelstack.begin(), pixelstack.begin() + pixelstack.size() / 2, pixelstack.end(), Pixel_t());
+
+    return pixelstack[pixelstack.size() / 2].value;
+}
+
+float ImageStackingWeightMap::min(const Pixelstack_t& pixelstack) {
+
+    float min = std::numeric_limits<float>::max();
+
+    for (Pixel_t pixel : pixelstack)
+        if (pixel.value < min)
+            min = pixel.value;
+
+    return min;
+}
+
+float ImageStackingWeightMap::max(const Pixelstack_t& pixelstack) {
+
+    float max = std::numeric_limits<float>::min();
+
+    for (Pixel_t pixel : pixelstack)
+        if (pixel.value > max)
+            max = pixel.value;
+
+    return max;
+}
+
+
+void ImageStackingWeightMap::sigmaClip(const ImagePoint& point, Pixelstack_t& pixelstack, float l_sigma, float u_sigma) {
+
+    std::sort(pixelstack.begin(), pixelstack.end(), Pixel_t());
+    float old_stddev = 0;
+
+    for (int iter = 0; iter < 5; ++iter) {
+        float median = pixelstack[pixelstack.size() / 2].value;
+        float stddev = standardDeviation(pixelstack);
+
+        if (stddev == 0 || (old_stddev - stddev) == 0)  break;
+
+        float l_limit = median - l_sigma * stddev;
+        float u_limit = median + u_sigma * stddev;
+
+        for (auto it = pixelstack.begin(); it != pixelstack.end();) {
+            if (it->value < l_limit || u_limit < it->value)
+                it = pixelstack.erase(it);
+            else
+                it++;
+        }
+
+        old_stddev = stddev;
+    }
+
+    for (auto pixel : pixelstack)
+        m_weight_maps[pixel.img_num](point) = 255;
+}
+
+void ImageStackingWeightMap::winsorizedSigmaClip(const ImagePoint& point, Pixelstack_t& pixelstack, float l_sigma, float u_sigma) {
+
+    int mid_point = pixelstack.size() / 2;
+
+    std::sort(pixelstack.begin(), pixelstack.end(), Pixel_t());
+
+    Pixelstack_t copy(pixelstack);
+
+    float old_stddev = 0;
+
+    for (int iter = 0; iter < 5; iter++) {
+        float median = pixelstack[mid_point].value;
+        float stddev = standardDeviation(pixelstack);
+
+        if (stddev == 0 || (old_stddev - stddev) == 0) break;
+
+        float u_thresh = median + u_sigma * stddev;
+        for (int upper = mid_point; upper < pixelstack.size(); ++upper)
+            if (pixelstack[upper].value > u_thresh)
+                pixelstack[upper].value = pixelstack[upper - 1].value;
+
+
+        float l_thresh = median - l_sigma * stddev;
+        for (int lower = mid_point; lower >= 0; lower--)
+            if (pixelstack[lower].value < l_thresh) 
+                pixelstack[lower].value = pixelstack[lower + 1].value;
+
+        old_stddev = stddev;
+    }
+
+    for (int i = 0; i < copy.size(); ++i)
+        m_weight_maps[pixelstack[i].img_num](point) = 255 * (1 - (abs(pixelstack[i].value - copy[i].value) / Max(pixelstack[i].value, copy[i].value)));
+}
+
+
+void ImageStackingWeightMap::pixelRejection(const ImagePoint& point, Pixelstack_t& pixelstack) {
+
+    using enum Rejection;
+
+    switch (m_rejection) {
+
+    case sigma_clip:
+        return sigmaClip(point, pixelstack, m_sigma_low, m_sigma_high);
+
+    case winsorized_sigma_clip:
+        return winsorizedSigmaClip(point, pixelstack, m_sigma_low, m_sigma_high);
+
+    //case percintile_clip:
+        //return percintileClipping(point, pixelstack, 0.1f, 0.9f);
+
+    default:
+        return;
+    }
+}
+
+float ImageStackingWeightMap::pixelIntegration(Pixelstack_t& pixelstack) {
+
+    switch (m_integration) {
+    case Integration::average:
+        return mean(pixelstack);
+
+    case Integration::median:
+        return median(pixelstack);
+
+    case Integration::min:
+        return min(pixelstack);
+
+    case Integration::max:
+        return max(pixelstack);
+    default:
+        return 0.0f;
+    }
+}
+
+void ImageStackingWeightMap::writeWeightMaps(std::filesystem::path parent_directory) {
+
+    parent_directory /= "WeightMaps";
+
+    if (std::filesystem::exists(parent_directory))
+        std::filesystem::remove_all(parent_directory);
+
+    std::filesystem::create_directory(parent_directory);
+
+    for (int i = 0; i < m_weight_maps.size(); ++i) {
+        auto path = parent_directory.string() + "//" + m_file_paths[i].stem().string();
+
+        if (path.substr(path.length() - 5) == "_temp")
+            path = path.substr(0, path.length() - 5);
+
+        WeightMapImage wmi;
+        wmi.create(path);
+        wmi.write(m_weight_maps[i]);
+    }
+
+    m_weight_maps.clear();
+}
+
+Status ImageStackingWeightMap::stackImages(const FileVector& paths, Image32& output, std::filesystem::path parent_directory) {
+
+    if (paths.size() < 2)
+        return { false, "Must have at least two frames to stack." };
+
+    if (m_rejection == Rejection::none)
+        return ImageStacking::stackImages(paths, output);
+
+    m_file_paths = paths;
 
     if (!isFilesSameDimenisions()) {
         m_imgfile_vector.clear();
         return { false, "Frames must be of same dimensions." };
     }
 
-    output = Image32(m_imgfile_vector[0]->Rows(), m_imgfile_vector[0]->Cols(), m_imgfile_vector[0]->Channels());
+    computeScaleEstimators();
+    openFiles();
 
-    PixelRows pixel_rows(m_imgfile_vector.size(), output.Cols(), *this);
+    output = Image32(m_imgfile_vector[0]->rows(), m_imgfile_vector[0]->cols(), m_imgfile_vector[0]->channels());
 
-    std::vector<float> pixelstack(pixel_rows.NumberofImages());
+    PixelRows_t pixel_rows(m_imgfile_vector.size(), output.cols(), *this);
+
+    m_weight_maps.resize(m_file_paths.size());
+
+    for (auto& wm : m_weight_maps)
+        wm = Image8(output.rows(), output.cols(), output.channels());
+
+    Pixelstack_t pixelstack(m_file_paths.size());
 
     int max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
 
-    for (int ch = 0; ch < output.Channels(); ++ch) {
+    m_issp->emitText("Stacking " + QString::number(m_file_paths.size()) + " Images & Generate Weight Maps...");
 
-        for (int y = 0; y < output.Rows(); ++y) {
+    for (uint32_t ch = 0; ch < output.channels(); ++ch) {
 
-            pixel_rows.Fill(Point<>(0, y, ch));
+        for (int y = 0; y < output.rows(); ++y) {
+
+            pixel_rows.fill({ 0, y, ch });
 
 #pragma omp parallel for firstprivate(pixelstack) num_threads(max_threads)
-            for (int x = 0; x < output.Cols(); ++x) {
+            for (int x = 0; x < output.cols(); ++x) {
 
-                pixel_rows.FillPixelStack(pixelstack, x, ch);
+                pixel_rows.fillPixelStack(pixelstack, x, ch);
 
-                PixelRejection(pixelstack);
+                pixelRejection({ x,y,ch }, pixelstack);
 
-                output(x,y,ch) = PixelIntegration(pixelstack);
+                output(x, y, ch) = pixelIntegration(pixelstack);
 
             }
+            m_issp->emitProgress(((ch + 1) * (y + 1) * 100) / (output.channels() * output.rows()));
         }
     }
+    
+    writeWeightMaps(parent_directory);
 
     if (m_normalization != Normalization::none)
-        output.Normalize();
+        output.normalize();
 
-    CloseFiles();
+    closeFiles();
 
     m_file_paths.clear();
     m_imgfile_vector.clear();

@@ -21,7 +21,7 @@ class StarMatching {
     TriangleVector m_reftri;
     TriangleVector m_tgttri;
 
-    TriangleVector TriangleComputation(const StarVector& star_vector);
+    TriangleVector computeTriangles(const StarVector& star_vector);
 
     struct PotentialStarPairs {
         std::vector<uint32_t> data;
@@ -29,15 +29,11 @@ class StarMatching {
 
         PotentialStarPairs(int target_size, int reference_size);
 
-        ~PotentialStarPairs() {};
-
         uint32_t& operator()(int target_star, int reference_star) {
             return data[reference_star * m_cols + target_star];
         }
 
-        void AddVote(int target_star, int reference_star);
-
-        uint32_t Threshold(float K = 1.0f);
+        uint32_t computeVoteThreshold(float K = 1.0f);
     };
 
     struct TVGStar {
@@ -49,12 +45,9 @@ class StarMatching {
         TVGStar() = default;
     };
 
-    StarPairVector GetMatchedPairsCentroids(const std::vector<Star>& refstarvec, const std::vector<Star>& tgtstarvec, const std::vector<TVGStar>& tvgvec);
+    StarPairVector getMatchedPairsCentroids(const std::vector<Star>& refstarvec, const std::vector<Star>& tgtstarvec, const std::vector<TVGStar>& tvgvec);
 
 
 public:
-
-    StarPairVector MatchStars(const std::vector<Triangle>& reftri, StarVector& refstars, StarVector& tgtstars);
-
-    StarPairVector MatchStars(const StarVector& refstars, const StarVector& tgtstars);
+    StarPairVector matchStars(const StarVector& refstars, const StarVector& tgtstars);
 };

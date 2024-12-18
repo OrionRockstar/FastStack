@@ -86,11 +86,11 @@ public:
 
 	bool isBitmap(std::filesystem::path path);
 
-	void Open(std::filesystem::path path) override;
+	void open(std::filesystem::path path)override;
 
-	void Create(std::filesystem::path path) override;
+	void create(std::filesystem::path path)override;
 
-	void Close() override;
+	void close() override;
 
 	void Read(Image8& dst);
 

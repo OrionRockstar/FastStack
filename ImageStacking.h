@@ -5,7 +5,29 @@
 #include "ImageFileReader.h"
 
 
+class ImageStackingSignal : public QObject {
+	Q_OBJECT
+public:
+	ImageStackingSignal(QObject* parent = nullptr) {}
+	~ImageStackingSignal() {}
+
+public slots:
+
+signals:
+	void emitText(const QString& txt);
+
+	void emitPSFData(uint16_t size, const PSF& psf);
+
+	void emitMatrix(const Matrix& m);
+
+	void emitProgress(int progress);
+};
+
+
 class ImageStacking {
+
+	typedef std::vector<float> Pixelstack;
+
 public:
 	enum class Integration {
 		average,
@@ -15,11 +37,11 @@ public:
 	};
 
 	enum class Normalization {
+		none,
 		additive,
 		multiplicative,
 		additive_scaling,
 		multiplicative_scaling,
-		none
 	};
 
 	enum class Rejection {
@@ -29,94 +51,187 @@ public:
 		percintile_clip
 	};
 
-private:
+protected:
 	struct PixelRows {
 
+	protected:
+		ImageStacking* m_is;
+
 	private:
-		ImageStacking* m_isp;
-		std::vector<float> m_pixels;
-		int m_cols = 0;
+		Pixelstack m_pixels;
+		int m_width = 0;
 		int m_num_imgs = 0;
 		int m_size = 0;
 
 		int m_max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
 
 	public:
-		PixelRows(int num_imgs, int cols, ImageStacking& isp);
+		PixelRows(int num_imgs, int width, ImageStacking& is);
 
-	private:
-		float& operator() (int x, int y) { return m_pixels[y * m_cols + x]; }
+		float& operator() (int num, int row) { return m_pixels[row * m_width + num]; }
 
-	public:
-		int NumberofImages()const { return m_num_imgs; }
+		int count()const { return m_num_imgs; }
 
-		void Fill(const Point<>& start_point);
+		void fill(const ImagePoint& start_point);
 
-		void FillPixelStack(std::vector<float>& pixelstack, int x, int ch);
+		void fillPixelStack(std::vector<float>& pixelstack, int x, int ch);
 	};
 
+	ImageStackingSignal m_iss;
+
 	std::vector<std::unique_ptr<ImageFile>> m_imgfile_vector;
+
 	FileVector m_file_paths;
 
-	Normalization m_normalization = Normalization::none;
 
-	std::vector<std::array<float, 3>> mle; //location estimator
-	std::vector<std::array<float, 3>> msf; //scale factors
+	std::vector<std::array<float, 3>> m_le; //location estimator
+	std::vector<std::array<float, 3>> m_sf; //scale factors
 
 	Integration m_integration = Integration::average;
 
+	Normalization m_normalization = Normalization::none;
+
 	Rejection m_rejection = Rejection::none;
-	float m_l_sigma = 2.0;
-	float m_u_sigma = 3.0;
+
+	float m_sigma_low = 2.0;
+	float m_sigma_high = 3.0;
+
+	float m_perc_low = 0.1f;
+	float m_perc_high = 0.9f;
 
 public:
 	ImageStacking() = default;
 
+	ImageStacking(const ImageStacking& other) {
+	
+		m_file_paths = other.m_file_paths;
+
+		m_le = other.m_le;
+		m_sf = other.m_sf;
+
+		m_integration = other.m_integration;
+		m_normalization = other.m_normalization;
+		m_rejection = other.m_rejection;
+
+		m_sigma_low = other.m_sigma_low;
+		m_sigma_high = other.m_sigma_high;
+
+		m_perc_low = other.m_perc_low;
+		m_perc_high = other.m_perc_high;
+	}
+
+	ImageStackingSignal* imageStackingSignal() { return &m_iss; }
+
+	const ImageStackingSignal* imageStackingSignal()const { return &m_iss; }
+
 	void setRejectionMethod(Rejection method) { m_rejection = method; }
+
+	Normalization normalization()const { return m_normalization; }
 
 	void setNormalation(Normalization normalization) { m_normalization = normalization; }
 
+	Integration integrationMethod()const { return m_integration; }
+
 	void setIntegrationMethod(Integration method) { m_integration = method; }
 
-	void setSigmaLow(float sigma_low) { m_l_sigma = sigma_low; }
+	float sigmaLow()const { return m_sigma_low; }
 
-	void setSigmaHigh(float sigma_high) { m_u_sigma = sigma_high; }
+	void setSigmaLow(float sigma_low) { m_sigma_low = sigma_low; }
 
+	float sigmaHigh()const { return m_sigma_high; }
+
+	void setSigmaHigh(float sigma_high) { m_sigma_high = sigma_high; }
 
 private:
-	void RemoveOutliers(std::vector<float>& pixelstack, float l_limit, float u_limit);
+	float mean(const std::vector<float>& pixelstack);
 
-	float Mean(const std::vector<float>& pixelstack);
+	float standardDeviation(const std::vector<float>& pixelstack);
 
-	float StandardDeviation(const std::vector<float>& pixelstack);
+	float median(std::vector<float>& pixelstack);
 
-	float Median(std::vector<float>& pixelstack);
+	float min(const std::vector<float>& pixelstack);
 
-	float Min(const std::vector<float>& pixelstack);
+	float max(const std::vector<float>& pixelstack);
 
-	float Max(const std::vector<float>& pixelstack);
+	void sigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
 
-	void PercintileClipping(std::vector<float>& pixelstack, float p_low, float p_high);
+	void winsorizedSigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
 
-	void SigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
+	void percintileClipping(std::vector<float>& pixelstack, float p_low, float p_high);
 
-	void WinsorizedSigmaClip(std::vector<float>& pixelstack, float l_sigma = 2, float u_sigma = 3);
+	//new method for weight map
+	void pixelRejection(std::vector<float>& pixelstack);
 
-	void PixelRejection(std::vector<float>& pixelstack);
+	float pixelIntegration(std::vector<float>& pixelstack);
 
-	float PixelIntegration(std::vector<float>& pixelstack);
+protected:
+	void computeScaleEstimators();
 
-	void ComputeScaleEstimators();
-
-	void OpenFiles();
+	void openFiles();
 
 	bool isFilesSameDimenisions();
 
-	void CloseFiles();
+	void closeFiles();
 
 public:
-	void GenerateWeightMaps_forDrizzle(FileVector paths);
 
-	Status IntegrateImages(FileVector paths, Image32 & output);
+	Status stackImages(const FileVector& paths, Image32& output);
+
+};
+
+
+//migrate to be apart of imagestacking?!
+class ImageStackingWeightMap : public ImageStacking {
+
+	struct Pixel_t {
+		float value = 0;
+		uint32_t img_num = 0;
+
+		bool operator ()(Pixel_t& a, Pixel_t& b) { return (a.value < b.value); }
+	};
+
+	typedef std::vector<Pixel_t> Pixelstack_t;
+
+	std::vector<Image8> m_weight_maps;
+
+	struct PixelRows_t: public PixelRows {
+		PixelRows_t(int num_imgs, int cols, ImageStackingWeightMap& iswm) : PixelRows(num_imgs, cols, iswm) {}
+
+		void fillPixelStack(Pixelstack_t& pixelstack, int x, int ch);
+	};
+
+	ImageStackingSignal* m_issp;
+
+public:
+	//ImageStackingWeightMap() : ImageStacking() {};
+
+	ImageStackingWeightMap(const ImageStacking& is) : ImageStacking(is) {
+		m_issp = const_cast<ImageStackingSignal*>(is.imageStackingSignal());
+	}
+
+private:
+	float mean(const Pixelstack_t& pixelstack);
+
+	float standardDeviation(const Pixelstack_t& pixelstack);
+
+	float median(Pixelstack_t& pixelstack);
+
+	float min(const Pixelstack_t& pixelstack);
+
+	float max(const Pixelstack_t& pixelstack);
+
+
+	void sigmaClip(const ImagePoint& point, Pixelstack_t& pixelstack, float l_sigma = 2, float u_sigma = 3);
+
+	void winsorizedSigmaClip(const ImagePoint& point, Pixelstack_t& pixelstack, float l_sigma = 2, float u_sigma = 3);
+
+	void pixelRejection(const ImagePoint& point, Pixelstack_t& pixelstack);
+
+	float pixelIntegration(Pixelstack_t& pixelstack);
+
+	void writeWeightMaps(std::filesystem::path parent_directory);
+
+public:
+	Status stackImages(const FileVector& paths, Image32& output, std::filesystem::path wm_parent_directory);
 };
 
