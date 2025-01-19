@@ -66,6 +66,7 @@
       <MinimalRebuild>false</MinimalRebuild>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -76,6 +77,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <OpenMPSupport>true</OpenMPSupport>
+      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <QtRcc />
   </ItemDefinitionGroup>
@@ -106,63 +108,64 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="AdaptiveStretch.cpp" />
-    <ClCompile Include="ASinhStretch.cpp" />
-    <ClCompile Include="AutoHistogram.cpp" />
-    <ClCompile Include="AutomaticBackgroundExtraction.cpp" />
-    <ClCompile Include="BilateralFilter.cpp" />
-    <ClCompile Include="Binerize.cpp" />
-    <ClCompile Include="Bitmap.cpp" />
-    <ClCompile Include="ChannelCombination.cpp" />
-    <ClCompile Include="ColorSaturation.cpp">
+    <ClCompile Include="CustomWidgets.cpp" />
+    <ClCompile Include="SourceFiles\AdaptiveStretch.cpp" />
+    <ClCompile Include="SourceFiles\ASinhStretch.cpp" />
+    <ClCompile Include="SourceFiles\AutoHistogram.cpp" />
+    <ClCompile Include="SourceFiles\AutomaticBackgroundExtraction.cpp" />
+    <ClCompile Include="SourceFiles\BilateralFilter.cpp" />
+    <ClCompile Include="SourceFiles\Binerize.cpp" />
+    <ClCompile Include="SourceFiles\Bitmap.cpp" />
+    <ClCompile Include="SourceFiles\ChannelCombination.cpp" />
+    <ClCompile Include="SourceFiles\ColorSaturation.cpp">
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
     </ClCompile>
-    <ClCompile Include="CurveInterpolation.cpp" />
-    <ClCompile Include="CurvesTransformation.cpp" />
-    <ClCompile Include="Drizzle.cpp" />
-    <ClCompile Include="FastStackToolBar.cpp" />
-    <ClCompile Include="FITS.cpp" />
-    <ClCompile Include="ImageCalibration.cpp" />
-    <ClCompile Include="ImageFileReader.cpp" />
-    <ClCompile Include="ImageGeometry.cpp" />
-    <ClCompile Include="ImageGeometryDialogs.cpp" />
-    <ClCompile Include="ImageIntegrationProcess.cpp" />
-    <ClCompile Include="ImageStacking.cpp" />
-    <ClCompile Include="ImageStackingDialog.cpp" />
-    <ClCompile Include="LocalHistogramEqualization.cpp">
+    <ClCompile Include="SourceFiles\CurveInterpolation.cpp" />
+    <ClCompile Include="SourceFiles\CurvesTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Drizzle.cpp" />
+    <ClCompile Include="SourceFiles\FastStackToolBar.cpp" />
+    <ClCompile Include="SourceFiles\FITS.cpp" />
+    <ClCompile Include="SourceFiles\ImageCalibration.cpp" />
+    <ClCompile Include="SourceFiles\ImageFileReader.cpp" />
+    <ClCompile Include="SourceFiles\ImageGeometry.cpp" />
+    <ClCompile Include="SourceFiles\ImageGeometryDialogs.cpp" />
+    <ClCompile Include="SourceFiles\ImageIntegrationProcess.cpp" />
+    <ClCompile Include="SourceFiles\ImageStacking.cpp" />
+    <ClCompile Include="SourceFiles\ImageStackingDialog.cpp" />
+    <ClCompile Include="SourceFiles\LocalHistogramEqualization.cpp">
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
     </ClCompile>
-    <ClCompile Include="LRGBCombination.cpp" />
-    <ClCompile Include="RangeMask.cpp" />
-    <ClCompile Include="MenuBar.cpp" />
-    <ClCompile Include="HistogramTransformation.cpp" />
-    <ClCompile Include="Homography.cpp" />
-    <ClCompile Include="Image.cpp" />
-    <ClCompile Include="ImageOperations.cpp" />
-    <ClCompile Include="ImageWindow.cpp" />
-    <ClCompile Include="Matrix.cpp" />
-    <ClCompile Include="MorphologicalTransformation.cpp" />
+    <ClCompile Include="SourceFiles\LRGBCombination.cpp" />
+    <ClCompile Include="SourceFiles\RangeMask.cpp" />
+    <ClCompile Include="SourceFiles\MenuBar.cpp" />
+    <ClCompile Include="SourceFiles\HistogramTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Homography.cpp" />
+    <ClCompile Include="SourceFiles\Image.cpp" />
+    <ClCompile Include="SourceFiles\ImageOperations.cpp" />
+    <ClCompile Include="SourceFiles\ImageWindow.cpp" />
+    <ClCompile Include="SourceFiles\Matrix.cpp" />
+    <ClCompile Include="SourceFiles\MorphologicalTransformation.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="GaussianFilter.cpp" />
-    <ClCompile Include="EdgeDetection.cpp" />
-    <ClCompile Include="StarAlignment.cpp" />
-    <ClCompile Include="StarDetector.cpp" />
-    <ClCompile Include="StarMask.cpp" />
-    <ClCompile Include="StarMatching.cpp" />
-    <ClCompile Include="Statistics.cpp" />
-    <ClCompile Include="TIFF.cpp" />
+    <ClCompile Include="SourceFiles\GaussianFilter.cpp" />
+    <ClCompile Include="SourceFiles\EdgeDetection.cpp" />
+    <ClCompile Include="SourceFiles\StarAlignment.cpp" />
+    <ClCompile Include="SourceFiles\StarDetector.cpp" />
+    <ClCompile Include="SourceFiles\StarMask.cpp" />
+    <ClCompile Include="SourceFiles\StarMatching.cpp" />
+    <ClCompile Include="SourceFiles\Statistics.cpp" />
+    <ClCompile Include="SourceFiles\TIFF.cpp" />
     <ClCompile Include="ProcessDialog.cpp" />
-    <ClCompile Include="Wavelet.cpp" />
-    <ClCompile Include="Workspace.cpp" />
+    <ClCompile Include="SourceFiles\Wavelet.cpp" />
+    <ClCompile Include="SourceFiles\Workspace.cpp" />
     <QtRcc Include="FastStack.qrc" />
     <QtUic Include="FastStack.ui" />
     <QtMoc Include="FastStack.h" />
@@ -170,57 +173,72 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="Workspace.h" />
-    <QtMoc Include="ASinhStretch.h" />
-    <QtMoc Include="AdaptiveStretch.h" />
-    <QtMoc Include="AutomaticBackgroundExtraction.h" />
-    <ClInclude Include="AutoHistogram.h" />
-    <ClInclude Include="BilateralFilter.h" />
-    <ClInclude Include="Binerize.h" />
-    <ClInclude Include="Bitmap.h" />
-    <QtMoc Include="ColorSaturation.h" />
-    <QtMoc Include="CurveInterpolation.h" />
-    <QtMoc Include="CurvesTransformation.h" />
-    <ClInclude Include="ChannelCombination.h" />
-    <ClInclude Include="Drizzle.h" />
-    <QtMoc Include="MenuBar.h" />
-    <ClInclude Include="FastStackToolBar.h" />
-    <ClInclude Include="FITS.h" />
-    <ClInclude Include="GaussianFilter.h" />
-    <QtMoc Include="HistogramTransformation.h" />
-    <ClInclude Include="Histogram.h" />
-    <ClInclude Include="Homography.h" />
-    <ClInclude Include="Image.h" />
-    <ClInclude Include="ImageCalibration.h" />
-    <ClInclude Include="ImageFile.h" />
-    <ClInclude Include="ImageFileReader.h" />
-    <ClInclude Include="ImageGeometry.h" />
-    <ClInclude Include="ImageGeometryDialogs.h" />
-    <ClInclude Include="ImageIntegrationProcess.h" />
-    <ClInclude Include="ImageOperations.h" />
-    <QtMoc Include="ImageWindow.h" />
-    <QtMoc Include="ImageStacking.h" />
-    <QtMoc Include="ImageStackingDialog.h" />
-    <ClInclude Include="Interpolator.h" />
-    <QtMoc Include="LocalHistogramEqualization.h" />
-    <QtMoc Include="RangeMask.h" />
-    <ClInclude Include="LRGBCombination.h" />
-    <ClInclude Include="Maths.h" />
-    <ClInclude Include="Matrix.h" />
-    <ClInclude Include="MorphologicalTransformation.h" />
+    <QtMoc Include="HeaderFiles\Workspace.h" />
+    <QtMoc Include="HeaderFiles\AdaptiveStretch.h" />
+    <QtMoc Include="HeaderFiles\ASinhStretch.h" />
+    <QtMoc Include="CustomWidgets.h" />
+    <ClInclude Include="HeaderFiles\AutoHistogram.h" />
+    <QtMoc Include="HeaderFiles\AutomaticBackgroundExtraction.h" />
+    <ClInclude Include="HeaderFiles\BilateralFilter.h" />
+    <ClInclude Include="HeaderFiles\Binerize.h" />
+    <ClInclude Include="HeaderFiles\Bitmap.h" />
+    <ClInclude Include="HeaderFiles\ChannelCombination.h" />
+    <QtMoc Include="HeaderFiles\ColorSaturation.h" />
+    <QtMoc Include="HeaderFiles\CurveInterpolation.h" />
+    <QtMoc Include="HeaderFiles\CurvesTransformation.h" />
+    <ClInclude Include="HeaderFiles\Drizzle.h" />
+    <QtMoc Include="HeaderFiles\MenuBar.h" />
+    <ClInclude Include="HeaderFiles\FastStackToolBar.h" />
+    <ClInclude Include="HeaderFiles\FITS.h" />
+    <ClInclude Include="HeaderFiles\GaussianFilter.h" />
+    <QtMoc Include="HeaderFiles\HistogramTransformation.h" />
+    <ClInclude Include="Header Files\ASinhStretch.h" />
+    <ClInclude Include="Header Files\AutoHistogram.h" />
+    <ClInclude Include="Header Files\AutomaticBackgroundExtraction.h" />
+    <ClInclude Include="Header Files\BilateralFilter.h" />
+    <ClInclude Include="Header Files\Binerize.h" />
+    <ClInclude Include="Header Files\Bitmap.h" />
+    <ClInclude Include="Header Files\ChannelCombination.h" />
+    <ClInclude Include="Header Files\ColorSaturation.h" />
+    <ClInclude Include="Header Files\CurveInterpolation.h" />
+    <ClInclude Include="Header Files\CurvesTransformation.h" />
+    <ClInclude Include="HeaderFiles\Histogram.h" />
+    <ClInclude Include="HeaderFiles\Homography.h" />
+    <ClInclude Include="HeaderFiles\Image.h" />
+    <ClInclude Include="HeaderFiles\ImageCalibration.h" />
+    <ClInclude Include="HeaderFiles\ImageFile.h" />
+    <ClInclude Include="HeaderFiles\ImageFileReader.h" />
+    <ClInclude Include="HeaderFiles\ImageGeometry.h" />
+    <ClInclude Include="HeaderFiles\ImageGeometryDialogs.h" />
+    <ClInclude Include="HeaderFiles\ImageIntegrationProcess.h" />
+    <ClInclude Include="HeaderFiles\ImageOperations.h" />
+    <QtMoc Include="HeaderFiles\ImageWindow.h" />
+    <QtMoc Include="HeaderFiles\ImageStacking.h" />
+    <QtMoc Include="HeaderFiles\ImageStackingDialog.h" />
+    <ClInclude Include="HeaderFiles\Interpolator.h" />
+    <QtMoc Include="HeaderFiles\LocalHistogramEqualization.h" />
+    <QtMoc Include="HeaderFiles\RangeMask.h" />
+    <ClInclude Include="HeaderFiles\LRGBCombination.h" />
+    <ClInclude Include="HeaderFiles\Maths.h" />
+    <ClInclude Include="HeaderFiles\Matrix.h" />
+    <ClInclude Include="HeaderFiles\MorphologicalTransformation.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="RGBColorSpace.h" />
-    <QtMoc Include="SaveFileOptionsWindows.h" />
-    <ClInclude Include="EdgeDetection.h" />
-    <ClInclude Include="Star.h" />
-    <QtMoc Include="StarAlignment.h" />
-    <ClInclude Include="StarDetector.h" />
-    <ClInclude Include="StarMask.h" />
-    <ClInclude Include="StarMatching.h" />
-    <QtMoc Include="Statistics.h" />
-    <ClInclude Include="TIFF.h" />
+    <ClInclude Include="HeaderFiles\RGBColorSpace.h" />
+    <QtMoc Include="HeaderFiles\SaveFileOptionsWindows.h" />
+    <ClInclude Include="HeaderFiles\EdgeDetection.h" />
+    <ClInclude Include="HeaderFiles\Star.h" />
+    <QtMoc Include="HeaderFiles\StarAlignment.h" />
+    <ClInclude Include="HeaderFiles\StarDetector.h" />
+    <ClInclude Include="HeaderFiles\StarMask.h" />
+    <ClInclude Include="HeaderFiles\StarMatching.h" />
+    <QtMoc Include="HeaderFiles\Statistics.h" />
+    <ClInclude Include="HeaderFiles\TIFF.h" />
     <QtMoc Include="ProcessDialog.h" />
-    <ClInclude Include="Wavelet.h" />
+    <ClInclude Include="HeaderFiles\Wavelet.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitattributes" />
+    <None Include=".gitignore" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

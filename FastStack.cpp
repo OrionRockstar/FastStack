@@ -22,9 +22,11 @@
 FastStack::FastStack(QWidget *parent) : QMainWindow(parent) { 
     ui.setupUi(this);
 
+    QApplication::setWindowIcon(QIcon("./Icons//fast_stack_icon_fs2.png"));
+
     QIcon icon;
-    icon.addFile("./Icons//fast_stack_icon_fs2.png");
-    this->setWindowIcon(icon);
+    //icon.addFile("./Icons//fast_stack_icon_fs2.png");
+    //this->setWindowIcon(icon);
 
     this->setWindowTitle("FastStack");
     this->resize(this->screen()->availableSize());
@@ -36,19 +38,14 @@ FastStack::FastStack(QWidget *parent) : QMainWindow(parent) {
     m_menubar = new MenuBar(this);
     this->setMenuBar(m_menubar);
 
-    connect(m_workspace, &Workspace::sendOpen, m_menubar, &MenuBar::onWindowOpen);
-    connect(m_workspace, &Workspace::sendClose, m_menubar, &MenuBar::onWindowClose);
-
-    //QMdiSubWindow* sw = new QMdiSubWindow(this);
-    //ImageLabaelGL* iml = new ImageLabaelGL(this);
-    //sw->setWidget(iml);
-    //m_workspace->addSubWindow(iml)->resize(200, 300);
+    connect(m_workspace, &Workspace::imageWindowCreated, m_menubar, &MenuBar::onWindowOpen);
+    connect(m_workspace, &Workspace::imageWindowClosed, m_menubar, &MenuBar::onWindowClose);
 
     m_toolbar = new FastStackToolBar(this);
     this->addToolBar(Qt::ToolBarArea::BottomToolBarArea, m_toolbar);
     connect(m_workspace, &QMdiArea::subWindowActivated, m_toolbar->imageInformationLabel(), &ImageInformationLabel::displayText);
 
-
+    //Preview* pv = new Preview(this);
     //StatisticsDialog* sd = new StatisticsDialog(this);
     //DrizzleIntegrationDialog* did = new DrizzleIntegrationDialog(this);
     //StarAlignmentDialog* sad = new StarAlignmentDialog(this);
