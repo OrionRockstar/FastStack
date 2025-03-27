@@ -62,7 +62,7 @@ class Bitmap :public ImageFile {
 	int padding_length = 0;
 
 public:
-	Bitmap() = default;
+	Bitmap() : ImageFile(Type::BMP) {}
 
 	~Bitmap() {}
 

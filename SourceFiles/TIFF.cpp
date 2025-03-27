@@ -269,15 +269,55 @@ void TIFF::close() {
     m_strip_byte_counts.clear();
 }
 
+void TIFF::readScanLine_toFloat(float* dst, uint32_t row, uint32_t channel) {
+
+    int buffer_size = cols();
+    uint32_t sample = channel;
+
+    if (planarConfig() == PlanarConfig::Contiguous) {
+        buffer_size *= channels();
+        sample = 0;
+    }
+
+    switch (imageType()) {
+    case ImageType::UBYTE: {
+        std::vector<uint8_t>buffer(buffer_size);
+        readScanLine(buffer.data(), row, sample);
+        for (int x = 0; x < cols(); ++x)
+            dst[x] = Pixel<float>::toType(buffer[x + channel]);
+
+        return;
+    }
+    case ImageType::USHORT: {
+        std::vector<uint16_t>buffer(buffer_size);
+        readScanLine(buffer.data(), row, sample);
+        for (int x = 0; x < cols(); ++x)
+            dst[x] = Pixel<float>::toType(buffer[x + channel]);
+        return;
+    }
+    case ImageType::FLOAT: {
+
+        if (planarConfig() == PlanarConfig::Contiguous) {
+            std::vector<float>buffer(buffer_size);
+            readScanLine(buffer.data(), row, sample);
+            for (int x = 0; x < cols(); ++x)
+                dst[x] = Pixel<float>::toType(buffer[x + channel]);
+        }
+
+        else
+            readScanLine(dst, row, sample);
+    }
+    }
+}
 
 template<typename T>
 void TIFF::read(Image<T>& dst) {
 
-    m_stream.seekg(m_data_pos);
+    m_stream.seekg(dataPosition());
 
     dst = Image<T>(rows(), cols(), channels());
 
-    if (channels() == 1 || m_planar_config == PlanarConfig::Seperate) {
+    if (channels() == 1 || planarConfig() == PlanarConfig::Seperate) {
 
         for (int ch = 0; ch < dst.channels(); ++ch) {
             for (int row = 0; row < rows(); ++row) {
@@ -286,7 +326,7 @@ void TIFF::read(Image<T>& dst) {
         }
     }
 
-    else if (channels() == 3 && m_planar_config == PlanarConfig::Contiguous) {
+    else if (channels() == 3 && planarConfig() == PlanarConfig::Contiguous) {
         std::vector<T> buffer(cols() * channels());
         for (int row = 0; row < rows(); ++row) {
             readScanLine(buffer.data(), row);

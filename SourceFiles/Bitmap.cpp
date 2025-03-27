@@ -14,7 +14,6 @@ void Bitmap::ReadInfoHeader() {
 	m_rows = m_info_header.rows;
 	m_cols = m_info_header.cols;
 	m_channels = (m_info_header.bits_per_pixel == 8) ? 1 : 3;
-	m_bitdepth = (m_info_header.bits_per_pixel == 24) ? 8 : m_info_header.bits_per_pixel;
 
 	m_px_count = m_rows * m_cols;
 

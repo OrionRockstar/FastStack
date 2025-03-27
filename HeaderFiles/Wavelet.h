@@ -43,7 +43,7 @@ protected:
 	Image32 m_convolved = Image32();
 	Image32 m_wavelet = Image32();
 
-	struct WaveletHistogram {
+	/*struct WaveletHistogram {
 		std::unique_ptr<uint32_t[]> histogram;
 		int m_size = 0;
 		int m_count = 0;
@@ -76,7 +76,7 @@ protected:
 		float Median();
 
 		float MAD();
-	};
+	};*/
 
 public:
 	Wavelet() = default;
@@ -154,13 +154,17 @@ public:
 
 class StructureMaps : public Wavelet {
 
-	double m_K = 3.0;
+	float m_K = 3.0;
 	bool m_median_blur = true;
 
 public:
 	StructureMaps() = default;
 
-	void setK(double K) { m_K = K; }
+	StructureMaps(float K, bool median_blur) : m_K(K), m_median_blur(median_blur) {}
+
+	float sigmaK()const { return m_K; }
+
+	void setSigmaK(float K) { m_K = K; }
 
 	bool medianBlur()const { return m_median_blur; }
 
@@ -174,25 +178,3 @@ public:
 	Image8Vector generateMaps(const Image<T>& img);
 };
 
-
-
-
-
-class WaveletLayersDialog : public ProcessDialog {
-
-	WaveletLayerCreator m_wavelet;
-
-	SpinBox* m_layers_sb = nullptr;
-	ComboBox* m_scaling_func_combo = nullptr;
-	CheckBox* m_residual_cb = nullptr;
-
-public:
-	WaveletLayersDialog(QWidget* parent);
-
-private:
-	void resetDialog();
-
-	void showPreview() {}
-
-	void apply();
-};

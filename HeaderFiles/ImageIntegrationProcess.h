@@ -38,7 +38,8 @@ public:
 
 	const FileVector& filePaths()const { return m_fv; }
 
-	void writeTempFits(const Image32& src, std::filesystem::path file_path);
+	template<typename T>
+	void writeTempFits(const Image<T>& src, std::filesystem::path file_path);
 };
 
 
@@ -92,19 +93,26 @@ static Matrix alignmentDataReader(const std::filesystem::path& file_path) {
 	return homography;
 }
 
-static std::filesystem::path alignmentDataPath(const std::filesystem::path& file_path) {
+static std::filesystem::path alignmentLightPath(const std::filesystem::path& alignment_file_path) {
 
-	std::fstream stream(file_path, std::ios::in);
-
+	std::fstream stream(alignment_file_path, std::ios::in);
 	std::string line;
 	std::getline(stream, line);
-
 	return line;
 }
 
 
 
 
+
+struct ImageStackingFiles {
+
+	std::filesystem::path light;
+	std::filesystem::path alignment;
+	std::filesystem::path weight_map;
+
+	ImageStackingFiles(const std::filesystem::path& light_path) : light(light_path) {}
+};
 
 
 class ImageIntegrationProcess {
@@ -117,6 +125,7 @@ class ImageIntegrationProcess {
 
 	ImageStacking m_is;
 
+	std::vector<ImageStackingFiles> m_paths;
 	FileVector m_light_paths;
 	FileVector m_alignment_paths;
 
@@ -126,10 +135,30 @@ class ImageIntegrationProcess {
 
 	bool isLightsSameSize();
 
+	//void readFile(Image32& output)
 public:
 	uint16_t maxStars()const { return m_maxstars; }
 
 	void setMaxStars(uint16_t num_stars) { m_maxstars = num_stars; }
+
+	void setPaths(const PathVector& light_paths, const PathVector& alignment_paths) {
+
+		m_paths.clear();
+		m_paths.reserve(light_paths.size());
+
+		for (auto path : light_paths)
+			m_paths.emplace_back(path);
+
+		for (auto path : alignment_paths) {
+			auto light = alignmentLightPath(path);
+			for (auto& p : m_paths) {
+				if (p.light == light) {
+					p.alignment = path;
+					break;
+				}
+			}
+		}
+	}
 
 	void setLightPaths(const PathVector& light_paths) { m_light_paths = light_paths; }
 
@@ -148,5 +177,6 @@ public:
 	const ImageStackingSignal* imageStackingSignal()const { return &m_iss; }
 
 	Status integrateImages(Image32& out);
+
 };
 

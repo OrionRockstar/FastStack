@@ -61,23 +61,23 @@
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <OpenMPSupport>true</OpenMPSupport>
       <MinimalRebuild>false</MinimalRebuild>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles\Gui;C:\Users\Zack\source\repos\FastStack\HeaderFiles\Core;C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <FloatingPointModel>Fast</FloatingPointModel>
-      <PreprocessorDefinitions>_USE_MATH_DEFINES;$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <OpenMPSupport>true</OpenMPSupport>
-      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles\Gui;C:\Users\Zack\source\repos\FastStack\HeaderFiles\Core;C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <QtRcc />
   </ItemDefinitionGroup>
@@ -108,64 +108,84 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="SCNR.cpp" />
+    <ClCompile Include="SCNRDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\LRGBCombinationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ChannelCombinationDialog.cpp" />
+    <ClCompile Include="ImageWindowMenu.cpp" />
+    <ClCompile Include="SourceFiles\Gui\RangeMaskDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\GaussianFilterDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ColorSaturationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\BinerizeDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\BilateralFilterDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\LocalHistogramEqualizationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\CurvesTransformationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\AutomaticBackgroundExtractionDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\MorphologicalTransformationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\AutoHistogramDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ASinhStretchDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\AdaptiveStretchDialog.cpp" />
     <ClCompile Include="CustomWidgets.cpp" />
-    <ClCompile Include="SourceFiles\AdaptiveStretch.cpp" />
-    <ClCompile Include="SourceFiles\ASinhStretch.cpp" />
-    <ClCompile Include="SourceFiles\AutoHistogram.cpp" />
-    <ClCompile Include="SourceFiles\AutomaticBackgroundExtraction.cpp" />
-    <ClCompile Include="SourceFiles\BilateralFilter.cpp" />
-    <ClCompile Include="SourceFiles\Binerize.cpp" />
+    <ClCompile Include="SourceFiles\Gui\HistogramTransformationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Core\AdaptiveStretch.cpp" />
+    <ClCompile Include="SourceFiles\Core\ASinhStretch.cpp" />
+    <ClCompile Include="SourceFiles\Core\AutoHistogram.cpp" />
+    <ClCompile Include="SourceFiles\Core\AutomaticBackgroundExtraction.cpp" />
+    <ClCompile Include="SourceFiles\Core\BilateralFilter.cpp" />
+    <ClCompile Include="SourceFiles\Core\Binerize.cpp" />
     <ClCompile Include="SourceFiles\Bitmap.cpp" />
-    <ClCompile Include="SourceFiles\ChannelCombination.cpp" />
-    <ClCompile Include="SourceFiles\ColorSaturation.cpp">
+    <ClCompile Include="SourceFiles\Core\ChannelCombination.cpp" />
+    <ClCompile Include="SourceFiles\Core\ColorSaturation.cpp">
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
     </ClCompile>
     <ClCompile Include="SourceFiles\CurveInterpolation.cpp" />
-    <ClCompile Include="SourceFiles\CurvesTransformation.cpp" />
-    <ClCompile Include="SourceFiles\Drizzle.cpp" />
+    <ClCompile Include="SourceFiles\Core\CurvesTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Core\Drizzle.cpp" />
     <ClCompile Include="SourceFiles\FastStackToolBar.cpp" />
     <ClCompile Include="SourceFiles\FITS.cpp" />
     <ClCompile Include="SourceFiles\ImageCalibration.cpp" />
     <ClCompile Include="SourceFiles\ImageFileReader.cpp" />
-    <ClCompile Include="SourceFiles\ImageGeometry.cpp" />
-    <ClCompile Include="SourceFiles\ImageGeometryDialogs.cpp" />
+    <ClCompile Include="SourceFiles\Core\ImageGeometry.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ImageGeometryDialogs.cpp" />
     <ClCompile Include="SourceFiles\ImageIntegrationProcess.cpp" />
-    <ClCompile Include="SourceFiles\ImageStacking.cpp" />
-    <ClCompile Include="SourceFiles\ImageStackingDialog.cpp" />
-    <ClCompile Include="SourceFiles\LocalHistogramEqualization.cpp">
+    <ClCompile Include="SourceFiles\Core\ImageStacking.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ImageStackingDialog.cpp" />
+    <ClCompile Include="SourceFiles\Core\LocalHistogramEqualization.cpp">
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(Filename).moc</QtMocFileName>
     </ClCompile>
-    <ClCompile Include="SourceFiles\LRGBCombination.cpp" />
-    <ClCompile Include="SourceFiles\RangeMask.cpp" />
+    <ClCompile Include="SourceFiles\Core\LRGBCombination.cpp" />
+    <ClCompile Include="SourceFiles\Core\RangeMask.cpp" />
     <ClCompile Include="SourceFiles\MenuBar.cpp" />
-    <ClCompile Include="SourceFiles\HistogramTransformation.cpp" />
-    <ClCompile Include="SourceFiles\Homography.cpp" />
-    <ClCompile Include="SourceFiles\Image.cpp" />
+    <ClCompile Include="SourceFiles\Core\HistogramTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Core\Homography.cpp" />
+    <ClCompile Include="SourceFiles\Core\Image.cpp" />
     <ClCompile Include="SourceFiles\ImageOperations.cpp" />
     <ClCompile Include="SourceFiles\ImageWindow.cpp" />
-    <ClCompile Include="SourceFiles\Matrix.cpp" />
-    <ClCompile Include="SourceFiles\MorphologicalTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Core\Matrix.cpp" />
+    <ClCompile Include="SourceFiles\Core\MorphologicalTransformation.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="SourceFiles\GaussianFilter.cpp" />
+    <ClCompile Include="SourceFiles\Core\GaussianFilter.cpp" />
     <ClCompile Include="SourceFiles\EdgeDetection.cpp" />
     <ClCompile Include="SourceFiles\StarAlignment.cpp" />
-    <ClCompile Include="SourceFiles\StarDetector.cpp" />
-    <ClCompile Include="SourceFiles\StarMask.cpp" />
-    <ClCompile Include="SourceFiles\StarMatching.cpp" />
-    <ClCompile Include="SourceFiles\Statistics.cpp" />
+    <ClCompile Include="SourceFiles\Core\StarDetector.cpp" />
+    <ClCompile Include="SourceFiles\Core\StarMask.cpp" />
+    <ClCompile Include="SourceFiles\Core\StarMatching.cpp" />
+    <ClCompile Include="SourceFiles\Gui\Statistics.cpp" />
     <ClCompile Include="SourceFiles\TIFF.cpp" />
     <ClCompile Include="ProcessDialog.cpp" />
     <ClCompile Include="SourceFiles\Wavelet.cpp" />
-    <ClCompile Include="SourceFiles\Workspace.cpp" />
+    <ClCompile Include="SourceFiles\Gui\Workspace.cpp" />
+    <ClCompile Include="SourceFiles\Gui\StarMaskDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\WaveletLayersDialog.cpp" />
     <QtRcc Include="FastStack.qrc" />
     <QtUic Include="FastStack.ui" />
     <QtMoc Include="FastStack.h" />
@@ -173,25 +193,40 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="HeaderFiles\Workspace.h" />
-    <QtMoc Include="HeaderFiles\AdaptiveStretch.h" />
-    <QtMoc Include="HeaderFiles\ASinhStretch.h" />
+    <ClInclude Include="HeaderFiles\Gui\ChannelCombinationDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\GaussianFilterDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\StarMaskDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\WaveletLayersDialog.h" />
+    <ClInclude Include="SCNR.h" />
+    <ClInclude Include="SCNRDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\RangeMaskDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\Workspace.h" />
+    <QtMoc Include="HeaderFiles\Gui\ASinhStretchDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\AutomaticBackgroundExtractionDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\CurvesTransformationDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\ColorSaturationDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\BinerizeDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\BilateralFilterDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\AutoHistogramDialog.h" />
+    <ClInclude Include="HeaderFiles\Core\AdaptiveStretch.h" />
+    <ClInclude Include="HeaderFiles\Core\ASinhStretch.h" />
     <QtMoc Include="CustomWidgets.h" />
-    <ClInclude Include="HeaderFiles\AutoHistogram.h" />
-    <QtMoc Include="HeaderFiles\AutomaticBackgroundExtraction.h" />
-    <ClInclude Include="HeaderFiles\BilateralFilter.h" />
-    <ClInclude Include="HeaderFiles\Binerize.h" />
+    <QtMoc Include="HeaderFiles\Gui\AdaptiveStretchDialog.h" />
+    <ClInclude Include="HeaderFiles\Core\AutoHistogram.h" />
+    <ClInclude Include="HeaderFiles\Core\AutomaticBackgroundExtraction.h" />
+    <ClInclude Include="HeaderFiles\Core\BilateralFilter.h" />
+    <ClInclude Include="HeaderFiles\Core\Binerize.h" />
     <ClInclude Include="HeaderFiles\Bitmap.h" />
-    <ClInclude Include="HeaderFiles\ChannelCombination.h" />
-    <QtMoc Include="HeaderFiles\ColorSaturation.h" />
+    <ClInclude Include="HeaderFiles\Core\ChannelCombination.h" />
+    <ClInclude Include="HeaderFiles\Core\ColorSaturation.h" />
     <QtMoc Include="HeaderFiles\CurveInterpolation.h" />
-    <QtMoc Include="HeaderFiles\CurvesTransformation.h" />
-    <ClInclude Include="HeaderFiles\Drizzle.h" />
+    <ClInclude Include="HeaderFiles\Core\CurvesTransformation.h" />
+    <ClInclude Include="HeaderFiles\Core\Drizzle.h" />
     <QtMoc Include="HeaderFiles\MenuBar.h" />
     <ClInclude Include="HeaderFiles\FastStackToolBar.h" />
     <ClInclude Include="HeaderFiles\FITS.h" />
-    <ClInclude Include="HeaderFiles\GaussianFilter.h" />
-    <QtMoc Include="HeaderFiles\HistogramTransformation.h" />
+    <ClInclude Include="HeaderFiles\Core\GaussianFilter.h" />
+    <ClInclude Include="HeaderFiles\Core\HistogramTransformation.h" />
     <ClInclude Include="Header Files\ASinhStretch.h" />
     <ClInclude Include="Header Files\AutoHistogram.h" />
     <ClInclude Include="Header Files\AutomaticBackgroundExtraction.h" />
@@ -202,36 +237,41 @@
     <ClInclude Include="Header Files\ColorSaturation.h" />
     <ClInclude Include="Header Files\CurveInterpolation.h" />
     <ClInclude Include="Header Files\CurvesTransformation.h" />
-    <ClInclude Include="HeaderFiles\Histogram.h" />
-    <ClInclude Include="HeaderFiles\Homography.h" />
-    <ClInclude Include="HeaderFiles\Image.h" />
+    <ClInclude Include="HeaderFiles\Core\Histogram.h" />
+    <ClInclude Include="HeaderFiles\Core\Homography.h" />
+    <ClInclude Include="HeaderFiles\Core\Image.h" />
     <ClInclude Include="HeaderFiles\ImageCalibration.h" />
     <ClInclude Include="HeaderFiles\ImageFile.h" />
     <ClInclude Include="HeaderFiles\ImageFileReader.h" />
-    <ClInclude Include="HeaderFiles\ImageGeometry.h" />
-    <ClInclude Include="HeaderFiles\ImageGeometryDialogs.h" />
+    <ClInclude Include="HeaderFiles\Core\ImageGeometry.h" />
+    <ClInclude Include="HeaderFiles\Gui\ImageGeometryDialogs.h" />
     <ClInclude Include="HeaderFiles\ImageIntegrationProcess.h" />
     <ClInclude Include="HeaderFiles\ImageOperations.h" />
     <QtMoc Include="HeaderFiles\ImageWindow.h" />
-    <QtMoc Include="HeaderFiles\ImageStacking.h" />
-    <QtMoc Include="HeaderFiles\ImageStackingDialog.h" />
-    <ClInclude Include="HeaderFiles\Interpolator.h" />
-    <QtMoc Include="HeaderFiles\LocalHistogramEqualization.h" />
-    <QtMoc Include="HeaderFiles\RangeMask.h" />
-    <ClInclude Include="HeaderFiles\LRGBCombination.h" />
-    <ClInclude Include="HeaderFiles\Maths.h" />
-    <ClInclude Include="HeaderFiles\Matrix.h" />
-    <ClInclude Include="HeaderFiles\MorphologicalTransformation.h" />
+    <QtMoc Include="HeaderFiles\Core\ImageStacking.h" />
+    <QtMoc Include="HeaderFiles\Gui\ImageStackingDialog.h" />
+    <ClInclude Include="HeaderFiles\Core\Interpolator.h" />
+    <ClInclude Include="HeaderFiles\Core\LocalHistogramEqualization.h" />
+    <ClInclude Include="HeaderFiles\Core\RangeMask.h" />
+    <ClInclude Include="HeaderFiles\Core\LRGBCombination.h" />
+    <ClInclude Include="HeaderFiles\Core\Maths.h" />
+    <ClInclude Include="HeaderFiles\Core\Matrix.h" />
+    <ClInclude Include="HeaderFiles\Core\MorphologicalTransformation.h" />
+    <QtMoc Include="HeaderFiles\Gui\HistogramTransformationDialog.h" />
+    <ClInclude Include="HeaderFiles\Gui\MorphologicalTransformationDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\LocalHistogramEqualizationDialog.h" />
+    <QtMoc Include="ImageWindowMenu.h" />
+    <ClInclude Include="HeaderFiles\Gui\LRGBCombinationDialog.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="HeaderFiles\RGBColorSpace.h" />
+    <ClInclude Include="HeaderFiles\Core\RGBColorSpace.h" />
     <QtMoc Include="HeaderFiles\SaveFileOptionsWindows.h" />
     <ClInclude Include="HeaderFiles\EdgeDetection.h" />
-    <ClInclude Include="HeaderFiles\Star.h" />
+    <ClInclude Include="HeaderFiles\Core\Star.h" />
     <QtMoc Include="HeaderFiles\StarAlignment.h" />
-    <ClInclude Include="HeaderFiles\StarDetector.h" />
-    <ClInclude Include="HeaderFiles\StarMask.h" />
-    <ClInclude Include="HeaderFiles\StarMatching.h" />
-    <QtMoc Include="HeaderFiles\Statistics.h" />
+    <ClInclude Include="HeaderFiles\Core\StarDetector.h" />
+    <ClInclude Include="HeaderFiles\Core\StarMask.h" />
+    <ClInclude Include="HeaderFiles\Core\StarMatching.h" />
+    <QtMoc Include="HeaderFiles\Gui\Statistics.h" />
     <ClInclude Include="HeaderFiles\TIFF.h" />
     <QtMoc Include="ProcessDialog.h" />
     <ClInclude Include="HeaderFiles\Wavelet.h" />

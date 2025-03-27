@@ -10,6 +10,28 @@ void StarAlignment::apply() {
 	StarMatching sm;
 	HomographyTransformation ht;
 
+	auto resize = [this](Image8* img, int r, int c) {
+
+		Resize rsz;
+		rsz.setInterpolation(Interpolator::Type::nearest_neighbor);
+		rsz.setNewSize(r, c);
+
+		switch (img->type()) {
+		case ImageType::UBYTE:
+			return rsz.apply(*img);
+
+		case ImageType::USHORT:
+			return rsz.apply(*reinterpret_cast<Image16*>(img));
+
+		case ImageType::FLOAT:
+			return rsz.apply(*reinterpret_cast<Image32*>(img));
+
+		default:
+			break;
+		}
+	};
+
+
 	auto stardetection = [this](const Image8* img) {
 
 		StarVector stars;
@@ -37,14 +59,21 @@ void StarAlignment::apply() {
 
 	
 	StarVector ref_sv;
+	const Image8* ref_img;
 
 	for (int i = 0; i < m_img_windows.size(); ++i) {
-		const Image8* img = &m_img_windows[i]->source();
+		Image8* img = &m_img_windows[i]->source();
 
-		if(i == 0)
+		if (ref_sv.size() == 0) {
 			ref_sv = stardetection(img);
+			ref_img = img;
+		}
 
 		else {
+
+			if (!img->isSameSize(*ref_img))
+				resize(img, ref_img->rows(), ref_img->cols());
+
 			StarVector tgt_sv = stardetection(img);
 			StarPairVector spv = sm.matchStars(ref_sv, tgt_sv);
 			Matrix h = Homography::computeHomography(spv);
@@ -121,22 +150,22 @@ ImageSelectionDialog::ImageSelectionDialog(QMdiArea& workspace, QWidget* parent)
 
 
 
-StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarAlignment", QSize(540, 490), FastStack::recast(parent)->workspace(), false, false) {
+StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarAlignment", QSize(540, 465), FastStack::recast(parent)->workspace(), false, false) {
 
 	connectToolbar(this, &StarAlignmentDialog::apply, &StarAlignmentDialog::showPreview, &StarAlignmentDialog::resetDialog);
 
-	m_img_list = new QListWidget(this);
+	m_img_list = new ListWidget(drawArea());
 	m_img_list->resize(365, m_img_list->sizeHint().height());
 	m_img_list->move(25, 15);
 
-	m_add_img_pb = new PushButton("Add Images", this);
+	m_add_img_pb = new PushButton("Add Images", drawArea());
 	m_add_img_pb->move(405, 15);
 	m_add_img_pb->setFixedWidth(m_button_width);
 
 
 	connect(m_add_img_pb, &QPushButton::released, this, &StarAlignmentDialog::addImages);
 
-	m_remove_item_pb = new PushButton("Remove Item", this);
+	m_remove_item_pb = new PushButton("Remove Item", drawArea());
 	m_remove_item_pb->move(405, 55);
 	m_remove_item_pb->setFixedWidth(m_button_width);
 
@@ -148,7 +177,7 @@ StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarA
 	connect(m_remove_item_pb, &QPushButton::released, this, removeimg);
 
 
-	m_clear_pb = new PushButton("Clear List", this);
+	m_clear_pb = new PushButton("Clear List", drawArea());
 	m_clear_pb->move(405, 95);
 	m_clear_pb->setFixedWidth(m_button_width);
 
@@ -158,7 +187,7 @@ StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarA
 	};
 	connect(m_clear_pb, &QPushButton::released, this, clear);
 
-	m_sd_gb = new StarDetectionGroupBox(*m_sa.starDetector(), this, true);
+	m_sd_gb = new StarDetectionGroupBox(*m_sa.starDetector(), drawArea(), true);
 	m_sd_gb->move(10, m_img_list->sizeHint().height() + 30);
 	this->show();
 }

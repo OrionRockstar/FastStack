@@ -11,18 +11,22 @@
 
 
 
-BackgroundExtraction::BackgroundExtraction(QWidget* parent) : QMenu(parent) {
+BackgroundExtractionMenu::BackgroundExtractionMenu(QWidget* parent) : QMenu(parent) {
 	this->setTitle("Background Extraction");
-	this->addAction(tr("&Automatic Background Extraction"), this, &BackgroundExtraction::autoBackgroundExtractionSelection);
+	this->addAction(tr("&Automatic Background Extraction"), this, &BackgroundExtractionMenu::autoBackgroundExtractionSelection);
 }
 
-void BackgroundExtraction::autoBackgroundExtractionSelection() {
+void BackgroundExtractionMenu::autoBackgroundExtractionSelection() {
 
 	if (m_abed == nullptr) {
 		m_abed = std::make_unique<AutomaticBackgroundExtractionDialog>(parentWidget());
 		connect(m_abed.get(), &ProcessDialog::windowClosed, this, [this]() { m_abed.reset(); });
 	}
 }
+
+
+
+
 
 ColorMenu::ColorMenu(QWidget* parent) : QMenu(parent) {
 	this->setTitle("Color");
@@ -70,43 +74,47 @@ void ColorMenu::rgbGrayscaleConverstionSelection() {
 
 
 
-
 ImageGeometryMenu::ImageGeometryMenu(QWidget* parent) : QMenu(parent) {
 	this->setTitle("Image Geometry");
 	//this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
-	this->addAction(tr("Crop"), this, &ImageGeometryMenu::CropSelection);
-	this->addAction(tr("Fast Rotation"), this, &ImageGeometryMenu::FastRotationSelection);
-	this->addAction(tr("Integer Resample"), this, &ImageGeometryMenu::IntegerResampleSelection);
-	this->addAction(tr("Rotation"), this, &ImageGeometryMenu::RotationSelection);
+	this->addAction(tr("Crop"), this, &ImageGeometryMenu::cropSelection);
+	this->addAction(tr("Fast Rotation"), this, &ImageGeometryMenu::fastRotationSelection);
+	this->addAction(tr("Integer Resample"), this, &ImageGeometryMenu::integerResampleSelection);
+	this->addAction(tr("Rotation"), this, &ImageGeometryMenu::rotationSelection);
 }
 
-void ImageGeometryMenu::RotationSelection() {
+void ImageGeometryMenu::rotationSelection() {
+
 	if (m_rd == nullptr) {
-		m_rd = new RotationDialog(parentWidget());
-		connect(m_rd, &ProcessDialog::windowClosed, this, [this]() {m_rd = nullptr; });
+		m_rd = std::make_unique<RotationDialog>(parentWidget());
+		connect(m_rd.get(), &ProcessDialog::windowClosed, this, [this]() { m_rd.reset(); });
 	}
 }
 
-void ImageGeometryMenu::FastRotationSelection() {
+void ImageGeometryMenu::fastRotationSelection() {
+
 	if (m_frd == nullptr) {
-		m_frd = new FastRotationDialog(parentWidget());
-		connect(m_frd, &ProcessDialog::windowClosed, this, [this]() {m_frd = nullptr; });
+		m_frd = std::make_unique<FastRotationDialog>(parentWidget());
+		connect(m_frd.get(), &ProcessDialog::windowClosed, this, [this]() { m_frd.reset(); });
 	}
 }
 
-void ImageGeometryMenu::IntegerResampleSelection() {
+void ImageGeometryMenu::integerResampleSelection() {
+
 	if (m_irs == nullptr) {
 		m_irs = std::make_unique<IntegerResampleDialog>(parentWidget());
 		connect(m_irs.get(), &ProcessDialog::windowClosed, this, [this]() { m_irs.reset(); });
 	}
 }
 
-void ImageGeometryMenu::CropSelection() {
+void ImageGeometryMenu::cropSelection() {
+
 	if (m_cd == nullptr) {
 		m_cd = std::make_unique<CropDialog>(parentWidget());
 		connect(m_cd.get(), &ProcessDialog::windowClosed, this, [this]() {m_cd.reset(); });
 	}
 }
+
 
 
 
@@ -120,6 +128,7 @@ ImageStackingMenu::ImageStackingMenu(QWidget* parent) : QMenu(parent) {
 }
 
 void ImageStackingMenu::calibrationCombinationSelection() {
+
 	if (m_ccd == nullptr) {
 		m_ccd = std::make_unique<CalibrationCombinationDialog>(parentWidget());
 		connect(m_ccd.get(), &ProcessDialog::windowClosed, this, [this]() { m_ccd.reset(); });
@@ -153,37 +162,42 @@ void ImageStackingMenu::starAlignmentDialogSelection() {
 
 
 
+
 ImageTransformationsMenu::ImageTransformationsMenu(QWidget* parent) : QMenu(parent) {
+
 	this->setTitle("Image Transformations");
 	//this->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
-	this->addAction(tr("&Adaptive Stretch"), this, &ImageTransformationsMenu::AdaptiveStretchSelection);
-	this->addAction(tr("&ArcSinh Stretch"), this, &ImageTransformationsMenu::ArcSinhStretchSelection);
-	this->addAction(tr("&AutoHistogram"), this, &ImageTransformationsMenu::AutoHistogramSelection);
+	this->addAction(tr("&Adaptive Stretch"), this, &ImageTransformationsMenu::adaptiveStretchSelection);
+	this->addAction(tr("&ArcSinh Stretch"), this, &ImageTransformationsMenu::arcSinhStretchSelection);
+	this->addAction(tr("&AutoHistogram"), this, &ImageTransformationsMenu::autoHistogramSelection);
 	this->addAction(tr("&Binerize"), this, &ImageTransformationsMenu::binerizeSelection);
 	this->addAction(tr("&Color Saturation"), this, &ImageTransformationsMenu::colorSaturationSelection);
-	this->addAction(tr("&Curve Transformation"), this, &ImageTransformationsMenu::CurvesTransformationSelection);
-	this->addAction(tr("&Historgram Transformation"), this, &ImageTransformationsMenu::HistogramTransformationSelection);
-	this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformationsMenu::LocalHistogramEqualizationSelection);
+	this->addAction(tr("&Curve Transformation"), this, &ImageTransformationsMenu::curvesTransformationSelection);
+	this->addAction(tr("&Historgram Transformation"), this, &ImageTransformationsMenu::histogramTransformationSelection);
+	this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformationsMenu::localHistogramEqualizationSelection);
 }
 
-void ImageTransformationsMenu::AdaptiveStretchSelection() {
-	if (m_asd == nullptr) {
-		m_asd = new AdaptiveStretchDialog(parentWidget());
-		connect(m_asd, &ProcessDialog::windowClosed, this, [this]() {m_asd = nullptr; });
+void ImageTransformationsMenu::adaptiveStretchSelection() {
+
+	if (nullptr == m_asd) {
+		m_asd = std::make_unique<AdaptiveStretchDialog>(parentWidget());
+		connect(m_asd.get(), &ProcessDialog::windowClosed, this, [this]() { m_asd.reset(); });
 	}
 }
 
-void ImageTransformationsMenu::ArcSinhStretchSelection() {
+void ImageTransformationsMenu::arcSinhStretchSelection() {
+
 	if (m_ashd == nullptr) {
-		m_ashd = new ASinhStretchDialog(parentWidget());
-		connect(m_ashd, &ProcessDialog::windowClosed, this, [this]() {m_ashd = nullptr; });
+		m_ashd = std::make_unique<ASinhStretchDialog>(parentWidget());
+		connect(m_ashd.get(), &ProcessDialog::windowClosed, this, [this]() { m_ashd.reset(); });
 	}
 }
 
-void ImageTransformationsMenu::AutoHistogramSelection() {
+void ImageTransformationsMenu::autoHistogramSelection() {
+
 	if (m_ahd == nullptr) {
-		m_ahd = new AutoHistogramDialog(parentWidget());
-		connect(m_ahd, &ProcessDialog::windowClosed, this, [this]() {m_ahd = nullptr; });
+		m_ahd = std::make_unique<AutoHistogramDialog>(parentWidget());
+		connect(m_ahd.get(), &ProcessDialog::windowClosed, this, [this]() { m_ahd.reset(); });
 	}
 }
 
@@ -203,27 +217,30 @@ void ImageTransformationsMenu::colorSaturationSelection() {
 	}
 }
 
-void ImageTransformationsMenu::CurvesTransformationSelection() {
+void ImageTransformationsMenu::curvesTransformationSelection() {
+
 	if (m_ctd == nullptr) {
-		m_ctd = new CurveTransformDialog(parentWidget());
-		connect(m_ctd, &ProcessDialog::windowClosed, this, [this]() {m_ctd = nullptr; });
+		m_ctd = std::make_unique<CurvesTransformationDialog>(parentWidget());
+		connect(m_ctd.get(), &ProcessDialog::windowClosed, this, [this]() { m_ctd.reset(); });
 	}
 }
 
-void ImageTransformationsMenu::HistogramTransformationSelection() {
+void ImageTransformationsMenu::histogramTransformationSelection() {
 	if (m_ht == nullptr) {
-		m_ht = new HistogramTransformationDialog(parentWidget());
-		connect(m_ht, &ProcessDialog::windowClosed, this, [this]() {m_ht = nullptr; });
+		m_ht = std::make_unique<HistogramTransformationDialog>(parentWidget());
+		connect(m_ht.get(), &ProcessDialog::windowClosed, this, [this]() { m_ht.reset(); });
 	}
 }
 
-void ImageTransformationsMenu::LocalHistogramEqualizationSelection() {
+void ImageTransformationsMenu::localHistogramEqualizationSelection() {
 
 	if (m_lhed == nullptr) {
-		m_lhed = new LocalHistogramEqualizationDialog(parentWidget());
-		connect(m_lhed, &LocalHistogramEqualizationDialog::windowClosed, this, [this]() {m_lhed = nullptr; });
+		m_lhed = std::make_unique<LocalHistogramEqualizationDialog>(parentWidget());
+		connect(m_lhed.get(), &LocalHistogramEqualizationDialog::windowClosed, this, [this]() { m_lhed.reset(); });
 	}
 }
+
+
 
 
 
@@ -240,6 +257,8 @@ void WaveletTransformationMenu::waveletLayersSelection() {
 		connect(m_wld.get(), &ProcessDialog::windowClosed, this, [this]() { m_wld.reset(); });
 	}
 }
+
+
 
 
 
@@ -269,10 +288,11 @@ void MaskMenu::starMaskSelection() {
 
 
 
+
 MorphologyMenu::MorphologyMenu(QWidget* parent) : QMenu(parent) {
 	
 	this->setTitle(tr("&Morphology"));
-	this->addAction(tr("Bilateral Filter"), this, &MorphologyMenu::BilateralFilterSelection);
+	this->addAction(tr("Bilateral Filter"), this, &MorphologyMenu::bilateralFilterSelection);
 	this->addAction(tr("Gaussian Filter"), this, &MorphologyMenu::GaussianBlurSelection);
 	this->addAction(tr("Morphological Transformations"), this, &MorphologyMenu::MorphologicalTransformationsSelection);
 	this->addAction(tr("Canny Edge Detection"), this, &MorphologyMenu::EdgeDetectionSelection);
@@ -281,24 +301,24 @@ MorphologyMenu::MorphologyMenu(QWidget* parent) : QMenu(parent) {
 void MorphologyMenu::MorphologicalTransformationsSelection() {
 	
 	if (m_mtd == nullptr) {
-		m_mtd = new MorphologicalTransformationDialog(parentWidget());
-		connect(m_mtd, &ProcessDialog::windowClosed, this, [this]() { m_mtd = nullptr; });
+		m_mtd = std::make_unique<MorphologicalTransformationDialog>(parentWidget());
+		connect(m_mtd.get(), &ProcessDialog::windowClosed, this, [this]() { m_mtd.reset(); });
 	}
 }
 
 void MorphologyMenu::GaussianBlurSelection() {
 	
 	if (m_gfd == nullptr) {
-		m_gfd = new GaussianFilterDialog(parentWidget());
-		connect(m_gfd, &ProcessDialog::windowClosed, this, [this]() { m_gfd = nullptr; });
+		m_gfd = std::make_unique<GaussianFilterDialog>(parentWidget());
+		connect(m_gfd.get(), &ProcessDialog::windowClosed, this, [this]() { m_gfd.reset(); });
 	}
 }
 
-void MorphologyMenu::BilateralFilterSelection() {
+void MorphologyMenu::bilateralFilterSelection() {
 	
 	if (m_bfd == nullptr) {
-		m_bfd = new BilateralFilterDialog(parentWidget());
-		connect(m_bfd, &ProcessDialog::windowClosed, this, [this]() { m_bfd = nullptr; });
+		m_bfd = std::make_unique<BilateralFilterDialog>(parentWidget());
+		connect(m_bfd.get(), &ProcessDialog::windowClosed, this, [this]() { m_bfd.reset(); });
 	}
 }
 
@@ -314,9 +334,27 @@ void MorphologyMenu::EdgeDetectionSelection() {
 
 
 
-void ProcessMenu::CreateProcessMenu() {
+NoiseReductionMenu::NoiseReductionMenu(QWidget* parent) : QMenu(parent) {
 
-	m_abg_extraction = new BackgroundExtraction(parentWidget());
+	this->setTitle(tr("&Noise Reduction"));
+	this->addAction(tr("SCNR"), this, &NoiseReductionMenu::scnrSelection);
+}
+
+void NoiseReductionMenu::scnrSelection() {
+
+	if (m_scnrd == nullptr) {
+		m_scnrd = std::make_unique<SCNRDialog>(parentWidget());
+		connect(m_scnrd.get(), &ProcessDialog::windowClosed, this, [this]() { m_scnrd.reset(); });
+	}
+}
+
+
+
+
+
+void ProcessMenu::createProcessMenu() {
+
+	m_abg_extraction = new BackgroundExtractionMenu(parentWidget());
 	this->addMenu(m_abg_extraction);
 
 	m_color = new ColorMenu(parentWidget());
@@ -339,7 +377,13 @@ void ProcessMenu::CreateProcessMenu() {
 
 	m_morphology = new MorphologyMenu(parentWidget());
 	this->addMenu(m_morphology);
+
+	m_noise_reduction_menu = new NoiseReductionMenu(parentWidget());
+	this->addMenu(m_noise_reduction_menu);
 }
+
+
+
 
 
 void MenuBar::onWindowClose() {
@@ -358,12 +402,9 @@ MenuBar::MenuBar(QWidget *parent): QMenuBar(parent) {
 	QPalette pal;
 	pal.setColor(QPalette::Window, QColor(169, 169, 169));
 	setPalette(pal);
-	//this->
-	//this->setStyleSheet(" QMenuBar::item:selected{background: #696969}; background-color: #D3D3D3; color:black;");
 
-	AddFileMenu();
-	AddProcessMenu();
-
+	addFileMenu();
+	addProcessMenu();
 }
 
 
@@ -457,7 +498,7 @@ void MenuBar::SaveAs() {
 	}
 }
 
-void MenuBar::AddFileMenu() {
+void MenuBar::addFileMenu() {
 
 	filemenu = this->addMenu(tr("&File"));
 	filemenu->setPalette(palette());
@@ -470,33 +511,10 @@ void MenuBar::AddFileMenu() {
 
 	save->setEnabled(false);
 	save_as->setEnabled(false);
-
 }
 
-void MenuBar::AddProcessMenu() {
+void MenuBar::addProcessMenu() {
 
 	m_process = new ProcessMenu(parentWidget());
-	//m_process->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
-
 	this->addMenu(m_process);
-	//m_process->CreateProcessMenu();
-	//processmenu = this->addMenu(tr("&Process"));
-	//stretch_image = processmenu->addMenu(tr("Stretch Image"));
-	//processmenu->CreateProcessMenu();
-}
-
-void MenuBar::AddAction() {
-
-	AddFileMenu();
-
-	//QPalette pal = palette();
-	//pal.setColor(QPalette::Base, QColor("#696969"));
-	//this->setPalette(pal);
-	//this->setAutoFillBackground(true);
-	//order can matter when it comes to style sheets
-	//QString mbss;
-	//this->actions().at(0)->setDisabled(true);
-	//this->setStyleSheet(" QMenuBar::item:selected{background: #696969}; background-color: #D3D3D3; color:black;");// selection - background - color: #696969");
-	//filemenu->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
-	//this->setStyleSheet("QMenuBar::item:selected{background: red} ");
 }

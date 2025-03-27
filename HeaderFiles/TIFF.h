@@ -144,7 +144,7 @@ private:
     };
 
     IFD ifd;
-    int m_data_pos = 8;
+    uint32_t m_data_pos = 8;
     bool byteswap = false;
 
     PlanarConfig m_planar_config = PlanarConfig::Contiguous;
@@ -152,9 +152,9 @@ private:
     std::vector<uint32_t> m_strip_offsets;
     std::vector<uint32_t> m_strip_byte_counts;
 
+    uint32_t dataPosition()const { return m_data_pos; }
 public:
-
-    TIFF() = default;
+    TIFF() : ImageFile(Type::TIFF) {}
 
     TIFF(TIFF&& other) noexcept : ImageFile(std::move(other)) {
 
@@ -176,12 +176,18 @@ public:
         return (ext == ".tiff" || ext == ".tif");
     }
 
+    PlanarConfig planarConfig()const { return m_planar_config; }
+
 private:
     void getStripVectors();
 
     void makeStripVectors(ImageType type);
 
     ImageType imageTypefromFile();
+
+    const std::vector<uint32_t>& stripOffsets()const { return m_strip_offsets; }
+
+    const std::vector<uint32_t>& stripByteCounts()const { return m_strip_byte_counts; }
 
 public:
     FieldType tiffType(TIFFTAG tag);
@@ -198,13 +204,16 @@ public:
 
     void close() override;
 
+private:
     template< typename T>
     void readScanLine(T* buffer, uint32_t row, uint32_t channel = 0) {
 
-        //m_stream.seekg(m_strip_offsets[row] + channel * m_px_count * sizeof(T));
-        m_stream.seekg(m_strip_offsets[row]);
-        m_stream.read((char*)buffer, m_strip_byte_counts[row]);
+        m_stream.seekg(stripOffsets()[row] + (channel * pxCount()));
+        m_stream.read((char*)buffer, stripByteCounts()[row]);
     }
+
+public:
+    void readScanLine_toFloat(float* dst, uint32_t row, uint32_t channel = 0);
 
     template<typename T>
     void read(Image<T>& dst);

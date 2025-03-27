@@ -48,11 +48,15 @@ class PixelValueLabel : public QLabel {
 
 		return txt;
 	}
+	
+	void addPixelValue(QString& txt, const Image8* img, const QPointF& p);
 
 public:
 	PixelValueLabel(QWidget* parent);
 
-	void displayText(QMdiSubWindow* window, const QPointF& p);
+	void displayText(const Image8* img, const QPointF& p);
+
+	void displayPreviewText(const Image8* img, const QPointF& p, float factor, const QPointF offset = QPointF(0,0));
 };
 
 

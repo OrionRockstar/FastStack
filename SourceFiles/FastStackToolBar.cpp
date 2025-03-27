@@ -43,25 +43,12 @@ void ImageInformationLabel::displayText(const QMdiSubWindow* window) {
 }
 
 
+
+
+
 PixelValueLabel::PixelValueLabel(QWidget* parent) : QLabel(parent) {}
 
-void PixelValueLabel::displayText(QMdiSubWindow* window, const QPointF& p) {
-
-    if (window == nullptr)
-        return this->setText("");
-
-    const Image8* img = &imageRecast(window->widget())->source();
-
-    if (!img->isInBounds(p.x(), p.y()))
-        return this->setText("");
-
-    QString txt = "";
-    txt += m_xStr;
-    txt += QString::number(p.x(),'f',2) + "   ";
-    txt += m_yStr;
-    txt += QString::number(p.y(), 'f', 2) + "      ";
-
-    //Image8* img = &imageRecast(window->widget())->source();
+void PixelValueLabel::addPixelValue(QString& txt, const Image8* img, const QPointF& p) {
 
     switch (img->type()) {
     case ImageType::UBYTE: {
@@ -79,11 +66,46 @@ void PixelValueLabel::displayText(QMdiSubWindow* window, const QPointF& p) {
         break;
     }
     }
-    //if (img.channels() == 1)
-        //txt += m_KStr + QString::number(img(p.x(), p.y()));
-    
+}
+
+void PixelValueLabel::displayText(const Image8* img, const QPointF& p) {
+
+    if (img == nullptr)
+        return this->setText("");
+
+    if (!img->isInBounds(p.x(), p.y()))
+        return this->setText("");
+
+    QString txt = "";
+    txt += m_xStr;
+    txt += QString::number(p.x(),'f',2) + "   ";
+    txt += m_yStr;
+    txt += QString::number(p.y(), 'f', 2) + "      ";
+    addPixelValue(txt, img, p);
+
     this->setText(txt);
 }
+
+void PixelValueLabel::displayPreviewText(const Image8* img, const QPointF& p, float factor, const QPointF offset) {
+
+    if (img == nullptr)
+        return this->setText("");
+
+    if (!img->isInBounds(p.x(), p.y()))
+        return this->setText("");
+
+    QString txt = "";
+    txt += m_xStr;
+    txt += QString::number(int(p.x() * factor + offset.x()), 'f', 2) + "   ";
+    txt += m_yStr;
+    txt += QString::number(int(p.y() * factor + offset.y()), 'f', 2) + "      ";
+    addPixelValue(txt, img, p);
+
+    this->setText(txt);
+}
+
+
+
 
 
 FastStackToolBar::FastStackToolBar(QWidget* parent) : QToolBar(parent) {

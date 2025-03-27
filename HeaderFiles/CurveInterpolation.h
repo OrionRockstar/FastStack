@@ -178,6 +178,10 @@ public:
 };
 
 
+
+
+
+
 struct XRGB {
 	int x = 0;
 	uint8_t red = 0;
@@ -231,7 +235,6 @@ class GradientImage {
 
 	Matrix m_coef;
 	QImage m_src;
-	//QPixmap m_pix;
 
 	Qt::Orientation m_direction = Qt::Horizontal;
 
@@ -268,6 +271,9 @@ public:
 
 	void cutCorners(Corner_t corner_flags = Corner::none);
 };
+
+
+
 
 
 class CurveScene : public QGraphicsScene {

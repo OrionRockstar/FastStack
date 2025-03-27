@@ -40,37 +40,37 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\StarMatching.cpp">
+    <ClCompile Include="SourceFiles\Core\StarMatching.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Homography.cpp">
+    <ClCompile Include="SourceFiles\Core\Homography.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Image.cpp">
+    <ClCompile Include="SourceFiles\Core\Image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\ImageOperations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Drizzle.cpp">
+    <ClCompile Include="SourceFiles\Core\Drizzle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Matrix.cpp">
+    <ClCompile Include="SourceFiles\Core\Matrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\StarDetector.cpp">
+    <ClCompile Include="SourceFiles\Core\StarDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\Wavelet.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\HistogramTransformation.cpp">
+    <ClCompile Include="SourceFiles\Core\HistogramTransformation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\CurveInterpolation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\CurvesTransformation.cpp">
+    <ClCompile Include="SourceFiles\Core\CurvesTransformation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\ImageWindow.cpp">
@@ -91,73 +91,73 @@
     <ClCompile Include="SourceFiles\TIFF.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\LocalHistogramEqualization.cpp">
+    <ClCompile Include="SourceFiles\Core\LocalHistogramEqualization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProcessDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\AdaptiveStretch.cpp">
+    <ClCompile Include="SourceFiles\Core\AdaptiveStretch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\AutomaticBackgroundExtraction.cpp">
+    <ClCompile Include="SourceFiles\Core\AutomaticBackgroundExtraction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ImageStackingDialog.cpp">
+    <ClCompile Include="SourceFiles\Gui\ImageStackingDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\MorphologicalTransformation.cpp">
+    <ClCompile Include="SourceFiles\Core\MorphologicalTransformation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\ImageCalibration.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ImageStacking.cpp">
+    <ClCompile Include="SourceFiles\Core\ImageStacking.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\ImageFileReader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Workspace.cpp">
+    <ClCompile Include="SourceFiles\Gui\Workspace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ImageGeometry.cpp">
+    <ClCompile Include="SourceFiles\Core\ImageGeometry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ImageGeometryDialogs.cpp">
+    <ClCompile Include="SourceFiles\Gui\ImageGeometryDialogs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\GaussianFilter.cpp">
+    <ClCompile Include="SourceFiles\Core\GaussianFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\BilateralFilter.cpp">
+    <ClCompile Include="SourceFiles\Core\BilateralFilter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\RangeMask.cpp">
+    <ClCompile Include="SourceFiles\Core\RangeMask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\AutoHistogram.cpp">
+    <ClCompile Include="SourceFiles\Core\AutoHistogram.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\EdgeDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ColorSaturation.cpp">
+    <ClCompile Include="SourceFiles\Core\ColorSaturation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\LRGBCombination.cpp">
+    <ClCompile Include="SourceFiles\Core\LRGBCombination.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ChannelCombination.cpp">
+    <ClCompile Include="SourceFiles\Core\ChannelCombination.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\FastStackToolBar.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\StarMask.cpp">
+    <ClCompile Include="SourceFiles\Core\StarMask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Binerize.cpp">
+    <ClCompile Include="SourceFiles\Core\Binerize.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\StarAlignment.cpp">
@@ -166,48 +166,108 @@
     <ClCompile Include="SourceFiles\ImageIntegrationProcess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Statistics.cpp">
+    <ClCompile Include="SourceFiles\Gui\Statistics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ASinhStretch.cpp">
+    <ClCompile Include="SourceFiles\Core\ASinhStretch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="CustomWidgets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\HistogramTransformationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\AdaptiveStretchDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\ASinhStretchDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\AutoHistogramDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\MorphologicalTransformationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\AutomaticBackgroundExtractionDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\CurvesTransformationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\LocalHistogramEqualizationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\BilateralFilterDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\BinerizeDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\ColorSaturationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\StarMaskDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\GaussianFilterDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\RangeMaskDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\WaveletLayersDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageWindowMenu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\ChannelCombinationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\LRGBCombinationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SCNR.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SCNRDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HeaderFiles\StarMatching.h">
+    <ClInclude Include="HeaderFiles\Core\StarMatching.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Homography.h">
+    <ClInclude Include="HeaderFiles\Core\Homography.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Image.h">
+    <ClInclude Include="HeaderFiles\Core\Image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Interpolator.h">
+    <ClInclude Include="HeaderFiles\Core\Interpolator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\ImageOperations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Drizzle.h">
+    <ClInclude Include="HeaderFiles\Core\Drizzle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Matrix.h">
+    <ClInclude Include="HeaderFiles\Core\Matrix.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\RGBColorSpace.h">
+    <ClInclude Include="HeaderFiles\Core\RGBColorSpace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Maths.h">
+    <ClInclude Include="HeaderFiles\Core\Maths.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\GaussianFilter.h">
+    <ClInclude Include="HeaderFiles\Core\GaussianFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Star.h">
+    <ClInclude Include="HeaderFiles\Core\Star.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\Wavelet.h">
@@ -225,10 +285,10 @@
     <ClInclude Include="HeaderFiles\TIFF.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Histogram.h">
+    <ClInclude Include="HeaderFiles\Core\Histogram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\MorphologicalTransformation.h">
+    <ClInclude Include="HeaderFiles\Core\MorphologicalTransformation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\ImageCalibration.h">
@@ -237,25 +297,25 @@
     <ClInclude Include="HeaderFiles\ImageFileReader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\ImageGeometry.h">
+    <ClInclude Include="HeaderFiles\Core\ImageGeometry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\ImageGeometryDialogs.h">
+    <ClInclude Include="HeaderFiles\Gui\ImageGeometryDialogs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\EdgeDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\LRGBCombination.h">
+    <ClInclude Include="HeaderFiles\Core\LRGBCombination.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\FastStackToolBar.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\StarMask.h">
+    <ClInclude Include="HeaderFiles\Core\StarMask.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\StarDetector.h">
+    <ClInclude Include="HeaderFiles\Core\StarDetector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\ImageIntegrationProcess.h">
@@ -291,19 +351,76 @@
     <ClInclude Include="Header Files\CurvesTransformation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\AutoHistogram.h">
+    <ClInclude Include="HeaderFiles\Core\AutoHistogram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\BilateralFilter.h">
+    <ClInclude Include="HeaderFiles\Core\BilateralFilter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\Binerize.h">
+    <ClInclude Include="HeaderFiles\Core\Binerize.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\Bitmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\ChannelCombination.h">
+    <ClInclude Include="HeaderFiles\Core\ChannelCombination.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\HistogramTransformation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\AdaptiveStretch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\ASinhStretch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\AutoHistogramDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\MorphologicalTransformationDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\AutomaticBackgroundExtraction.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\CurvesTransformation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\LocalHistogramEqualization.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\BilateralFilterDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\BinerizeDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\ColorSaturation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\StarMaskDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\GaussianFilterDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\RangeMask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\WaveletLayersDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\ChannelCombinationDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\LRGBCombinationDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SCNR.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SCNRDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -317,52 +434,55 @@
     <QtMoc Include="HeaderFiles\SaveFileOptionsWindows.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\HistogramTransformation.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\LocalHistogramEqualization.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
     <QtMoc Include="ProcessDialog.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\Workspace.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\RangeMask.h">
+    <QtMoc Include="HeaderFiles\Gui\Workspace.h">
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="HeaderFiles\StarAlignment.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\ImageStackingDialog.h">
+    <QtMoc Include="HeaderFiles\Gui\ImageStackingDialog.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\ImageStacking.h">
+    <QtMoc Include="HeaderFiles\Core\ImageStacking.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\Statistics.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\AdaptiveStretch.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\ASinhStretch.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\ColorSaturation.h">
-      <Filter>Header Files</Filter>
-    </QtMoc>
-    <QtMoc Include="HeaderFiles\CurvesTransformation.h">
+    <QtMoc Include="HeaderFiles\Gui\Statistics.h">
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="HeaderFiles\CurveInterpolation.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\AutomaticBackgroundExtraction.h">
+    <QtMoc Include="CustomWidgets.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="CustomWidgets.h">
+    <QtMoc Include="HeaderFiles\Gui\HistogramTransformationDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\AdaptiveStretchDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\ASinhStretchDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\AutomaticBackgroundExtractionDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\CurvesTransformationDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\LocalHistogramEqualizationDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\ColorSaturationDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\RangeMaskDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="ImageWindowMenu.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

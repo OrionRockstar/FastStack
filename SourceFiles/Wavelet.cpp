@@ -4,7 +4,7 @@
 #include "FastStack.h"
 #include "FITS.h"
 
-float Wavelet::WaveletHistogram::Median() {
+/*float Wavelet::WaveletHistogram::Median() {
 	int occurrences = 0;
 	int median1 = 0, median2 = 0;
 	int medianlength = m_count / 2;
@@ -46,7 +46,7 @@ float Wavelet::WaveletHistogram::Median() {
 
 float Wavelet::WaveletHistogram::MAD() {
 	return Median() + 1;
-}
+}*/
 
 const std::vector<float>& Wavelet::scalingFunctionKernel(ScalingFunction sf) const {
 	using enum ScalingFunction;
@@ -79,7 +79,7 @@ void Wavelet::atrous(uint8_t layer) {
 	float sfv_sum = 0;
 	for (float v : sfv)
 		sfv_sum += v;
-
+	
 	int left = -(int(sfv.size() - 1) / 2) * _2i;
 
 	for (int ch = 0; ch < m_source.channels(); ++ch) {
@@ -90,9 +90,9 @@ void Wavelet::atrous(uint8_t layer) {
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += m_source.at_mirrored(x + d, y, ch) * sfv[i];
+					sum += m_source.at_replicated(x + d, y, ch) * sfv[i];
 
-				m_wavelet(x, y, ch) = sum / sfv_sum;
+				m_wavelet(x, y, ch) = sum;
 			}
 
 #pragma omp parallel for
@@ -102,9 +102,9 @@ void Wavelet::atrous(uint8_t layer) {
 				float sum = 0;
 
 				for (int i = 0, d = left; i < sfv.size(); ++i, d += _2i)
-					sum += m_wavelet.at_mirrored(x, y + d, ch) * sfv[i];
+					sum += m_wavelet.at_replicated(x, y + d, ch) * sfv[i];
 
-				m_convolved(x, y, ch) = sum / sfv_sum;
+				m_convolved(x, y, ch) = sum;
 			}
 	}
 
@@ -122,9 +122,9 @@ void Wavelet::LinearNoiseReduction(float threshold, float amount) {
 
 	amount = fabsf(amount - 1);
 
-	for (int ch = 0; ch < m_wavelet.channels(); ++ch) {
+	/*for (int ch = 0; ch < m_wavelet.channels(); ++ch) {
 
-		WaveletHistogram histogram(m_wavelet, ch);
+		WaveletHistogram histogram (m_wavelet, ch);
 		float median = histogram.Median();
 		histogram = WaveletHistogram(m_wavelet, ch, median);
 		threshold *= histogram.MAD() / 0.6745;
@@ -133,12 +133,12 @@ void Wavelet::LinearNoiseReduction(float threshold, float amount) {
 			float val = fabsf(w);
 			w = (val < threshold) ? w * amount : getSign(w) * (val - threshold);
 		}
-	}
+	}*/
 }
 
 void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 
-	amount = fabsf(amount - 1);
+	/*amount = fabsf(amount - 1);
 
 	for (int ch = 0; ch < m_wavelet.channels(); ++ch) {
 
@@ -150,7 +150,7 @@ void Wavelet::MedianNoiseReduction(float threshold, float amount) {
 		for (float& w : image_channel(m_wavelet, ch))
 			w = (abs(w) < threshold) ? w * amount : w;
 
-	}
+	}*/
 
 }
 
@@ -294,7 +294,7 @@ template void Wavelet::MultiscaleMedianNR(Image32&, NRVector, int);*/
 double StructureMaps::kSigma(const Image32& img, float K, float eps, int n) {
 
 	std::vector<float> pixels(img.totalPxCount());
-	memcpy(&pixels[0], img.data.get(), img.totalPxCount() * sizeof(float));
+	memcpy(&pixels[0], img.data(), img.totalPxCount() * sizeof(float));
 
 	double s0 = 0;
 	for (int it = 0; it < n; ++it) {
@@ -331,8 +331,7 @@ Image8Vector StructureMaps::generateMaps(const Image<T>& img) {
 	Image8Vector star_imgs;
 	star_imgs.reserve(m_layers);
 
-	waveletInit(img);
-
+	img.copyTo(m_source);
 	m_source.RGBtoGray();
 
 	if (m_median_blur) {
@@ -351,7 +350,7 @@ Image8Vector StructureMaps::generateMaps(const Image<T>& img) {
 		m_wavelet.normalize();
 
 		float median = m_wavelet.computeMedian(0, true);
-		float avgdev = m_wavelet.computeAvgDev(0, median, true);
+		float avgdev = 1.4836 * m_wavelet.computeMAD(0, median, true);//m_wavelet.computeAvgDev(0, median, true);
 
 		float threshold = median + 3 * avgdev;
 
@@ -370,89 +369,3 @@ template Image8Vector StructureMaps::generateMaps(const Image8&);
 template Image8Vector StructureMaps::generateMaps(const Image16&);
 template Image8Vector StructureMaps::generateMaps(const Image32&);
 
-
-
-
-
-
-WaveletLayersDialog::WaveletLayersDialog(QWidget* parent) : ProcessDialog("WaveletLayers", QSize(350, 125), FastStack::recast(parent)->workspace(), false) {
-
-	connectToolbar(this, &WaveletLayersDialog::apply, &WaveletLayersDialog::showPreview, &WaveletLayersDialog::resetDialog);
-
-	m_layers_sb = new SpinBox(this);
-	m_layers_sb->move(150, 15);
-	m_layers_sb->addLabel(new QLabel("Wavelet layers:   ", this));
-	m_layers_sb->setRange(1, 6);
-	m_layers_sb->setValue(m_wavelet.layers());
-	connect(m_layers_sb, &QSpinBox::valueChanged, this, [this](int val) { m_wavelet.setLayers(val); });
-
-	m_residual_cb = new CheckBox("Residual", this);
-	m_residual_cb->move(225, 17);
-	connect(m_residual_cb, &QCheckBox::clicked, this, [this](bool v) { m_wavelet.setResidual(v); });
-
-	m_scaling_func_combo = new ComboBox(this);
-	m_scaling_func_combo->addItems({ "3x3 Linear Interpolation", "3x3 Small Scale", "5x5 B3 Spline","5x5 Gaussian" });
-	m_scaling_func_combo->setCurrentIndex(int(m_wavelet.scalingFuntion()));
-	m_scaling_func_combo->move(140, 55);
-	m_scaling_func_combo->addLabel(new QLabel("Scaling Function:   ", this));
-
-	connect(m_scaling_func_combo, &QComboBox::activated, this, [this](int index) { m_wavelet.setScalingFuntion(Wavelet::ScalingFunction(index)); });
-	//auto activate = [this](int index)
-
-	this->show();
-}
-
-void WaveletLayersDialog::resetDialog() {
-
-	m_wavelet = WaveletLayerCreator();
-
-	m_layers_sb->setValue(m_wavelet.layers());
-	m_residual_cb->setChecked(false);
-	m_scaling_func_combo->setCurrentIndex(int(m_wavelet.scalingFuntion()));
-}
-
-void WaveletLayersDialog::apply() {
-
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-
-	setEnabledAll(false);
-
-	std::vector<Image32> wavelet_vector;
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		wavelet_vector = m_wavelet.generateWaveletLayers(iwptr->source());
-		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		wavelet_vector = m_wavelet.generateWaveletLayers(iw16->source());
-		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		wavelet_vector = m_wavelet.generateWaveletLayers(iw32->source());
-		break;
-	}
-	}
-
-	for (int i = 0; i < wavelet_vector.size(); ++i) {
-
-		std::string name = "WaveletImage"  + std::to_string(i);
-		int count = 0;
-
-		for (auto sw : m_workspace->subWindowList()) {
-			auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
-			std::string img_name = ptr->name().toStdString();
-			if (name == img_name)
-				name += "_" + std::to_string(++count);
-		}
-
-		ImageWindow32* iw = new ImageWindow32(std::move(wavelet_vector[i]), QString::fromStdString(name), m_workspace);
-	}
-
-	setEnabledAll(true);
-}

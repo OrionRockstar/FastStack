@@ -207,13 +207,13 @@ template Image32 EdgeDetection::apply(const Image32&);
 
 
 
-EdgeDetectionDialog::EdgeDetectionDialog(QWidget* parent) :ProcessDialog("Canny Edge Detection", QSize(220, 180), FastStack::recast(parent)->workspace(), false) {
+EdgeDetectionDialog::EdgeDetectionDialog(QWidget* parent) :ProcessDialog("Canny Edge Detection", QSize(250, 160), FastStack::recast(parent)->workspace(), false) {
 	
 	connectToolbar(this, &EdgeDetectionDialog::apply, &EdgeDetectionDialog::showPreview, &EdgeDetectionDialog::resetDialog);
 
-	GroupBox* gb = new GroupBox("Operator", this);
-	gb->move(10, 10);
-	gb->resize(200, 135);
+	GroupBox* gb = new GroupBox("Operator", drawArea());
+	gb->move(15, 10);
+	gb->resize(220, 135);
 
 	QVBoxLayout* layout = new QVBoxLayout;
 	//QLabel* l = new QLabel("Operator:", this);
@@ -258,7 +258,7 @@ void EdgeDetectionDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	setEnabledAll(false);
+	enableSiblings(false);
 
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
@@ -282,5 +282,5 @@ void EdgeDetectionDialog::apply() {
 	}
 	}
 
-	setEnabledAll(true);
+	enableSiblings(true);
 }

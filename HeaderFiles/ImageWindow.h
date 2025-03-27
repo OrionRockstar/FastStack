@@ -2,11 +2,10 @@
 //#include "ui_ImageWindow.h"
 #include "Image.h"
 #include "HistogramTransformation.h"
-//#include "ProcessDialog.h"
 #include "CustomWidgets.h"
 #include "Statistics.h"
 #include "Interpolator.h"
-
+//#include "ProcessDialog.h"
 
 class CrossCursor : public QCursor {
 
@@ -38,6 +37,9 @@ public:
 };
 
 
+
+
+
 class PanCursor : public QCursor {
 
 	static QPixmap panCursor(const QSize& size = { 24,24 }) {
@@ -49,6 +51,9 @@ class PanCursor : public QCursor {
 public:
 	PanCursor() : QCursor(panCursor()) {}
 };
+
+
+
 
 
 class PencilCursor : public QCursor {
@@ -66,6 +71,7 @@ public:
 
 
 
+
 class ImageLabel : public QLabel {
 	Q_OBJECT
 
@@ -75,6 +81,7 @@ class ImageLabel : public QLabel {
 
 	const CrossCursor m_cross_cursor;
 	const PanCursor m_pan_cursor;
+	qreal m_opacity = 1.0;
 
 public:
 	ImageLabel(const QImage& img, QWidget* parent);
@@ -90,6 +97,9 @@ public:
 	void draw() { update(); }
 
 	void resetCursor() { this->setCursor(m_cross_cursor); }
+
+	void setOpacity(qreal opacity) { m_opacity = opacity; }
+
 signals:
 	void mousePos(const QPoint& p);
 
@@ -99,30 +109,11 @@ private:
 
 	void paintEvent(QPaintEvent* event);
 
-	void enterEvent(QEnterEvent* event);
-
-	void leaveEvent(QEvent* event);
-
 	bool eventFilter(QObject* object, QEvent* event);
 };
 
 
 
-
-
-class WindowSignals : public QWidget {
-	Q_OBJECT
-
-public:
-	WindowSignals() {}
-
-	~WindowSignals() {}
-
-signals:
-	void windowClosed();
-
-	void windowCreated();
-};
 
 
 class ImageInfoSignals : public QWidget {
@@ -136,65 +127,11 @@ public:
 signals:
 	void imageInfo(QMdiSubWindow* window);
 
-	void pixelValue(QMdiSubWindow* window, const QPointF p);
+	void pixelValue(const Image8* window, const QPointF& p);
+
+	void previewPixelValue(const Image8* img, const QPointF& p, float factor, const QPointF offset = QPointF(0,0));
 };
 
-
-
-class MaskSelectionDialog : public ProcessDialog {
-
-	QWidget* m_iw;
-
-	QLineEdit* m_current_mask;
-	ComboBox* m_new_mask;
-public:
-	MaskSelectionDialog(QWidget* image_window, QMdiArea* workspace_parent);
-
-private:
-	void resetDialog() {}
-
-	void showPreview() {}
-
-	void apply();
-};
-
-
-
-
-
-class ImageWindowMenu : public QMenu {
-	QWidget* m_parent;
-	QMdiArea* m_workspace;
-	QMenu* m_mask;
-
-	QButtonGroup* bg;
-	std::array<QColor, 8> m_mask_colors = { Qt::red, Qt::green, Qt::blue, Qt::yellow,
-										Qt::magenta, Qt::cyan, {255,165,0}, {127,0,255} };
-	std::array<QString, 8> m_color_names = { "Red","Green","Blue", "Yellow", 
-									    "Magenta", "Cyan", "Orange", "Violet" };
-
-	MaskSelectionDialog* m_msd = nullptr;
-public:
-
-	ImageWindowMenu(QMdiArea* workspace, QWidget* parent);
-
-private:
-	void removeMask();
-
-	void showMask(bool show = true);
-
-	void invertMask(bool invert = false);
-
-	void enableMask(bool enable = true);
-
-	void setMaskColor(const QColor& color);
-
-	void addMaskMenu();
-
-	void addSelectMaskSelection();
-
-	void addMaskColorSelection();
-};
 
 
 
@@ -204,9 +141,14 @@ class ImageWindowToolbar : public QWidget {
 	Q_OBJECT
 
 private:
+	const int m_width = 25;
+
+	QButtonGroup* m_bg = nullptr;
+
 	PushButton* m_img3D_pb = nullptr;
 	PushButton* m_stats_pb = nullptr;
 	PushButton* m_hist_pb = nullptr;
+	PushButton* m_reset_pb = nullptr;
 	CheckablePushButton* m_stf_pb = nullptr;
 	CheckablePushButton* m_zoom_win_pb = nullptr;
 
@@ -228,6 +170,8 @@ signals:
 
 	void histogramReleased();
 
+	void resetReleased();
+
 private:
 	void resizeEvent(QResizeEvent* e);
 };
@@ -238,12 +182,33 @@ private:
 
 class IWScrollArea : public QScrollArea {
 
+	const int m_scrollbar_thickness = style()->pixelMetric(QStyle::PixelMetric::PM_ScrollBarExtent);
+
+	QPalette m_pal;
 public:
 	IWScrollArea(QWidget* parent = nullptr) : QScrollArea(parent) {
-		this->setBackgroundRole(QPalette::ColorRole::Dark);
-		QString corner = "QAbstractScrollArea::corner{background-color: dark gray; }";
-		this->setStyleSheet(corner);
+
+		m_pal.setBrush(QPalette::Window, QColor(128, 128, 128));
+		this->setPalette(m_pal);
+		//this->setBackgroundRole(QPalette::ColorRole::Dark);
+		
+		//QString corner = "QAbstractScrollArea::corner{background-color: dark gray; }";
+		//this->setStyleSheet(corner);
 	}
+
+	void setOpaquePal() { 
+		m_pal.setBrush(QPalette::Window, QColor(128, 128, 128, 140));
+		m_pal.setBrush(QPalette::Button, QColor(128, 128, 128, 140));
+
+		this->setPalette(m_pal);
+	}
+
+	void unsetOpaquePal() { 
+		m_pal.setBrush(QPalette::Window, QColor(128, 128, 128));
+		this->setPalette(m_pal);
+	}
+
+	int scrollbarThickness()const { return m_scrollbar_thickness; }
 
 	QSize viewportSize()const {
 
@@ -267,173 +232,50 @@ private:
 
 
 
+
+
 class SubWindow : public QMdiSubWindow {
+
+
+	QPalette m_pal;
+	QPalette m_opaque_pal;
+	QTimer* m_timer = nullptr;
 
 public:
 	SubWindow(QWidget* widget);
-
-};
-
-
-class DialogTitleBar : public QWidget {
-	Q_OBJECT
-
-	const int m_titlebar_height = 28;
-	const int m_button_dim = m_titlebar_height;
-
-	const QPixmap pm = QApplication::windowIcon().pixmap(22, 22);
-
-	const QIcon m_shade_icon = QIcon("./Icons//shade-button-32.png");
-	const QIcon m_unshade_icon = QIcon("./Icons//unshade-button-32.png");
-
-	QButtonGroup* m_bg;
-	bool m_shaded = false;
-
-	QLabel* m_label = nullptr;
-	const int m_label_offset = 30;
-
-public:
-	DialogTitleBar(QWidget* parent) : QWidget(parent) {
-
-		this->setFixedHeight(m_titlebar_height);
-		this->setGeometry(0, 0, parent->width(), m_titlebar_height);
-
-		QPalette p;
-		p.setColor(QPalette::Window, QColor(69, 0, 128));
-		p.setColor(QPalette::Button, QColor(39, 39, 39));
-		p.setColor(QPalette::ButtonText, Qt::white);
-
-		this->setPalette(p);
-		this->setAutoFillBackground(true);
-
-		m_bg = new QButtonGroup(this);
-		m_bg->setExclusive(true);
-
-		m_bg->addButton(new PushButton(QIcon("./Icons//close-button-32.png"), "", this), 1);
-		connect(m_bg->button(1), &QPushButton::released, parent, &QWidget::close);
-
-		m_bg->addButton(new PushButton(m_shade_icon, "", this), 2);		
-		auto onShade = [this]() {
-
-			if (m_shaded == false) {
-				m_shaded = true;
-				m_bg->button(2)->setIcon(m_unshade_icon);
-				emit shadeWindow();
-			}
-
-			else {
-				m_shaded = false;
-				m_bg->button(2)->setIcon(m_shade_icon);
-				emit unshadeWindow();
-			}
-
-		};
-		connect(m_bg->button(2), &QPushButton::released, this, onShade);
-
-
-		for (auto button : m_bg->buttons()) {
-			button->setPalette(p);
-			button->resize(m_button_dim, m_button_dim);
-			button->move(width() - (m_bg->id(button) * m_button_dim), 0);
-		}
-
-		m_label = new QLabel("", this);
-		m_label->setFixedHeight(m_titlebar_height);
-		m_label->setGeometry(m_label_offset, 0, width() - (m_label_offset + m_button_dim), m_titlebar_height);
-		m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
-
-		this->show();
-	}
-
-signals:
-	void shadeWindow();
-
-	void unshadeWindow();
-
-public:
-	QString title()const { return m_label->text(); }
-
-	void setTitle(const QString& text) {
-		m_label->setText(text);
-	}
-
-	void resize(int width) {
-		QWidget::resize(width, m_titlebar_height);
-
-		for (auto button : m_bg->buttons())
-			button->move(width - (m_bg->id(button) * m_button_dim), 0);
-
-		m_label->setGeometry(m_label_offset,0, width - (m_label_offset + m_bg->buttons().size() * m_button_dim), m_titlebar_height);
-	}
-
+	
 private:
-	void paintEvent(QPaintEvent* e) {
-		QPainter p(this);
-		p.drawPixmap(3, 3, pm);
-	}
+	void makeOpaque();
+
+	//void mousePressEvent(QMouseEvent* e);
+
+	//void mouseMoveEvent(QMouseEvent* e);
+
+	//void mouseReleaseEvent(QMouseEvent* e);
 };
 
 
-class Prev : public QDialog {
-
-	const int m_titlebar_height = 30;
-
-	DialogTitleBar* m_titlebar;
-
-	QPoint m_start_pos;
-	bool m_moving = false;
-
-public:
-	Prev(QWidget* parent) : QDialog(parent) {
-		this->resize(200, 100);
-
-		m_titlebar = new DialogTitleBar(this);
-		m_titlebar->setTitle("Prev");
-
-		this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-		this->show();
-
-	}
-
-private:
-	void mousePressEvent(QMouseEvent* e) {
-		if (e->buttons() == Qt::LeftButton && childAt(e->pos()) == m_titlebar) {
-			m_start_pos = e->pos();
-			m_moving = true;
-		}
-	}
-
-	void mouseMoveEvent(QMouseEvent* e) {
-		if (e->buttons() == Qt::LeftButton && m_moving)
-			this->move(geometry().topLeft() + (e->pos() - m_start_pos));
-	}
-
-	void mouseReleaseEvent(QMouseEvent* e) {
-		if (e->button() == Qt::LeftButton)
-			m_moving = false;
-	}
-
-};
 
 
+
+class ZoomWindow;
 
 template<typename T> 
 class PreviewWindow;
 
-class ZoomWindow;
-
 template<typename T>
 class ImageWindow : public QWidget {
 
-	//Preview* pv;
-
-	QMdiArea* m_workspace;
-	SubWindow* m_sw_parent;
+	QMdiArea* m_workspace = nullptr;
+	SubWindow* m_sw_parent = nullptr;
 	ImageWindowToolbar* m_toolbar = nullptr;
+	//QTimer* m_timer;
 
 	int m_drows = 0;
 	int m_dcols = 0;
 	int m_dchannels = 0;
+
+	QSize m_default_size;
 
 	QString m_name;
 	Image<T> m_source;
@@ -448,7 +290,7 @@ class ImageWindow : public QWidget {
 	bool m_compute_stf = true;
 
 	const ImageWindow<uint8_t>* m_mask = nullptr;
-	QColor m_mask_color = { 127,0,255 };
+	QColor m_mask_color = Qt::cyan;// { 127, 0, 255 };
 	bool m_mask_enabled = true;
 	bool m_invert_mask = false;
 	bool m_show_mask = true;
@@ -457,8 +299,8 @@ class ImageWindow : public QWidget {
 	ScrollBar* m_sbX = nullptr;
 	ScrollBar* m_sbY = nullptr;
 
-	int m_min_factor_poll = -10;
-	int m_max_factor_poll = 30;
+	const int m_min_factor_poll = -10;
+	const int m_max_factor_poll = 30;
 	int m_factor_poll = -4;
 
 	double m_factor = 1.0 / abs(m_factor_poll);//0.25;
@@ -481,15 +323,18 @@ class ImageWindow : public QWidget {
 	Statistics::StatsVector m_sv;
 	Statistics::StatsVector m_sv_clipped;
 
-	QGraphicsOpacityEffect m_opacity_effect;
-
 	std::unique_ptr<HistogramDialog> m_hist_dialog;
 
 	std::unique_ptr<Image3DDialog> m_img3D_dialog;
+	std::unique_ptr<QWidget> m_swp;
+
 
 	const PencilCursor m_pencil_cursor;
 	bool m_draw_zoom_win = false;
+	QColor m_zwc = QColor(69, 0, 128);
 	std::unique_ptr<ZoomWindow> m_zoom_window;
+
+	QMetaObject::Connection m_connection;
 
 public:
 	WindowSignals* windowSignals()const { return m_ws.get(); }
@@ -500,7 +345,7 @@ public:
 
 	ImageWindow(Image<T>&& img, QString name, QWidget* parent = nullptr);
 
-	int computeZoomFactor(bool workspace = false)const;
+	int computeBinFactor(bool workspace = false)const;
 
 	int rows()const { return m_drows; }
 
@@ -522,7 +367,11 @@ public:
 
 	const ImageWindowToolbar* toolbar()const { return m_toolbar; }
 
+	Image<T>& source() { return m_source; }
+
 	const Image<T>& source()const { return m_source; }
+
+	QMdiArea* workspace()const { return m_workspace; }
 
 	QMdiSubWindow* subwindow()const { return m_sw_parent; }
 
@@ -553,6 +402,10 @@ public:
 
 	void setMaskColor(const QColor& color) { m_mask_color = color; displayImage(); }
 
+	QColor zoomWindowColor()const { return m_zwc; }
+
+	void setZoomWindowColor(const QColor& color);
+
 	bool previewExists()const { return (m_preview.get() != nullptr); }
 
 	PreviewWindow<T>* preview()const { return m_preview.get(); }
@@ -561,14 +414,16 @@ public:
 
 	void closePreview();
 
-	bool isZoomWindowActive()const { return (m_zoom_window != nullptr); }
-
 	void convertToGrayscale();
 
-private:
-	void mouseEnterMove_ImageLabel(const QPoint& p)const;
+	void setOpaque();
 
-	void mouseLeave_ImageLabel()const;
+	void unsetOpaque();
+
+private:
+	void resetWindowSize();
+
+	void mouseMove_ImageLabel(const QPoint& p)const;
 
 	void wheelEvent(QWheelEvent* event);
 
@@ -593,9 +448,9 @@ public:
 	void applyToSource(P& obj, void (P::* apply)(Image<T>&)) {
 
 		if (maskEnabled() && this->maskExists())
-			return this->applyWithMask<P>(obj, apply);
-
-		(obj.*apply)(m_source);
+			this->applyWithMask<P>(obj, apply);
+		else
+			(obj.*apply)(m_source);
 		//std::thread t(apply, &obj, std::ref(m_source));
 		//t.join();
 
@@ -605,6 +460,8 @@ public:
 		displayImage();
 		updateStatisticsDialog();
 		updateHistogramDialog();
+
+		emit m_ws->windowUpdated();
 	}
 
 	template<class P>
@@ -614,7 +471,7 @@ public:
 
 		(t.*apply)(m_source);
 
-		int factor = computeZoomFactor(true);
+		int factor = computeBinFactor(true);
 		m_factor_poll = (factor == 1) ? factor : -factor;
 		m_initial_factor = m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
 
@@ -625,13 +482,13 @@ public:
 			this->setWindowTitle("1:" + str + " " + m_name);
 
 		m_zoom_window.reset();
-		drawZoomWindow();
-
-		showScrollBars();
-		resizeImageLabel();
-		displayImage();
-
+		enableZoomWindowMode();
+		zoom(0, 0);
 		updateStatisticsDialog();
+		updateHistogramDialog();
+
+		emit m_iis->imageInfo(m_sw_parent);
+		emit m_ws->windowUpdated();
 	}
 
 private:
@@ -669,13 +526,7 @@ private:
 			applyMask<float>(mod);
 			break;
 		}
-
-		//showScrollBars();
-		resizeImageLabel();
-		displayImage();
-		updateStatisticsDialog();
 	}
-
 
 	void instantiateScrollBars();
 
@@ -778,10 +629,19 @@ private:
 
 	void showSTFImage();
 
-	void drawZoomWindow();
+	void enableZoomWindowMode();
 
 	void onZoomWindowClose();
+
+public:
+	template<typename Func>
+	void connectPreview(const QObject* receiver, Func func) {
+
+		disconnect(m_connection);
+		m_connection = connect(m_ws.get(), &WindowSignals::windowUpdated, receiver, func);
+	}
 };
+
 
 template<typename P = uint8_t>
 static ImageWindow<P>* imageRecast(QWidget* window) { return static_cast<ImageWindow<P>*>(window); }
@@ -805,45 +665,40 @@ class ZoomWindow : public QWidget {
 
 	const ImageWindow8* m_iw = nullptr;
 	const int m_pen_width = 2;
+	QColor m_pen_color = QColor(75, 0, 130);
 
-	QRect m_img_rect;
+	QRectF m_img_rect;
 
 	QPoint m_pos;
 	QMetaObject::Connection m_connection;
 
+	int penWidth()const { return m_pen_width; }
+
 public:
 	template<typename T>
-	ZoomWindow(const ImageWindow<T>& iw, QWidget* parent = nullptr) : m_iw(imageRecast<uint8_t>(&iw)), QWidget(parent) {
+	ZoomWindow(const QPoint& start_pos, const QColor& pen_color, const ImageWindow<T>& iw, QWidget* parent = nullptr) :m_pos(start_pos), m_pen_color(pen_color), m_iw(imageRecast<uint8_t>(&iw)), QWidget(parent) {
+		
+		this->setGeometry(QRect(m_pos, QSize(0, 0)));
+		update();
+		
 		this->setAttribute(Qt::WA_DeleteOnClose);
 		this->show();
 	}
 
-	template<typename T>
-	ZoomWindow(const ImageWindow<T>& iw, const QRect& geometry, QWidget* parent = nullptr) : m_iw(imageRecast<uint8_t>(&iw)), QWidget(parent) {
+	QColor penColor()const { return m_pen_color; }
 
-		this->setGeometry(geometry);
-		this->setAttribute(Qt::WA_DeleteOnClose);
-
-		double factor = iw.factor();
-		float x = geometry.x() / factor + m_iw->sourceOffsetX();
-		float y = geometry.y() / factor + m_iw->sourceOffsetY();
-		float w = geometry.width() / factor;
-		float h = geometry.height() / factor;
-
-		m_img_rect = QRect(x, y, w, h);
-
-		this->show();
+	void setPenColor(const QColor& color) { 
+		m_pen_color = color; 
+		update();
 	}
 
-	QRect frameRect()const;
+	QRect imageRect()const { return m_img_rect.toRect(); }
 
-	QRect imageRect()const { return m_img_rect; }
+	QRectF imageRectF()const { return m_img_rect; }
 
-	bool isInBounds(const QRect& rect)const;
+	void keepFrameInImage_draw(QRect& rect)const;
 
-	void keepFrameInImage(QRect& rect)const;
-
-	void startCorner(const QPoint& p);
+	void keepFrameInImage_move(QRect& rect)const;
 
 	void endCorner(const QPoint& p);
 
@@ -865,6 +720,8 @@ public:
 	}
 
 private:
+	void closeEvent(QCloseEvent* e);
+
 	void wheelEvent(QWheelEvent* e) { e->ignore(); }
 
 	void mousePressEvent(QMouseEvent* e);
@@ -879,44 +736,56 @@ private:
 
 
 
-class Preview : public SubWindow {
 
-	int m_bin_factor = 1;
+class PreviewImageLabel : public QLabel {
+	Q_OBJECT
 
-	int m_drows = 0;
-	int m_dcols = 0;
-	int m_dchannels = 0;
+	const QImage* m_image = nullptr;
+	const CrossCursor m_cross_cursor;
 
-	Image8* m_source;
-	ImageLabel* m_image_label;
-	QImage m_display;
+	double m_opacity = 1.0;
+	
+public:
+	PreviewImageLabel(const QImage& img, QWidget* parent);
 
-	QString m_process_type = "";
+	void removeImage() { m_image = nullptr; }
 
-	bool m_ingore_zoom_window = false;
+	void draw() { update(); }
 
-	const std::unique_ptr<WindowSignals> m_ws = std::make_unique<WindowSignals>();
+	void setOpacity(double opacity) { m_opacity = opacity; }
 
+signals:
+	void mousePos(const QPoint& p);
+
+	void mouseLeave();
+private:
+	void paintEvent(QPaintEvent* event);
 };
 
 
 
+
+
+
 template <typename T>
-class PreviewWindow: public QDialog {
+class PreviewWindow: public Dialog {
 
-	DialogTitleBar* m_titlebar;
-	QPoint m_start_pos;
-	bool m_moving = false;
-	//const ImageWindow<T>* m_parent_window
+	QPalette m_pal;
+	QPalette m_opaque_pal;
 
-	int m_bin_factor = 1;
+	const ImageWindow<T>* m_image_window = nullptr;
 
-	int m_drows = 0;
-	int m_dcols = 0;
-	int m_dchannels = 0;
+protected:
+	PreviewImageLabel* m_image_label = nullptr;
+
+private:
+	double m_scale_factor = 1.0f;
+
+	uint32_t m_drows = 0;
+	uint32_t m_dcols = 0;
+	uint32_t m_dchannels = 0;
 
 	Image<T> m_source;
-	ImageLabel* m_image_label;
 	QImage m_display;
 
 	QString m_process_type = "";
@@ -924,21 +793,24 @@ class PreviewWindow: public QDialog {
 	bool m_ingore_zoom_window = false;
 
 	const std::unique_ptr<WindowSignals> m_ws = std::make_unique<WindowSignals>();
+	const std::unique_ptr<ImageInfoSignals> m_iis = std::make_unique<ImageInfoSignals>();
+
+	QPointF m_zwtl = {0,0};
+
+	QMdiSubWindow* m_sw;
 
 public:
-	PreviewWindow(QWidget* parent = nullptr, bool ignore_zoom_window = false);
+	PreviewWindow(QWidget* image_window, bool ignore_zoom_window = false);
 
-	int binFactor()const { return m_bin_factor; }
+	uint32_t rows()const { return m_drows; }
 
-	int rows()const { return m_drows; }
+	uint32_t cols()const { return m_dcols; }
 
-	int cols()const { return m_dcols; }
-
-	int channels()const { return m_dchannels; }
+	uint32_t channels()const { return m_dchannels; }
 
 	ImageType type()const { return m_source.type(); }
 
-	ImageWindow<T>* parentWindow()const { return imageRecast<T>(parentWidget()); }
+	const ImageWindow<T>* imageWindow()const { return m_image_window; }
 
 	void setProcessType(QString process_type = "") { m_process_type = process_type; }
 
@@ -948,16 +820,12 @@ public:
 
 	bool isZoomWidnowIgnored()const { return m_ingore_zoom_window; }
 
-	QString title()const { return m_titlebar->title(); }
+	double scaleFactor()const { return m_scale_factor; }
 
-	void setTitle(const QString& text) { m_titlebar->setTitle(text); }
-
-	double zoomWindowScaleFactor()const;
-
-	void updateSourcefromZoomWindow();
+	double computeScaleFactor(const QSize& n_size, const QSize& draw_area_size)const;
 
 private:
-	void mousePressEvent(QMouseEvent* e);
+	void makeOpaque();
 
 	void mouseMoveEvent(QMouseEvent* e);
 
@@ -965,10 +833,11 @@ private:
 
 	void closeEvent(QCloseEvent* close);
 
-protected:
-	void updateSource();
+	bool eventFilter(QObject* obj, QEvent* e);
 
-	void resizePreview(int w, int h);
+	void resizeSource();
+
+	void updateSource();
 
 public:
 	void updatePreview(bool from_parent = true);
@@ -977,20 +846,21 @@ public:
 	void updatePreview(P& obj, void (P::* apply)(Image<T>&)) {
 
 		updateSource();
-
 		(obj.*apply)(m_source);
 
-		if (parentWindow()->maskEnabled() && parentWindow()->maskExists())
+		if (imageWindow()->maskEnabled() && imageWindow()->maskExists())
 			return updatePreview_Mask();
 
 		displayImage();
 	}
 
-	//bilateral filter & range_mask
+	//bilateral filter & abe
 	template<class P>
-	void updatePreview(P& obj, void (P::* apply)(const Image<T>&, Image<T>&, int)) {
+	void updatePreview(P& obj, void (P::* apply)(const Image<T>&, Image<T>&, float, const QPointF&)) {
 
-		(obj.*apply)(parentWindow()->source(), m_source, m_bin_factor);
+		updateSource();
+
+		(obj.*apply)(imageWindow()->source(), m_source, scaleFactor(), m_zwtl);
 		m_dchannels = m_source.channels();
 
 		displayImage();
@@ -1002,66 +872,52 @@ private:
 	template<typename P>
 	Image32 getMask() {
 
-		if (!m_ingore_zoom_window && parentWindow()->zoomWindow())
-			return getMaskZoomWindow<P>();
-
-		int factor2 = binFactor() * binFactor();
-
-		auto mwp = parentWindow()->mask();
+		auto mwp = imageWindow()->mask();
 		Image32 mask(rows(), cols(), mwp->channels());
 
 		const Image<P>* mask_source = reinterpret_cast<const Image<P>*>(&mwp->source());
-		for (int ch = 0; ch < mask.channels(); ++ch) {
-			for (int y = 0, y_s = 0; y < rows(); ++y, y_s += binFactor()) {
-				for (int x = 0, x_s = 0; x < cols(); ++x, x_s += binFactor()) {
 
-					double pix = 0;
+		float _s = 1 / scaleFactor();
 
-					for (int j = 0; j < binFactor(); ++j)
-						for (int i = 0; i < binFactor(); ++i)
-							pix += (*mask_source)(x_s + i, y_s + j, ch);
+		if (_s >= 1.0f) {
+			int f = _s;
+			int f2 = f * f;
 
-					mask(x, y, ch) = Pixel<float>::toType(P(pix / factor2));
+			for (int ch = 0; ch < channels(); ++ch) {
+				for (int y = 0; y < rows(); ++y) {
+					float y_s = y * _s + m_zwtl.y();
 
+					for (int x = 0; x < cols(); ++x) {
+						float x_s = x * _s + m_zwtl.x();
+
+						double pix = 0;
+
+						for (int j = 0; j < f; ++j)
+							for (int i = 0; i < f; ++i)
+								pix += (*mask_source)(x_s + i, y_s + j, ch);
+
+						mask(x, y, ch) = Pixel<float>::toType(P(pix / f2));
+					}
 				}
 			}
 		}
 
-		return mask;
-	}
+		else {
+			for (int ch = 0; ch < channels(); ++ch) {
+				for (int y = 0; y < rows(); ++y) {
+					int y_s = y * _s + m_zwtl.y();
 
-	template<typename P>
-	Image32 getMaskZoomWindow() {
+					for (int x = 0; x < cols(); ++x) {
+						int x_s = x * _s + m_zwtl.x();
 
-		QRect r = parentWindow()->zoomWindow()->imageRect();
-
-		double rx = double(width()) / r.width();
-		double ry = double(height()) / r.height();
-		double s = math::min(rx, ry);
-
-		auto mwp = parentWindow()->mask();
-		Image32 mask(rows(), cols(), mwp->channels());
-
-		double _s = 1 / s;
-
-		const Image<P>& mask_source = *reinterpret_cast<const Image<P>*>(&mwp->source());
-
-		for (uint32_t ch = 0; ch < mask.channels(); ++ch) {
-			for (int y = 0; y < rows(); ++y) {
-				double y_s = y * _s + r.y();
-
-				for (int x = 0; x < cols(); ++x) {
-					double x_s = x * _s + r.x();
-
-					mask(x, y, ch) = Interpolator(Interpolator::Type::bicubic_spline).interpolatePixel(mask_source, { x_s, y_s, ch });
+						mask(x, y, ch) = Pixel<float>::toType((*mask_source)(x_s, y_s, ch));
+					}
 				}
 			}
 		}
 
-		return mask;
+		return std::move(mask);
 	}
-
-	void ImagetoQImage_stf();
 
 protected:
 	void displayImage();

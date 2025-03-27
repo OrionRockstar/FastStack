@@ -26,7 +26,7 @@ public:
     FastStackToolBar* toolbar()const { return m_toolbar; }
 
     inline static FastStack* recast(QWidget* ptr) {
-        return reinterpret_cast<FastStack*>(ptr);
+        return dynamic_cast<FastStack*>(ptr);
     }
 
 private:

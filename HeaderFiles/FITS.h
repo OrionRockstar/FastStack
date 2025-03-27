@@ -51,7 +51,7 @@ class FITS : public ImageFile {
 
 public:
 
-	FITS() = default;
+	FITS() : ImageFile(Type::FITS) {};// = default;
 
 	FITS(FITS&& other) noexcept : ImageFile(std::move(other)) {
 		m_data_pos = other.m_data_pos;
@@ -62,6 +62,8 @@ private:
 	ImageType imageTypefromFile();
 
 public:
+	std::streampos dataPosition()const { return m_data_pos; }
+
 	static bool isFITS(std::filesystem::path file_name) {
 
 		std::string ext = file_name.extension().string();
@@ -82,10 +84,12 @@ public:
 
 	void readAny(Image32& dst);
 
+private:
 	template<typename T>
-	void readSome(T* buffer, const ImagePoint& start_point, int num_elements);
+	void readRow(T* dst, uint32_t row, uint32_t channel);
 
-	void readSome_Any(float* dst, const ImagePoint& start_point, int num_elements);
+public:
+	void readRow_toFloat(float* dst, uint32_t row, uint32_t channel);
 
 private:
 	template<typename T>

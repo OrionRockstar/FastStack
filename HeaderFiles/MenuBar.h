@@ -3,44 +3,55 @@
 #include "Image.h"
 #include "ImageWindow.h"
 
-#include "MorphologicalTransformation.h"
-
 #include "ImageCalibration.h"
 #include "ImageStackingDialog.h"
 
 #include "ImageGeometryDialogs.h"
-#include "GaussianFilter.h"
-#include "BilateralFilter.h"
-#include "EdgeDetection.h"
-#include "RangeMask.h"
-#include "StarMask.h"
 
-#include "AutomaticBackgroundExtraction.h"
+#include "AutomaticBackgroundExtractionDialog.h"
 
 //color menu
-#include "ChannelCombination.h"
-#include "LRGBCombination.h"
+#include "ChannelCombinationDialog.h"
+#include "LRGBCombinationDialog.h"
 
 
 //image transformation menu
-#include "HistogramTransformation.h"
-#include "AutoHistogram.h"
-#include "ASinhStretch.h"
-#include "ColorSaturation.h"
-#include "CurvesTransformation.h"
-#include "LocalHistogramEqualization.h"
-#include "AdaptiveStretch.h"
-#include "Binerize.h"
+#include "HistogramTransformationDialog.h"
+#include "AdaptiveStretchDialog.h"
+
+#include "ASinhStretchDialog.h"
+#include "AutoHistogramDialog.h"
+
+#include "ColorSaturationDialog.h"
+#include "CurvesTransformationDialog.h"
+#include "LocalHistogramEqualizationDialog.h"
+#include "BinerizeDialog.h"
 
 //
-#include "Wavelet.h"
+#include "WaveletLayersDialog.h"
 #include "StarAlignment.h"
 
-class BackgroundExtraction : public QMenu {
+//mask
+#include "RangeMaskDialog.h"
+#include "StarMaskDialog.h"
+
+//morphology
+#include "GaussianFilterDialog.h"
+#include "BilateralFilterDialog.h"
+#include "EdgeDetection.h"
+#include "MorphologicalTransformationDialog.h"
+
+//noise reduction
+#include "SCNRDialog.h"
+
+
+
+
+class BackgroundExtractionMenu : public QMenu {
 
     std::unique_ptr<AutomaticBackgroundExtractionDialog> m_abed;
 public:
-    BackgroundExtraction(QWidget* parent);
+    BackgroundExtractionMenu(QWidget* parent);
 private:
     void autoBackgroundExtractionSelection();
 };
@@ -62,9 +73,9 @@ private:
 
 class ImageGeometryMenu : public QMenu {
 
-    RotationDialog* m_rd = nullptr;
-    FastRotationDialog* m_frd = nullptr;
-    HomographyTransformationDialog* m_htd = nullptr;
+    std::unique_ptr<RotationDialog> m_rd;
+    std::unique_ptr<FastRotationDialog> m_frd;
+    //HomographyTransformationDialog* m_htd = nullptr;
     std::unique_ptr<IntegerResampleDialog> m_irs;
     std::unique_ptr<CropDialog> m_cd;
 
@@ -72,14 +83,18 @@ public:
     ImageGeometryMenu(QWidget* parent);
 
 private:
-    void RotationSelection();
+    void rotationSelection();
 
-    void FastRotationSelection();
+    void fastRotationSelection();
 
-    void IntegerResampleSelection();
+    void integerResampleSelection();
 
-    void CropSelection();
+    void cropSelection();
 };
+
+
+
+
 
 class ImageStackingMenu : public QMenu {
 
@@ -101,6 +116,46 @@ private:
     void starAlignmentDialogSelection();
 };
 
+
+
+
+
+class ImageTransformationsMenu : public QMenu {
+
+    std::unique_ptr<AdaptiveStretchDialog> m_asd;
+    std::unique_ptr<ASinhStretchDialog> m_ashd;
+    std::unique_ptr<AutoHistogramDialog> m_ahd;
+    std::unique_ptr<BinerizeDialog> m_bd;
+    std::unique_ptr<ColorSaturationDialog> m_csd;
+    std::unique_ptr<CurvesTransformationDialog> m_ctd;
+    std::unique_ptr<HistogramTransformationDialog> m_ht;
+    std::unique_ptr<LocalHistogramEqualizationDialog> m_lhed;
+
+public:
+    ImageTransformationsMenu(QWidget* parent);
+
+private:
+    void adaptiveStretchSelection();
+
+    void arcSinhStretchSelection();
+
+    void autoHistogramSelection();
+
+    void binerizeSelection();
+
+    void colorSaturationSelection();
+
+    void curvesTransformationSelection();
+
+    void histogramTransformationSelection();
+
+    void localHistogramEqualizationSelection();
+};
+
+
+
+
+
 class MaskMenu : public QMenu {
     std::unique_ptr<RangeMaskDialog> m_rmd;
     std::unique_ptr<StarMaskDialog> m_smd;
@@ -113,10 +168,14 @@ private:
     void starMaskSelection();
 };
 
+
+
+
+
 class MorphologyMenu : public QMenu {
-    MorphologicalTransformationDialog* m_mtd = nullptr;
-    BilateralFilterDialog* m_bfd = nullptr;
-    GaussianFilterDialog* m_gfd = nullptr;
+    std::unique_ptr<MorphologicalTransformationDialog> m_mtd;
+    std::unique_ptr<BilateralFilterDialog> m_bfd;
+    std::unique_ptr<GaussianFilterDialog> m_gfd;
     std::unique_ptr<EdgeDetectionDialog> m_edd;
 
 public:
@@ -127,43 +186,29 @@ private:
 
     void GaussianBlurSelection();
 
-    void BilateralFilterSelection();
+    void bilateralFilterSelection();
 
     void EdgeDetectionSelection();
 };
 
-class ImageTransformationsMenu : public QMenu {
-    Q_OBJECT
 
-    AdaptiveStretchDialog* m_asd = nullptr;
-    ASinhStretchDialog* m_ashd = nullptr;
-    AutoHistogramDialog* m_ahd = nullptr;
-    std::unique_ptr<BinerizeDialog> m_bd;
-    std::unique_ptr<ColorSaturationDialog> m_csd;
-    CurveTransformDialog* m_ctd = nullptr;
-    HistogramTransformationDialog* m_ht = nullptr;
-    LocalHistogramEqualizationDialog* m_lhed = nullptr;
+
+
+
+class NoiseReductionMenu : public QMenu {
+
+    std::unique_ptr<SCNRDialog> m_scnrd;
 
 public:
-    ImageTransformationsMenu(QWidget* parent);
+    NoiseReductionMenu(QWidget* parent);
 
 private:
-    void AdaptiveStretchSelection();
-
-    void ArcSinhStretchSelection();
-
-    void AutoHistogramSelection();
-
-    void binerizeSelection();
-
-    void colorSaturationSelection();
-
-    void CurvesTransformationSelection();
-
-    void HistogramTransformationSelection();
-
-    void LocalHistogramEqualizationSelection();
+    void scnrSelection();
 };
+
+
+
+
 
 class WaveletTransformationMenu : public QMenu {
     Q_OBJECT
@@ -179,24 +224,25 @@ private:
 
 class ProcessMenu : public QMenu {
 
-    QMenu* m_color;
-    QMenu* m_image_trans;
-    QMenu* m_morphology;
-    QMenu* m_abg_extraction;
-    QMenu* m_image_geometry;
-    QMenu* m_image_stacking;
-    QMenu* m_wavlet_trans = nullptr;
-    QMenu* m_mask;
+    QMenu* m_color = nullptr;
+    QMenu* m_image_trans = nullptr;
+    BackgroundExtractionMenu* m_abg_extraction = nullptr;
+    ImageGeometryMenu* m_image_geometry = nullptr;
+    ImageStackingMenu* m_image_stacking = nullptr;
+    WaveletTransformationMenu* m_wavlet_trans = nullptr;
+    MaskMenu* m_mask = nullptr;
+    MorphologyMenu* m_morphology = nullptr;
+    NoiseReductionMenu* m_noise_reduction_menu = nullptr;
 
 public:
 
     ProcessMenu(QWidget* parent) : QMenu(parent) {
         this->setTitle("Process");
-        CreateProcessMenu();
+        createProcessMenu();
     }
 
 private:
-    void CreateProcessMenu();
+    void createProcessMenu();
 };
 
 class MenuBar: public QMenuBar {
@@ -223,11 +269,9 @@ public:
 
     void SaveAs();
 
-    void AddFileMenu();
+    void addFileMenu();
 
-    void AddProcessMenu();
-
-	void AddAction();
+    void addProcessMenu();
 
 public slots:
 

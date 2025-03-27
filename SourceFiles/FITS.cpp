@@ -240,14 +240,11 @@ void FITS::open(std::filesystem::path path) {
 	if (!isFITSFile())
 		return;
 
-	//m_type = FileType::FITS;
-
 	m_fits_header.read(m_stream);
 
 	m_data_pos = m_fits_header.header_block.size() * 80;
 
 	m_img_type = imageTypefromFile();
-	//m_bitdepth = m_fits_header.keywordValue("BITPIX");
 
 	int naxis = m_fits_header.keywordValue("NAXIS");
 	m_cols = m_fits_header.keywordValue("NAXIS1");
@@ -266,7 +263,6 @@ void FITS::open(std::filesystem::path path) {
 void FITS::create(std::filesystem::path path) {
 
 	path += ".fits";
-
 	ImageFile::create(path);
 }
 
@@ -276,7 +272,6 @@ void FITS::close() {
 
 	m_fits_header = FITSHeader();
 	m_data_pos = 2880;
-
 }
 
 template<typename T>
@@ -284,22 +279,20 @@ void FITS::read(Image<T>& dst) {
 
 	dst = Image<T>(rows(), cols(), channels());
 
-	m_stream.seekg(m_data_pos);
+	m_stream.seekg(dataPosition());
+	m_stream.read((char*)dst.data(), dst.totalPxCount() * sizeof(T));
 
-	m_stream.read((char*)dst.data.get(), dst.totalPxCount() * sizeof(T));
-
-	if (m_img_type == ImageType::USHORT) {
+	if (imageType() == ImageType::USHORT) {
 		for (auto& pixel : dst)
 			pixel = _byteswap_ushort(pixel) + 32768;
 	}
 
-	else if (m_img_type == ImageType::FLOAT) {
+	else if (imageType() == ImageType::FLOAT) {
 		for (auto& pixel : dst)
 			pixel = byteswap_float(pixel);
-	}
 
-	if (dst.type() == ImageType::FLOAT)
 		dst.normalize();
+	}
 
 	close();
 }
@@ -309,9 +302,9 @@ template void FITS::read(Image32&);
 
 void FITS::readAny(Image32& dst) {
 
-	dst = Image32(m_rows, m_cols, m_channels);
+	dst = Image32(rows(), cols(), channels());
 
-	m_stream.seekg(m_data_pos);
+	m_stream.seekg(dataPosition());
 
 	switch (m_img_type) {
 	case ImageType::UBYTE: {
@@ -320,9 +313,7 @@ void FITS::readAny(Image32& dst) {
 
 		for (int ch = 0; ch < dst.channels(); ++ch) {
 			for (int y = 0; y < dst.rows(); ++y) {
-
 				m_stream.read((char*)buffer.data(), mem_size);
-
 				for (int x = 0; x < dst.cols(); ++x) {
 					dst(x, y, ch) = buffer[x] / 255.0f;
 				}
@@ -332,7 +323,7 @@ void FITS::readAny(Image32& dst) {
 	}
 
 	case ImageType::USHORT: {
-		std::vector<int16_t> buffer(dst.cols());
+		std::vector<uint16_t> buffer(dst.cols());
 		int mem_size = buffer.size() * sizeof(uint16_t);
 
 		for (int ch = 0; ch < dst.channels(); ++ch) {
@@ -347,10 +338,11 @@ void FITS::readAny(Image32& dst) {
 	}
 
 	case ImageType::FLOAT: {
-		m_stream.read((char*)dst.data.get(), dst.totalPxCount() * sizeof(float));
+		m_stream.read((char*)dst.data(), dst.totalPxCount() * sizeof(float));
 
 		for (auto& pixel : dst)
 			pixel = byteswap_float(pixel);
+
 		dst.normalize();
 		break;
 	}
@@ -360,52 +352,36 @@ void FITS::readAny(Image32& dst) {
 }
 
 template<typename T>
-void FITS::readSome(T* buffer, const ImagePoint& start_point, int num_elements) {
+void FITS::readRow(T* dst, uint32_t row, uint32_t channel) {
 
-	std::streampos offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x()) * sizeof(T);
-	m_stream.seekg(m_data_pos + offset);
-	m_stream.read((char*)buffer, num_elements * sizeof(T));
-
-	if (std::is_same<T, float>::value)
-		for (int x = 0; x < num_elements; ++x)
-			buffer[x] = byteswap_float(buffer[x]);
-
-	else if (std::is_same<T, uint16_t>::value)
-		for (int x = 0; x < num_elements; ++x)
-			buffer[x] = _byteswap_ushort(buffer[x]);
-
+	std::streampos offset = (channel * pxCount() + row * cols()) * sizeof(T);
+	m_stream.seekg(dataPosition() + offset);
+	m_stream.read((char*)dst, cols() * sizeof(T));
 }
-template void FITS::readSome(uint8_t*, const ImagePoint&, int);
-template void FITS::readSome(uint16_t*, const ImagePoint&, int);
-template void FITS::readSome(float*, const ImagePoint&, int);
 
-void FITS::readSome_Any(float* dst, const ImagePoint& start_point, int num_elements) {
+void FITS::readRow_toFloat(float* dst, uint32_t row, uint32_t channel) {
 
-	size_t offset = (start_point.channel() * m_px_count + start_point.y() * m_cols + start_point.x());
+	//if (row >= rows() || channel >= channels())
+		//return;
 
-	switch (m_img_type) {
+	switch (imageType()) {
 	case ImageType::UBYTE: {
-		std::vector<uint8_t> buff(num_elements);
-		m_stream.seekg(m_data_pos + std::streampos(offset));
-		m_stream.read((char*)buff.data(), num_elements);
-		for (int x = 0; x < num_elements; ++x)
-			dst[x] = Pixel<float>::toType(buff[x]);
+		std::vector<uint8_t> buffer(cols());
+		readRow(buffer.data(), row, channel);
+		for (int x = 0; x < cols(); ++x)
+			dst[x] = Pixel<float>::toType(buffer[x]);
 		return;
 	}
 	case ImageType::USHORT: {
-		std::vector<uint16_t> buffer(num_elements);
-		offset *= 2;
-		m_stream.seekg(m_data_pos + std::streampos(offset));
-		m_stream.read((char*)buffer.data(), num_elements * 2);
-		for (int x = 0; x < num_elements; ++x)
+		std::vector<uint16_t> buffer(cols());
+		readRow(buffer.data(), row, channel);
+		for (int x = 0; x < cols(); ++x)
 			dst[x] = Pixel<float>::toType(uint16_t(_byteswap_ushort(buffer[x]) + 32768));
 		return;
 	}
 	case ImageType::FLOAT: {
-		offset *= 4;
-		m_stream.seekg(m_data_pos + std::streampos(offset));
-		m_stream.read((char*)dst, num_elements * 4);
-		for (int x = 0; x < num_elements; ++x)
+		readRow(dst, row, channel);
+		for (int x = 0; x < cols(); ++x)
 			dst[x] = byteswap_float(dst[x]);
 		return;
 	}
@@ -416,7 +392,7 @@ template<typename T>
 void FITS::writePixels_8(const Image<T>& src) {
 
 	if (std::is_same<T, uint8_t>::value) {
-		m_stream.write((char*)src.data.get(), src.totalPxCount());
+		m_stream.write((char*)src.data(), src.totalPxCount());
 		return;
 	}
 

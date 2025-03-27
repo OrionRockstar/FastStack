@@ -2,13 +2,14 @@
 #include "ProcessDialog.h"
 #include "FastStack.h"
 #include "ImageWindow.h"
-#include "Interpolator.h"
+//#include "Interpolator.h"
+#include "HistogramTransformation.h"
 
 
 
-Toolbar::Toolbar(QWidget* parent, bool preview, bool apply_dd, bool apply) : m_preview(preview), m_apply_dd(apply_dd), m_apply(apply), QWidget(parent) {
+DialogToolbar::DialogToolbar(QWidget* parent, bool preview, bool apply_dd, bool apply) : m_preview(preview), m_apply_dd(apply_dd), m_apply(apply), QWidget(parent) {
 
-	this->setGeometry(0, parent->size().height() - m_button_size.height(), parent->size().width(), m_button_size.width());
+	//this->setGeometry(0, parent->size().height() - m_button_size.height(), parent->size().width(), m_button_size.width());
 	
 	addApplyDDButton();
 	addApplyButton();
@@ -25,9 +26,15 @@ Toolbar::Toolbar(QWidget* parent, bool preview, bool apply_dd, bool apply) : m_p
 	QPalette pal = QPalette();
 	pal.setColor(QPalette::Window, Qt::lightGray);
 	this->setPalette(pal);
+
+	this->move(0, parentWidget()->height() - m_toolbarHeight);
 }
 
-void Toolbar::addApplyDDButton() {
+void DialogToolbar::resize(int width) { QWidget::resize(width, m_toolbarHeight); }
+
+void DialogToolbar::setGeometry(int x, int y, int w) { QWidget::setGeometry(x, y, w, m_toolbarHeight); }
+
+void DialogToolbar::addApplyDDButton() {
 
 	m_apply_dd_pb = new PushButton("A2", this);
 	m_apply_dd_pb->setAutoDefault(false);
@@ -39,7 +46,7 @@ void Toolbar::addApplyDDButton() {
 
 }
 
-void Toolbar::addApplyButton() {
+void DialogToolbar::addApplyButton() {
 
 	m_apply_pb = new PushButton("A", this);
 	m_apply_pb->setAutoDefault(false);
@@ -56,7 +63,7 @@ void Toolbar::addApplyButton() {
 	m_apply_pb->setEnabled(m_apply);
 }
 
-void Toolbar::addPreviewButton() {
+void DialogToolbar::addPreviewButton() {
 
 	m_preview_pb = new PushButton("P", this);
 	m_preview_pb->setAutoDefault(false);
@@ -74,6 +81,28 @@ void Toolbar::addPreviewButton() {
 	m_preview_pb->setVisible(m_preview);
 	m_preview_pb->setEnabled(m_preview);
 }
+
+void DialogToolbar::resizeEvent(QResizeEvent* e) {
+
+	m_reset_pb->move(width() - m_button_size.width(), 0);
+
+	if (m_apply && m_apply_dd)
+		m_apply_pb->move(m_apply_dd_pb->width(), 0);
+
+	if (m_preview_pb) {
+		int sx = 0;
+		if (m_apply_dd)
+			sx += m_apply_dd_pb->width();
+		if (m_apply)
+			sx += m_apply_pb->width();
+
+		m_preview_pb->move(sx, 0);
+	}
+}
+
+
+
+
 
 
 
@@ -185,31 +214,55 @@ void TextDisplay::displayPSFData(uint16_t size, const PSF& psf) {
 
 
 
-ProcessDialog::ProcessDialog(QString name, const QSize& size, QMdiArea* parent_workspace, bool preview, bool apply_dd, bool apply) : QDialog(parent_workspace), m_name(name) {
+
+
+
+
+
+ProcessDialog::ProcessDialog(const QString& name, const QSize& size, QMdiArea* parent_workspace, bool preview, bool apply_dd, bool apply) : m_name(name), Dialog(parent_workspace) {
 
 	m_workspace = parent_workspace;
 
-	QIcon icon;
-	icon.addFile("./Icons//fast_stack_icon_fs2.png");
-	this->setWindowIcon(icon);
-	this->setWindowTitle(m_name);
-	
+	this->resize(size.width() + 2 * m_border_width, size.height() + DialogTitleBar::titleBarHeight() + DialogToolbar::toolbarHeight() + m_border_width);
+	this->setTitle(name);
 
-	this->setWindowOpacity(0.95);
-	installEventFilter(this);
+	drawArea()->setGeometry(QRect({ m_border_width, DialogTitleBar::titleBarHeight() }, size));
 
-	this->resize(size);
-	m_toolbar = new Toolbar(this, preview, apply_dd, apply);
-	m_timer = new Timer;
+	m_toolbar = new DialogToolbar(this, preview, apply_dd, apply);
+	m_toolbar->setGeometry(m_border_width, drawArea()->geometry().bottom(), size.width());
+	m_timer = std::make_unique<Timer>(100);
 
-	this->setFocus();
-	this->setFocusPolicy(Qt::FocusPolicy::StrongFocus);
-	this->setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
+	this->setWindowOpacity(m_default_opacity);
+
+	//this->setWindowFlags(Qt::WindowStaysOnTopHint);
+	//this->setWindowFlags(this->windowFlags() | Qt::WindowStaysOnTopHint);
 	this->setAttribute(Qt::WA_DeleteOnClose);
 }
 
-void ProcessDialog::startTimer() {
-	m_timer->start();
+void ProcessDialog::enableSiblings(bool enable) {
+	for (auto child : parentWidget()->children())
+		if (child->inherits("ProcessDialog"))
+			((QWidget*)child)->setEnabled(enable);
+	QApplication::processEvents();
+}
+
+void ProcessDialog::resizeDialog(const QSize& size) {
+
+	auto s = size + QSize(2 * m_border_width, DialogTitleBar::titleBarHeight() + DialogToolbar::toolbarHeight() + m_border_width);
+	QDialog::resize(s);
+	drawArea()->setGeometry(QRect({ m_border_width, DialogTitleBar::titleBarHeight() }, size));
+	m_toolbar->setGeometry(m_border_width, drawArea()->geometry().bottom(), size.width());
+}
+
+bool ProcessDialog::isPreviewValid()const {
+
+	if (m_workspace->subWindowList().size() == 0)
+		return false;
+
+	if (m_preview == nullptr)
+		return false;
+
+	return true;
 }
 
 void ProcessDialog::createDragInstance() {
@@ -223,10 +276,79 @@ void ProcessDialog::createDragInstance() {
 	Qt::DropAction dropAction = drag->exec(Qt::CopyAction | Qt::MoveAction);
 }
 
+void ProcessDialog::showPreview(bool ignore_zoomwindow) {
+
+	if (m_workspace->subWindowList().size() == 0)
+		return;
+
+	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+
+	for (auto sw : m_workspace->subWindowList()) {
+		auto iw = imageRecast<>(sw->widget());
+		if (iw->previewExists())
+			if (iw->preview()->processType() == name() || iw != iwptr)
+				return;
+	}
+
+	if (iwptr->previewExists()) {
+		auto type = previewRecast<>(iwptr->preview())->processType();
+		if (type == m_crop_image_str || type == m_abe_str)
+			return;
+	}
+
+
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		if (ignore_zoomwindow)
+			iwptr->showPreview(new PreviewWindow8(iwptr, true));
+		else
+			iwptr->showPreview();
+		break;
+	}
+	case ImageType::USHORT: {
+		auto iw16 = imageRecast<uint16_t>(iwptr);
+		if (ignore_zoomwindow)
+			iw16->showPreview(new PreviewWindow16(iw16, true));
+		else
+			iw16->showPreview();
+		break;
+	}
+	case ImageType::FLOAT: {
+		auto iw32 = imageRecast<float>(iwptr);
+		if (ignore_zoomwindow)
+			iw32->showPreview(new PreviewWindow32(iw32, true));
+		else
+			iw32->showPreview();
+		break;
+	}
+	}
+
+	connect(iwptr->preview()->windowSignals(), &WindowSignals::windowClosed, this, [this]() { m_preview = nullptr; });
+
+	//transfers preview to current process
+	for (auto child : m_workspace->children()) {
+		auto ptr = dynamic_cast<ProcessDialog*>(child);
+		if (ptr != nullptr) {
+			if (ptr->m_preview == iwptr->preview()) {
+				ptr->m_preview = nullptr;
+				break;
+			}
+		}
+	}
+	m_preview = iwptr->preview();
+
+	iwptr->preview()->setTitle(iwptr->name() + " Preview: " + name());
+	iwptr->preview()->setProcessType(name());
+
+	iwptr->connectPreview(m_obj, m_func);
+	if (!ignore_zoomwindow)
+		connectZoomWindow();
+}
+
 void ProcessDialog::closeEvent(QCloseEvent* close) {
 
 	m_preview = nullptr;
-	
+
 	for (auto sw : m_workspace->subWindowList()) {
 
 		auto iwptr = reinterpret_cast<ImageWindow8*>(sw->widget());
@@ -260,137 +382,29 @@ void ProcessDialog::closeEvent(QCloseEvent* close) {
 	close->accept();
 }
 
-void ProcessDialog::showPreview() {
+void ProcessDialog::czw()const {
+	auto ptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	ptr->zoomWindow()->connectZoomWindow(m_obj, m_func);
+}
 
-	if (m_workspace->subWindowList().size() == 0)
-		return;
+void ProcessDialog::connectZoomWindow() {
+
+	auto ws = dynamic_cast<Workspace*>(m_workspace);
+
+	auto ptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	if (ptr->zoomWindow())
+		ptr->zoomWindow()->connectZoomWindow(m_obj, m_func);
+
+	connect(ws, &Workspace::zoomWindowCreated, this, &ProcessDialog::czw);
+	connect(ws, &Workspace::zoomWindowClosed, m_obj, m_func);
+}
+
+const Image8* ProcessDialog::findImage(const QString& name) {
 
 	for (auto sw : m_workspace->subWindowList()) {
-		auto iw = imageRecast<>(sw->widget());
-		if (iw->previewExists())
-			if (iw->preview()->processType() == name())
-				return;
+		auto iw = reinterpret_cast<ImageWindow8*>(sw->widget());
+		if (name == iw->name())
+			return &iw->source();
 	}
-
-	//only allows one preview at all
-	/*for (auto child : m_workspace->children()) {
-		auto ptr = dynamic_cast<ProcessDialog*>(child);
-		if (ptr != nullptr)
-			if (ptr->m_preview != nullptr)
-				return;
-	}*/
-
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-
-	if (iwptr->previewExists()) {
-		auto type = previewRecast<>(iwptr->preview())->processType();
-		if (type == m_crop_image_str || type == m_abe_str)
-			return;
-	}
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		iwptr->showPreview();
-		connect(iwptr->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->showPreview();
-		connect(iw16->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		iw32->showPreview();
-		connect(iw32->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	}
-
-	iwptr->preview()->setTitle(iwptr->name() + " Preview: " + name());
-	iwptr->preview()->setProcessType(name());
-	transferPreview(iwptr);
-}
-
-void ProcessDialog::showPreview_zoomWindowIgnored() {
-
-	if (m_workspace->subWindowList().size() == 0)
-		return;
-
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iw = imageRecast<>(sw->widget());
-		if (iw->previewExists()) {
-
-			if (iw->preview()->processType() == name())
-				return;
-
-			else if (iwptr->name() == iw->name())
-				iwptr->closePreview();
-		}
-	}
-
-	if (iwptr->previewExists()) {
-		auto type = iwptr->preview()->processType();
-		if (type == m_crop_image_str || type == m_abe_str)
-			return;
-	}
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		iwptr->showPreview(new PreviewWindow8(iwptr, true));
-		connect(iwptr->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->showPreview(new PreviewWindow16(iw16, true));
-		connect(iw16->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->showPreview(new PreviewWindow32(iw32, true));
-		connect(iw32->preview()->windowSignals(), &WindowSignals::windowClosed, this, &ProcessDialog::previewClosed);
-		break;
-	}
-	}
-
-	iwptr->preview()->setTitle(iwptr->name() + " Preview: " + name());
-	iwptr->preview()->setProcessType(name());
-	transferPreview(iwptr);
-}
-
-void ProcessDialog::transferPreview(QWidget* image_window) {
-	
-	auto iwptr = imageRecast<>(image_window);
-
-	for (auto child : m_workspace->children()) {
-		auto ptr = dynamic_cast<ProcessDialog*>(child);
-		if (ptr != nullptr) {
-			if (ptr->m_preview == iwptr->preview()) {
-				ptr->m_preview = nullptr;
-				break;
-			}
-		}
-	}
-
-	m_preview = iwptr->preview();
-}
-
-bool ProcessDialog::isPreviewValid()const {
-
-	if (m_workspace->subWindowList().size() == 0)
-		return false;
-
-	if (m_preview == nullptr)
-		return false;
-
-	return true;
-}
-
-void ProcessDialog::updateImageLabel(const QMdiSubWindow* window) {
-	reinterpret_cast<FastStack*>(m_workspace->parentWidget())->toolbar()->imageInformationLabel()->displayText(window);
+	return nullptr;
 }

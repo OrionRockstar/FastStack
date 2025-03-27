@@ -59,7 +59,7 @@ class StarAlignmentDialog : public ProcessDialog {
 
 	const int m_button_width = 115;
 
-	QListWidget* m_img_list = nullptr;
+	ListWidget* m_img_list = nullptr;
 	std::vector<ImageWindow8*> m_imgs;
 
 	PushButton* m_add_img_pb = nullptr;
