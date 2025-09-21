@@ -39,7 +39,7 @@ namespace math {
 
         double d;
         double var = 0;
-        for (const float& pixel : vector) {
+        for (T pixel : vector) {
             d = pixel - mean;
             var += d * d;
         }
@@ -104,6 +104,10 @@ inline std::chrono::steady_clock::time_point getTimePoint() {
     return std::chrono::high_resolution_clock().now();
 }
 
+inline float duration(std::chrono::steady_clock::time_point start_point) {
+    return std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock::now() - start_point).count();
+}
+
 inline void displayTimeDuration(std::chrono::steady_clock::time_point start_point) {
     float dt = std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock().now() - start_point).count();
     std::cout << ((dt > 1000) ? dt / 1000 : dt)<< ((dt > 1000) ? "s" : "ms") << "\n";
@@ -123,17 +127,106 @@ static int NUM_THREADS(int num) {
 
 template<typename T>
 struct PointBase {
+    T x = 0;
+    T y = 0;
 
-private:
-    T m_x = 0;
-    T m_y = 0;
-
-public:
     PointBase() = default;
 
-    PointBase(T x, T y) : m_x(x), m_y(y) {}
+    PointBase(T x, T y) : x(x), y(y) {}
+
+    template<typename P>
+    PointBase(const PointBase<P>& point) {
+        x = point.x;
+        y = point.y;
+    }
+
+    PointBase(const QPoint& qpoint) {
+        x = qpoint.x();
+        y = qpoint.y();
+    }
+
+    PointBase(const QPointF& qpoint) {
+        x = qpoint.x();
+        y = qpoint.y();
+    }
     
-    T x()const { return m_x; }
+    PointBase& operator*=(int factor) {
+        x *= factor;
+        y *= factor;
+        return *this;
+    }
+
+    PointBase& operator*=(float factor) {
+        x *= factor;
+        y *= factor;
+        return *this;
+    }
+
+    PointBase& operator*=(double factor) {
+        x *= factor;
+        y *= factor;
+        return *this;
+    }
+
+    PointBase& operator/=(double divisor) {
+        x /= divisor;
+        y /= divisor;
+        return *this;
+    }
+
+    PointBase& operator+=(const PointBase& point) {
+        x += point.x;
+        y += point.y;
+        return *this;
+    }
+
+    PointBase& operator-=(const PointBase& point) {
+        x -= point.x;
+        y -= point.y;
+        return *this;
+    }
+
+    PointBase operator*(int factor) {
+        return PointBase(x * factor, y * factor);
+    }
+
+    PointBase operator*(float factor) {
+        return PointBase(x * factor, y * factor);
+    }
+
+    PointBase operator*(double factor) {
+        return PointBase(x * factor, y * factor);
+    }
+
+    PointBase operator/(int divisor) {
+        return PointBase(x / divisor, y / divisor);
+    }
+
+    PointBase operator/(float divisor) {
+        return PointBase(x / divisor, y / divisor);
+    }
+
+    PointBase operator/(double divisor) {
+        return PointBase(x / divisor, y / divisor);
+    }
+
+    friend PointBase operator+(const PointBase& lhs, const PointBase& rhs) {
+        return PointBase(lhs.x + rhs.x, lhs.y + rhs.y);
+    }
+
+    friend PointBase operator-(const PointBase& lhs, const PointBase& rhs) {
+        return PointBase(lhs.x - rhs.x, lhs.y - rhs.y);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const PointBase& p) {
+        return os << p.x << " " << p.y;
+    }
+
+    QPoint toQPoint()const { return QPoint(x, y); }
+
+    QPointF toQPointF()const { return QPointF(x, y); }
+
+    /*T x()const { return m_x; }
 
     T& rx() { return m_x; }
 
@@ -143,9 +236,9 @@ public:
 
     T& ry() { return m_y; }
 
-    void setY(T y) { m_y = y; }
+    void setY(T y) { m_y = y; }*/
 
-    bool operator()(PointBase& a, PointBase& b) { return (a.x() < b.x()); }
+    //bool operator()(PointBase& a, PointBase& b) { return (a.x() < b.x()); }
 };
 typedef PointBase<int> Point;
 typedef PointBase<float> PointF;
@@ -188,39 +281,272 @@ typedef ImagePointBase<double> DoubleImagePoint;
 
 
 template<typename T>
-class Color {
-    T m_red = 0;
-    T m_green = 0;
-    T m_blue = 0;
+//allow int8_t???
+requires std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> || std::is_same_v<T, float> || std::is_same_v<T, double>
+struct Color {
+    T red = 0;
+    T green = 0;
+    T blue = 0;
 
-public:
-    Color(T red, T green, T blue) : m_red(red), m_green(green), m_blue(blue) {}
-
-    Color(T k) : m_red(k) {}
+    Color(T red, T green, T blue) : red(red), green(green), blue(blue) {}
 
     Color() = default;
+};
+typedef Color<uint8_t> Color8;
+typedef Color<uint16_t> Color16;
+typedef Color<float> ColorF;
+typedef Color<double> ColorD;
 
-    T k()const { return m_red; }
 
-    void setK(float k) { m_red = k; }
 
-    T& rRed() { return m_red; }
+struct ColorConversion {
+    inline static const uint16_t u8_u16 = 257;
+    inline static const float u8_f = 1 / 255.0;
+    inline static const float u16_f = 1 / 65535.0;
 
-    T red()const { return m_red; }
+    inline static const uint8_t f_u8 = 255;
 
-    void setRed(float red) { m_red = red; }
+public:
+    static Color8 toColor8(const Color8& color) {
+        return color;
+    }
 
-    T& rGreen() { return m_green; }
+    static Color8 toColor8(const Color16& color) {
+        return Color8(color.red / u8_u16, color.green / u8_u16, color.blue / u8_u16);
+    }
 
-    T green()const { return m_green; }
+    static Color8 toColor8(const ColorF& color) {
+        return Color8(color.red * f_u8, color.green * f_u8, color.blue * f_u8);
+    }
 
-    void setGreen(float green) { m_green = green; }
 
-    T& rBlue() { return m_blue; }
+    static Color16 toColor16(const Color8& color) {
+        return Color16(color.red * u8_u16, color.green * u8_u16, color.blue * u8_u16);
+    }
 
-    T blue()const { return m_blue; }
 
-    void setBlue(float blue) { m_blue = blue; }
+    static ColorF toColorF(const Color8& color) {
+        return ColorF(color.red * u8_f, color.green * u8_f, color.blue * u8_f);
+    }
+
+    static ColorF toColorF(const Color16& color) {
+        return ColorF(color.red * u16_f, color.green * u16_f, color.blue * u16_f);
+    }
+
+    static ColorF toColorF(const ColorF& color) {
+        return color;
+    }
+
 
 };
 
+
+
+class Threads {
+
+    uint32_t m_thread_count = std::thread::hardware_concurrency();
+
+public:
+    Threads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
+
+    template<class Func, class... Args>
+    static void runThread(Func&& func, Args&&... args) {
+
+        auto thread = std::thread(func, args...);
+        thread.detach();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<std::thread> threads;
+
+        for (int i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            threads.emplace_back(func, start, math::min(start + chunk_size, size));
+        }
+
+        for (auto& th : threads)
+            th.join();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<std::thread> threads;
+
+        for (uint32_t i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            threads.emplace_back(func, start, math::min(start + chunk_size, size), i);
+        }
+
+        for (auto& th : threads)
+            th.join();
+    }
+};
+
+
+//get rid of event loop
+class QThreads : QObject{
+
+    uint32_t m_thread_count = std::thread::hardware_concurrency();
+    //std::mutex m;
+public:
+    QThreads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
+
+    template<class Func, class... Args>
+    static void runThread(Func&& func, Args&&... args) {
+
+       // QEventLoop loop;
+        auto thread = QThread::create(func, args...);
+        //connect(thread, &QThread::finished, [&]() { loop.quit(); });
+        thread->start();
+        //loop.exec();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<QThread*> threads;
+
+        //std::atomic_uint32_t finished_counter;
+        //QEventLoop loop;
+
+        /*auto onFinished = [&, thread_count]() {
+            if (++finished_counter >= thread_count)
+                loop.quit();
+        };*/
+
+        for (uint32_t i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            auto t = threads.emplace_back(QThread::create(func, start, math::min(start + chunk_size, size)));
+            //connect(t, &QThread::finished, onFinished);
+            t->start();
+        }
+
+        //loop.exec();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        //std::lock_guard<std::mutex> lg(m);
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<QThread*> threads;
+
+        //std::atomic_uint32_t finished_counter;
+        //QEventLoop loop;
+
+        /*auto onFinished = [&, thread_count]() {
+            if (++finished_counter >= thread_count)
+                loop.quit();
+        };*/
+
+        for (uint32_t i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            auto t = threads.emplace_back(QThread::create(func, start, math::min(start + chunk_size, size), i));
+            //connect(t, &QThread::finished, onFinished);
+            t->start();
+        }
+
+        //loop.exec();
+    }
+};
+
+
+
+class QEventThreads : QObject {
+
+    uint32_t m_thread_count = std::thread::hardware_concurrency();
+    //std::mutex m;
+public:
+    QEventThreads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
+
+    template<class Func, class... Args>
+    static void runThread(Func&& func, Args&&... args) {
+
+        QEventLoop loop;
+        auto thread = QThread::create(func, args...);
+        connect(thread, &QThread::finished, [&]() { loop.quit(); });
+        thread->start();
+        loop.exec();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<QThread*> threads;
+
+        std::atomic_uint32_t finished_counter;
+        QEventLoop loop;
+
+        auto onFinished = [&, thread_count]() {
+            if (++finished_counter >= thread_count)
+                loop.quit();
+        };
+
+        for (uint32_t i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            auto t = threads.emplace_back(QThread::create(func, start, math::min(start + chunk_size, size)));
+            connect(t, &QThread::finished, onFinished);
+            t->start();
+        }
+
+        loop.exec();
+    }
+
+    void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size) {
+
+        if (size == 0)
+            return;
+
+        //std::lock_guard<std::mutex> lg(m);
+
+        uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
+        uint32_t chunk_size = (size > m_thread_count) ? (size / m_thread_count) + 1 : 1;
+
+        std::vector<QThread*> threads;
+
+        std::atomic_uint32_t finished_counter;
+        QEventLoop loop;
+
+        auto onFinished = [&, thread_count]() {
+            if (++finished_counter >= thread_count)
+                loop.quit();
+        };
+
+        for (uint32_t i = 0; i < thread_count; ++i) {
+            uint32_t start = i * chunk_size;
+            auto t = threads.emplace_back(QThread::create(func, start, math::min(start + chunk_size, size), i));
+            connect(t, &QThread::finished, onFinished);
+            t->start();
+        }
+
+        loop.exec();
+    }
+};

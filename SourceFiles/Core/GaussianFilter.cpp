@@ -85,11 +85,11 @@ void GaussianFilter::setSigma(float sigma) {
 	m_kernel_dim = 2 * k_rad + 1;
 }
 
-void GaussianFilter::setKernelDimension(int kernel_dimension) {
+/*void GaussianFilter::setKernelDimension(int kernel_dimension) {
 	m_kernel_dim = kernel_dimension;
 	int k_rad = (m_kernel_dim - 1) / 2;
 	m_sigma = k_rad / 3.0348;
-}
+}*/
 
 std::vector<float> GaussianFilter::buildGaussianKernel_1D(uint32_t size, float sigma)const {
 

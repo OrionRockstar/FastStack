@@ -10,73 +10,44 @@ class AutoHistogramDialog : public ProcessDialog {
 	CheckBox* m_target_enable_cb;
 	CheckBox* m_target_rgb_cb;
 	ComboBox* m_stretch_combo;
-	DoubleLineEdit* m_target_red_le;
-	Slider* m_target_red_slider;
-	DoubleLineEdit* m_target_green_le;
-	Slider* m_target_green_slider;
-	DoubleLineEdit* m_target_blue_le;
-	Slider* m_target_blue_slider;
+
+	DoubleInput* m_target_red_inp = nullptr;
+	DoubleInput* m_target_green_inp = nullptr;
+	DoubleInput* m_target_blue_inp = nullptr;
 
 
 	GroupBox* m_hist_clip_gb;
 	CheckBox* m_hist_enable_cb;
 	CheckBox* m_hist_rgb_cb;
+
 	GroupBox* m_shadow_gb;
-	DoubleLineEdit* m_shadow_red_le;
-	Slider* m_shadow_red_slider;
-	DoubleLineEdit* m_shadow_green_le;
-	Slider* m_shadow_green_slider;
-	DoubleLineEdit* m_shadow_blue_le;
-	Slider* m_shadow_blue_slider;
+	DoubleInput* m_shadow_red_inp = nullptr;
+	DoubleInput* m_shadow_green_inp = nullptr;
+	DoubleInput* m_shadow_blue_inp = nullptr;
 
 	GroupBox* m_highlight_gb;
-	DoubleLineEdit* m_highlight_red_le;
-	Slider* m_highlight_red_slider;
-	DoubleLineEdit* m_highlight_green_le;
-	Slider* m_highlight_green_slider;
-	DoubleLineEdit* m_highlight_blue_le;
-	Slider* m_highlight_blue_slider;
+	DoubleInput* m_highlight_red_inp = nullptr;
+	DoubleInput* m_highlight_green_inp = nullptr;
+	DoubleInput* m_highlight_blue_inp = nullptr;
 
 public:
 	AutoHistogramDialog(QWidget* parent);
 
 private:
 
+	void addTargetMedian();
+
 	void addTargetMedianInputs();
 
-	void addTargetMedianInputs_Red();
+	void addHistogramClipping();
 
-	void addTargetMedianInputs_Green();
+	void addHistogramClippingInputs_Shadow();
 
-	void addTargetMedianInputs_Blue();
-
-	void joinTargetMedian(bool v);
-
-	void updateJoinedTarget();
-
-	void addHistogramClippingInputs();
-
-	void addHistogramClippingInputs_ShadowRed();
-
-	void addHistogramClippingInputs_ShadowGreen();
-
-	void addHistogramClippingInputs_ShadowBlue();
-
-	void addHistogramClippingInputs_HighlightRed();
-
-	void addHistogramClippingInputs_HighlightGreen();
-
-	void addHistogramClippingInputs_HighlightBlue();
-
-	void joinHistogramClipping(bool v);
-
-	void updateJoinedHistogramClipping();
-
-	void showPreview();
+	void addHistogramClippingInputs_Highlight();
 
 	void resetDialog();
 
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };

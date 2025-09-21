@@ -99,7 +99,6 @@ public:
 	virtual void close() {
 
 		m_stream.close();
-
 		m_stream_buffer.reset();
 		m_size = 0;
 

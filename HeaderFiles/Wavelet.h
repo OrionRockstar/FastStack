@@ -1,6 +1,5 @@
 #pragma once
 #include "Image.h"
-#include "ImageOperations.h"
 #include "GaussianFilter.h"
 #include "ProcessDialog.h"
 
@@ -26,116 +25,61 @@ public:
 		gaussian_5
 	};
 
-protected:
+private:
 	const std::vector<float> linear = { 0.25f,0.5f,0.25f };
 	const std::vector<float> ss3_3 = { 0.333333f,1.0f,0.333333f };
 	const std::vector<float> b3 = { 0.0625f,0.25f,0.375f,0.25f,0.0625f };
 	const std::vector<float> g_5 = { 0.01f,0.316228f,1.0f,0.316228f,0.01f };
 
 	ScalingFunction m_scaling_func = ScalingFunction::b3spline_5;
-	uint8_t m_layers = 5;
+	int m_layers = 5;
 
-private:
 	const std::vector<float>& scalingFunctionKernel(ScalingFunction sf) const;
 
 protected:
-	Image32 m_source = Image32();
-	Image32 m_convolved = Image32();
-	Image32 m_wavelet = Image32();
+	struct Images {
+		Image32 source;
+		Image32 convolved;
+		Image32 wavelet;
 
-	/*struct WaveletHistogram {
-		std::unique_ptr<uint32_t[]> histogram;
-		int m_size = 0;
-		int m_count = 0;
-
-		uint32_t& operator[](int val) { return histogram[val]; }
-
-		//buids full channel histogram
-		WaveletHistogram(Image32& img, int ch) {
-			histogram = std::make_unique<uint32_t[]>(65535 * 2 + 1);
-			m_size = 65535 * 2 + 1;
-
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
-				histogram[65535 * (*pixel + 1)]++;
-				m_count++;
-			}
-		}
-
-		//builds mad histogram
-		WaveletHistogram(Image32& img, int ch, float median) {
-			histogram = std::make_unique<uint32_t[]>(65536);
-			m_size = 65536;
-
-			for (auto pixel = img.begin(ch); pixel != img.end(ch); ++pixel) {
-				histogram[abs(*pixel - median) * 65535]++;
-				m_count++;
-			}
-		}
-
-		//computes and returns median
-		float Median();
-
-		float MAD();
-	};*/
+		template<typename T>
+		Images(const Image<T> src, bool to_grayscale = false);
+	};
 
 public:
 	Wavelet() = default;
 
-	Wavelet& operator=(Wavelet&& other) {
+	Wavelet(const Wavelet& other) {
+
+		m_scaling_func = other.m_scaling_func;
+		m_layers = other.m_layers;
+	}
+
+	Wavelet& operator=(const Wavelet& other) {
 
 		if (this != &other) {
 			m_scaling_func = other.m_scaling_func;
 			m_layers = other.m_layers;
-			m_source = std::move(other.m_source);
-			m_convolved = std::move(other.m_convolved);
-			m_wavelet = std::move(other.m_wavelet);
 		}
 
 		return *this;
 	}
 
-protected:
-	template<typename T>
-	void waveletInit(const Image<T>& img) {
-		m_source = Image32(img.rows(), img.cols(), img.channels());
-
-		for (int el = 0; el < img.totalPxCount(); ++el)
-			m_source[el] = Pixel<float>::toType(img[el]);
-
-		m_convolved = Image32(img.rows(), img.cols(), img.channels());
-		m_wavelet = Image32(img.rows(), img.cols(), img.channels());
-	}
-
-	void cleanUp() {
-		m_source = Image32();
-		m_convolved = Image32();
-		m_wavelet = Image32();
-	}
-
-public:
 	ScalingFunction scalingFuntion()const { return m_scaling_func; }
 
 	void setScalingFuntion(ScalingFunction scaling_func) { m_scaling_func = scaling_func; }
 
-	uint8_t layers()const { return m_layers; }
+	int layers()const { return m_layers; }
 
-	void setLayers(uint8_t layers) { m_layers = layers; }
+	void setLayers(int layers) { m_layers = layers; }
 
 protected:
-	void atrous(uint8_t layer);
+	void atrous(uint8_t layer, Images& images);
 
 	void LinearNoiseReduction(float threshold = 3, float amount = 1);
 
 	void MedianNoiseReduction(float threshold = 3, float amount = 1);
 
-	//template<typename Image>
-	//void WaveletLayerNR(Image& img, NRVector nrvector, ScalingFunction sf = ScalingFunction::b3spline_5, int scale_num = 4);
-
-	//template<typename Image>
-	//void MultiscaleLinearNR(Image& img, NRVector nrvector, int scale_num);
-
-	//template<typename Image>
-	//void MultiscaleMedianNR(Image& img, NRVector nrvector, int scale_num);
 };
 
 
@@ -148,27 +92,20 @@ public:
 	void setResidual(bool v) { m_residual = v; }
 
 	template<typename T>
-	std::vector<Image32> generateWaveletLayers(const Image<T>& src);
+	ImageVector<float> generateWaveletLayers(const Image<T>& src);
 };
 
 
 class StructureMaps : public Wavelet {
 
 	float m_K = 3.0;
-	bool m_median_blur = true;
-
+	
 public:
-	StructureMaps() = default;
-
-	StructureMaps(float K, bool median_blur) : m_K(K), m_median_blur(median_blur) {}
+	StructureMaps() { setLayers(3); };
 
 	float sigmaK()const { return m_K; }
 
 	void setSigmaK(float K) { m_K = K; }
-
-	bool medianBlur()const { return m_median_blur; }
-
-	void applyMedianBlur(bool val) { m_median_blur = val; }
 
 private:
 	double kSigma(const Image32& img, float K = 3.0f, float eps = 0.01f, int n = 10);

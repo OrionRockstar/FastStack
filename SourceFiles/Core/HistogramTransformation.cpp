@@ -65,6 +65,21 @@ float HT::transformPixel(ColorComponent component, float pixel)const {
 	return (*this)[component].transformPixel(pixel);
 }
 
+Histogram HT::transformHistogram(ColorComponent component, const Histogram& histogram) {
+
+	if ((*this)[component].isIdentity())
+		return histogram;
+
+	auto transformed = histogram;
+	transformed.fill(0);
+	float m = histogram.resolution() - 1;
+
+	for (int el = 0; el < histogram.resolution(); ++el)
+		transformed[transformPixel(component, el / m) * m] += histogram[el];
+
+	return transformed;
+}
+
 float HT::MTF(float pixel, float midtone) {
 
 	if (pixel <= 0.0f) return 0;
@@ -106,10 +121,10 @@ template void HT::computeSTFCurve(const Image32&);
 template<typename T>
 void HT::apply(Image<T>& img) {
 
-	using enum ColorComponent;
+	using CC = ColorComponent;
 
-	if (!(*this)[rgb_k].IsIdentity()) {
-		auto rgbk = (*this)[rgb_k];
+	if (!(*this)[CC::rgb_k].isIdentity()) {
+		auto rgbk = (*this)[CC::rgb_k];
 
 		if (isFloatImage(img))
 			for (auto& pixel : img)
@@ -131,14 +146,14 @@ void HT::apply(Image<T>& img) {
 	if (img.channels() == 1)
 		return;
 
-	if (!(*this)[red].IsIdentity())
-		(*this)[red].applyChannel(img, 0);
+	if (!(*this)[CC::red].isIdentity())
+		(*this)[CC::red].applyChannel(img, 0);
 
-	if (!(*this)[green].IsIdentity())
-		(*this)[green].applyChannel(img, 1);
+	if (!(*this)[CC::green].isIdentity())
+		(*this)[CC::green].applyChannel(img, 1);
 
-	if (!(*this)[blue].IsIdentity())
-		(*this)[blue].applyChannel(img, 2);
+	if (!(*this)[CC::blue].isIdentity())
+		(*this)[CC::blue].applyChannel(img, 2);
 
 }
 template void HT::apply(Image8&);

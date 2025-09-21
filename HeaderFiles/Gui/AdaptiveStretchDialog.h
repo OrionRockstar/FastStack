@@ -39,12 +39,10 @@ private:
 
 	void connectContrastInputs();
 
-	void showPreview();
-
 	void resetDialog();
 
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };
 

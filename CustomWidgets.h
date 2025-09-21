@@ -1,4 +1,6 @@
 #pragma once
+#include "Image.h"
+
 
 enum class RectBorder {
 	None = 0,
@@ -19,6 +21,7 @@ enum class RectBorder {
 class Frame {
 
 	int m_frame_width = 6;
+	QRect m_inner_region;
 	QRect m_left;
 	QRect m_right;
 	QRect m_top;
@@ -45,24 +48,85 @@ public:
 
 
 
+class OpaqueStyle : public QProxyStyle {
+
+	qreal m_opacity = 1.0;
+public:
+	OpaqueStyle(QStyle* style = nullptr) : QProxyStyle(style) {}
+
+	OpaqueStyle(qreal opacity, QStyle* style = nullptr) : m_opacity(opacity), QProxyStyle(style) {}
+
+	void setOpacity(qreal opacity) { m_opacity = opacity; }
+
+	qreal opacity()const { return m_opacity; }
+private:
+	void drawComplexControl(QStyle::ComplexControl element, const QStyleOptionComplex* opt, QPainter* p, const QWidget* widget) const override {
+		p->setOpacity(m_opacity);
+		QProxyStyle::drawComplexControl(element, opt, p, widget);
+	}
+
+	void drawControl(QStyle::ControlElement element, const QStyleOption* opt, QPainter* p, const QWidget* widget = nullptr) const override {
+		p->setOpacity(m_opacity);
+		QProxyStyle::drawControl(element, opt, p, widget);
+	}
+
+	void drawItemPixmap(QPainter* p, const QRect& rect, int alignment, const QPixmap& pixmap) const override {
+		p->setOpacity(m_opacity);
+		QProxyStyle::drawItemPixmap(p, rect, alignment, pixmap);
+	}
+
+	void drawItemText(QPainter* p, const QRect& rect, int flags, const QPalette& pal, bool enabled, const QString& text, QPalette::ColorRole textRole = QPalette::ColorRole::Text) {
+		p->setOpacity(m_opacity);
+		QProxyStyle::drawItemText(p, rect, flags, pal, enabled, text, textRole);
+	}
+
+	void drawPrimitive(QStyle::PrimitiveElement element, const QStyleOption* opt, QPainter* p, const QWidget* widget) const override {
+		p->setOpacity(m_opacity);
+		QProxyStyle::drawPrimitive(element, opt, p, widget);
+	}
+};
+
+
+
+
 
 class PushButton : public QPushButton {
 
-	double m_opacity = 1.0;
+protected:
+	float m_opacity = 1.0f;
+	QColor m_hover_color = Qt::blue;
+
 public:
 	PushButton(const QString& text, QWidget* parent = nullptr);
 
 	PushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
 
-	void setOpacity(double opacity) { m_opacity = opacity; }
+	void setOpacity(double opacity) { m_opacity = opacity; update(); }
+
+	void setMouseHoverColor(const QColor& color = Qt::blue) { m_hover_color = color; }
+
 private:
 	void mousePressEvent(QMouseEvent* e);
 
+	void mouseMoveEvent(QMouseEvent* e);
+
 	void mouseReleaseEvent(QMouseEvent* e);
 
-	void paintEvent(QPaintEvent* e);
+	virtual void paintEvent(QPaintEvent* e) override;
 };
 
+class FlatPushButton : public PushButton {
+
+public:
+	FlatPushButton(const QString& text, QWidget* parent = nullptr);
+
+	FlatPushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
+
+private:
+	void enterEvent(QEnterEvent* e);
+
+	void leaveEvent(QEvent* e);
+};
 
 
 
@@ -86,7 +150,7 @@ private:
 	QButtonGroup* m_bg;
 	bool m_shaded = false;
 
-	QLabel* m_label = nullptr;
+	QString m_title;
 	const int m_label_offset = 30;
 
 public:
@@ -102,17 +166,15 @@ signals:
 public:
 	const QPixmap& pixmap()const { return pm; }
 
-	QString title()const { return m_label->text(); }
+	QString title()const { return m_title; }
 
-	void setTitle(const QString& text) { m_label->setText(text); }
+	void setTitle(const QString& text) { m_title = text; update(); }
 
 	void resize(int width);
 
 	static int titleBarHeight() { return m_titlebar_height; }
 
-	void setOpaque();
-
-	void unsetOpaque();
+	void setOpacity(float opacity);
 
 private:
 	void mousePressEvent(QMouseEvent* e);
@@ -141,8 +203,9 @@ protected:
 
 	QSize m_default_size = QSize(100, 100);
 
-	double m_default_opacity = 0.975;
-	double m_event_opacity = 0.55;
+	const double m_default_opacity = 0.975;
+	const double m_event_opacity = 0.55;
+	double m_opacity = m_default_opacity;
 
 	const int m_shaded_width = 300;
 	QSize m_pre_shade_size;
@@ -164,7 +227,7 @@ public:
 
 	void setTitle(const QString& text) { m_titlebar->setTitle(text); }
 
-	void setOpacity(double opacity) { m_default_opacity = opacity; }
+	void setOpacity(double opacity) { m_titlebar->setOpacity(m_opacity = opacity); setWindowOpacity(opacity); update(); }
 
 signals:
 	void windowClosed();
@@ -219,6 +282,7 @@ signals:
 
 static void addLabel(const QWidget* widget, QLabel* label, int spaces = 3) {
 
+	label->setParent(widget->parentWidget());
 	auto g = widget->geometry();
 
 	int x = g.x();
@@ -231,14 +295,34 @@ static void addLabel(const QWidget* widget, QLabel* label, int spaces = 3) {
 }
 
 
-class CheckablePushButton : public QPushButton {
+class CheckablePushButton : public PushButton {
+
+protected:
+	QColor m_hover_color = Qt::blue;
+
 public:
 	CheckablePushButton(const QString& text, QWidget* parent = nullptr);
 
+	CheckablePushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
+
+	void setMouseHoverColor(const QColor& color = Qt::blue) { m_hover_color = color; }
+
 private:
-	void paintEvent(QPaintEvent* event);
+	void paintEvent(QPaintEvent* event) override;
 };
 
+class FlatCheckablePushButton : public CheckablePushButton {
+
+public:
+	FlatCheckablePushButton(const QString& text, QWidget* parent = nullptr);
+
+	FlatCheckablePushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
+
+private:
+	void enterEvent(QEnterEvent* e);
+
+	void leaveEvent(QEvent* e);
+};
 
 
 
@@ -254,19 +338,17 @@ public:
 
 class DoubleValidator : public QDoubleValidator {
 public:
-	DoubleValidator(double bottom, double top, int precision, QWidget* parent = nullptr) :QDoubleValidator(bottom, top, precision, parent) {}
+	DoubleValidator(double bottom, double top, int precision, QWidget* parent = nullptr) : QDoubleValidator(bottom, top, precision, parent) {}
 
 	void fixup(QString& input) const;
 };
 
 
+
 class LineEdit : public QLineEdit {
-	QLabel* m_label = nullptr;
 
 public:
 	LineEdit(QWidget* parent = nullptr) : QLineEdit(parent) {}
-
-	void setLabelText(const QString& txt);
 
 	void addLabel(QLabel* label);
 
@@ -325,38 +407,212 @@ public:
 
 
 
-
 class ScrollBar : public QScrollBar {
+	Q_OBJECT
 
 	double m_opacity = 1.0;
 
 	const int m_thickness = style()->pixelMetric(QStyle::PixelMetric::PM_ScrollBarExtent);
-public:
-	ScrollBar(QWidget* parent = nullptr) : QScrollBar(parent) {
-		this->setAttribute(Qt::WA_NoMousePropagation);
 
-		QPalette pal;
-		pal.setColor(QPalette::ColorRole::Button, QColor(169, 169, 169));
-		pal.setColor(QPalette::ColorRole::WindowText, QColor(0, 0, 0));
-		this->setPalette(pal);
-	}
+	const QColor hover_color = { 89,20,148 };
+	const QColor action_color = { 69,0,128 };
+
+	QStyle::SubControl m_current_sc = QStyle::SC_None;
+
+	inline static const QStyle::SubControl sc_sb_addline = QStyle::SC_ScrollBarAddLine;
+	inline static const QStyle::SubControl sc_sb_subline = QStyle::SC_ScrollBarSubLine;
+	inline static const QStyle::SubControl sc_sb_slider = QStyle::SC_ScrollBarSlider;
+
+public:
+	ScrollBar(QWidget* parent = nullptr);
+
+	ScrollBar(Qt::Orientation orientation, QWidget* parent = nullptr);
 
 	int thickness()const { return m_thickness; }
 
 	void setOpacity(double opacity) { m_opacity = opacity; }
 
 private:
+	QStyle::SubControl currentSC()const { return m_current_sc; }
+
+	void mousePressEvent(QMouseEvent* e);
+
+	void mouseReleaseEvent(QMouseEvent* e);
+
 	void paintEvent(QPaintEvent* event);
 };
 
 
 class Slider : public QSlider {
 
+	QPen m_pen = QPen(QColor(123, 0, 216), 1.5);
+	QBrush m_brush = QBrush({ 39,39,39 });
+	bool m_sunken = false;
+
 public:
-	Slider(Qt::Orientation orientation, QWidget* parent = nullptr) : QSlider(orientation, parent) {}
+	Slider(QWidget* parent = nullptr, Qt::Orientation orientation = Qt::Horizontal);
+
+	bool isMouseOverHandle();
+
+protected:
+	void drawHandle(QPainter& p, QStyleOptionSlider& opt);
+
+	bool event(QEvent* e);
+
+	void paintEvent(QPaintEvent* event);
+};
+
+
+
+
+
+
+class InputBase : public QObject {
+	Q_OBJECT
+
+protected:
+	float m_slider_mult = 1.0;
+	std::function<void()> m_edited;// = std::bind(&DoubleInput::lineEdited, this);
+
+	QMetaObject::Connection m_le_conn;
+	QMetaObject::Connection m_slider_conn;
+
+	QLabel* m_label = nullptr;
+	LineEdit* m_line_edit = nullptr;
+	Slider* m_slider = nullptr;
+
+	InputBase(const QString& label_txt, QWidget* parent = nullptr, float slider_multiplier = 1.0);
+public:
+signals:
+	void actionTriggered(int);
+
+	void editingFinished();
+
+public:
+	virtual void onAction(std::function<void(int)> func = nullptr) = 0;
+
+	virtual void onEdited(std::function<void()> func = nullptr) = 0;
+
+	int sliderValue()const { return m_slider->value(); }
+
+	void setSliderValue(int value) { m_slider->setValue(value); }
+
+	void setSliderAttributes(int min, int max, int single_step = 1, int page_step = 0);
+
+	void setSliderWidth(int w) { m_slider->resize(w, m_slider->style()->pixelMetric(QStyle::PM_SliderThickness)); }
+
+	void resizeLineEdit(int w, int h);
+
+	void setLineEditWidth(int w);
+
+	void setMaxLength(int l) { m_line_edit->setMaxLength(l); }
+
+	void move(int ax, int ay);
+
+	void setToolTip(const QString& txt) { m_line_edit->setToolTip(txt); }
+
+	void setEnabled(bool enable) {
+		m_line_edit->setEnabled(enable);
+		m_slider->setEnabled(enable);
+	}
+
+	void setText(const QString& txt);
+
+	virtual void reset() = 0;
+};
+
+
+
+
+
+
+
+
+
+class IntegerInput : public InputBase {
+
+	IntLineEdit* m_ile = nullptr;
+
+public:
+	IntegerInput(const QString& label_txt, int default_value, IntValidator* validator, QWidget* parent = nullptr, float slider_multiplier = 1.0);
 
 private:
-	void paintEvent(QPaintEvent* event);
+	void lineEdited() {
+		m_slider->setValue(m_ile->value() * m_slider_mult);
+	}
+
+	void sliderAction(int) {
+		m_ile->setValue(m_slider->value() / m_slider_mult);
+	}
+
+public:
+	void onAction(std::function<void(int)> func = nullptr);
+
+	void onEdited(std::function<void()> func = nullptr);
+
+	int value()const { return m_ile->value(); }
+
+	void setLineEditValue(int value) { m_ile->setValue(value); }
+
+	void setValue(double value) {
+		m_ile->setValue(value);
+		m_edited();
+	}
+
+	void reset() {
+		m_ile->reset();
+		m_edited();
+	}
+};
+
+
+
+
+
+
+class DoubleInput : public InputBase {
+
+	DoubleLineEdit* m_dle = nullptr;
+
+public:
+	DoubleInput(const QString& label_txt, double default_value, DoubleValidator* validator, QWidget* parent = nullptr, float slider_multiplier = 1.0);
+
+private:
+	void lineEdited() {
+		m_slider->setValue(m_dle->value() * m_slider_mult);
+	}
+
+	void sliderAction(int) {
+		m_dle->setValue(m_slider->sliderPosition() / m_slider_mult);
+	}
+
+public:
+	void onAction(std::function<void(int)> func = nullptr);
+
+	void onEdited(std::function<void()> func = nullptr);
+
+	double value()const { return m_dle->value(); }
+
+	float valuef()const { return m_dle->valuef(); }
+
+	void setLineEditValue(double value) { m_dle->setValue(value); }
+
+	void setLineEditValue(float value) { m_dle->setValue(value); }
+
+	void setValue(double value) {
+		m_dle->setValue(value);
+		m_edited();
+	}
+
+	void setValue(float value) {
+		m_dle->setValue(value);
+		m_edited();
+	}
+
+	void reset() {
+		m_dle->reset();
+		m_edited();
+	}
 };
 
 
@@ -386,11 +642,24 @@ public:
 };
 
 
+template<typename T = uint8_t>
+class ImageWindow;
+
 class ComboBox : public QComboBox {
 public:
 	ComboBox(QWidget* parent = nullptr);
 
 	void addLabel(QLabel* label)const;
+
+	void addImage(const QString& name, const Image8* img);
+
+	void addImage(const ImageWindow<>* iw);
+
+	const Image8* currentImage();
+
+	const Image8* imageAt(int index);
+
+	int findImage(const Image8* img);
 };
 
 
@@ -429,14 +698,14 @@ public:
 
 
 
-class ComponentPushButton : public QPushButton {
+class ComponentPushButton : public FlatCheckablePushButton {
 public:
 
 	ComponentPushButton(const QString& text, QWidget* parent = nullptr);
 
 	ComponentPushButton(const QIcon& icon, const QString& text, QWidget* parent = nullptr);
 private:
-	void paintEvent(QPaintEvent* event);
+	//void paintEvent(QPaintEvent* event);
 };
 
 

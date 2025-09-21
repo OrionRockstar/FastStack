@@ -99,9 +99,9 @@ public:
     }*/
 
     static void RGBtoHSV(const Color<double>& color, double& H, double& S, double& V) {
-        double R = color.red();
-        double G = color.green();
-        double B = color.blue();
+        double R = color.red;
+        double G = color.green;
+        double B = color.blue;
 
         double max = math::max(R, math::max(G, B));
         double dm = max - math::min(R, math::min(G, B));
@@ -269,9 +269,9 @@ public:
     }*/
     
     static void RGBtoHSI(const Color<double>& color, double& H, double& S, double& I) {
-        double R = color.red();
-        double G = color.green();
-        double B = color.blue();
+        double R = color.red;
+        double G = color.green;
+        double B = color.blue;
 
         double max = math::max(R, math::max(G, B));
         double min = math::min(R, math::min(G, B));
@@ -335,8 +335,8 @@ public:
 
     template<typename T>
     static T HSL_L(const Color<T>& color) {
-        T max = math::max(math::max(color.red(), color.green()), color.blue());
-        T min = math::min(math::min(color.red(), color.green()), color.blue());
+        T max = math::max(math::max(color.red, color.green), color.blue);
+        T min = math::min(math::min(color.red, color.green), color.blue);
         return 0.5 * (max + min);
     }
 
@@ -380,9 +380,9 @@ public:
     }*/
 
     static void RGBtoXYZ(const Color<float>& color, double& X, double& Y, double& Z) {
-        double R = sRGBtoLinear(color.red());
-        double G = sRGBtoLinear(color.green());
-        double B = sRGBtoLinear(color.blue());
+        double R = sRGBtoLinear(color.red);
+        double G = sRGBtoLinear(color.green);
+        double B = sRGBtoLinear(color.blue);
 
         X = math::clip(RGB_XYZ(0, 0) * R + RGB_XYZ(0, 1) * G + RGB_XYZ(0, 2) * B);
         Y = math::clip(RGB_XYZ(1, 0) * R + RGB_XYZ(1, 1) * G + RGB_XYZ(1, 2) * B);
@@ -390,9 +390,9 @@ public:
     }
 
     static void RGBtoXYZ(const Color<double>& color, double& X, double& Y, double& Z) {
-        double R = sRGBtoLinear(color.red());
-        double G = sRGBtoLinear(color.green());
-        double B = sRGBtoLinear(color.blue());
+        double R = sRGBtoLinear(color.red);
+        double G = sRGBtoLinear(color.green);
+        double B = sRGBtoLinear(color.blue);
 
         X = math::clip(RGB_XYZ(0, 0) * R + RGB_XYZ(0, 1) * G + RGB_XYZ(0, 2) * B);
         Y = math::clip(RGB_XYZ(1, 0) * R + RGB_XYZ(1, 1) * G + RGB_XYZ(1, 2) * B);
@@ -442,14 +442,14 @@ public:
         return 1.16 * Y - 0.16;
     }*/
 
-    static double CIEL(const Color<float>& color) {
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
+    static float CIEL(const Color<float>& color) {
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
         XYZLab(Y);
         return 1.16 * Y - 0.16;
     }
 
     static double CIEL(const Color<double>& color) {
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
         XYZLab(Y);
         return 1.16 * Y - 0.16;
     }
@@ -466,9 +466,9 @@ public:
         return (5 * (X - Y) + 0.9) / 1.8;
     }*/
 
-    static double CIEa(const Color<float>& color) {
-        double X = RGB_XYZ(0, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(0, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(0, 2) * sRGBtoLinear(color.blue());
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
+    static float CIEa(const Color<float>& color) {
+        double X = RGB_XYZ(0, 0) * sRGBtoLinear(color.red) + RGB_XYZ(0, 1) * sRGBtoLinear(color.green) + RGB_XYZ(0, 2) * sRGBtoLinear(color.blue);
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
 
         X /= D50[0];
 
@@ -479,8 +479,8 @@ public:
     }
 
     static double CIEa(const Color<double>& color) {
-        double X = RGB_XYZ(0, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(0, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(0, 2) * sRGBtoLinear(color.blue());
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
+        double X = RGB_XYZ(0, 0) * sRGBtoLinear(color.red) + RGB_XYZ(0, 1) * sRGBtoLinear(color.green) + RGB_XYZ(0, 2) * sRGBtoLinear(color.blue);
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
 
         X /= D50[0];
 
@@ -490,9 +490,9 @@ public:
         return (5 * (X - Y) + 0.9) / 1.8;
     }
 
-    static double CIEb(const Color<float>& color) {
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
-        double Z = RGB_XYZ(2, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(2, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(2, 2) * sRGBtoLinear(color.blue());
+    static float CIEb(const Color<float>& color) {
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
+        double Z = RGB_XYZ(2, 0) * sRGBtoLinear(color.red) + RGB_XYZ(2, 1) * sRGBtoLinear(color.green) + RGB_XYZ(2, 2) * sRGBtoLinear(color.blue);
 
         Z /= D50[2];
 
@@ -503,8 +503,8 @@ public:
     }
 
     static double CIEb(const Color<double>& color) {
-        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue());
-        double Z = RGB_XYZ(2, 0) * sRGBtoLinear(color.red()) + RGB_XYZ(2, 1) * sRGBtoLinear(color.green()) + RGB_XYZ(2, 2) * sRGBtoLinear(color.blue());
+        double Y = RGB_XYZ(1, 0) * sRGBtoLinear(color.red) + RGB_XYZ(1, 1) * sRGBtoLinear(color.green) + RGB_XYZ(1, 2) * sRGBtoLinear(color.blue);
+        double Z = RGB_XYZ(2, 0) * sRGBtoLinear(color.red) + RGB_XYZ(2, 1) * sRGBtoLinear(color.green) + RGB_XYZ(2, 2) * sRGBtoLinear(color.blue);
 
         Z /= D50[2];
 
@@ -584,7 +584,7 @@ public:
         XYZtoRGB(X, Y, Z, R, G, B);
     }*/
 
-    static Color<float> CIELabtoRGBf(double L, double a, double b) {
+    static Color<float> CIELabtoRGBf(float L, float a, float b) {
         double Y = (L + 0.16) / 1.16;
         double X = (1.8 * a - 0.9) / 5 + Y;
         double Z = Y - (1.8 * b - 0.9) / 2;
@@ -693,9 +693,9 @@ public:
 
     static void RGBtoYCbCr(const Color<uint8_t>& color, uint8_t& Y, uint8_t& Cb, uint8_t& Cr) {
 
-        Y = RGB_YCbCr(0, 0) * color.red() + RGB_YCbCr(0, 1) * color.green() + RGB_YCbCr(0, 2) * color.blue();
-        Cb = 128 - RGB_YCbCr(1, 0) * color.red() + RGB_YCbCr(1, 1) * color.green() + RGB_YCbCr(1, 2) * color.blue();
-        Cr = 128 + RGB_YCbCr(2, 0) * color.red() + RGB_YCbCr(2, 1) * color.green() + RGB_YCbCr(2, 2) * color.blue();
+        Y = RGB_YCbCr(0, 0) * color.red + RGB_YCbCr(0, 1) * color.green + RGB_YCbCr(0, 2) * color.blue;
+        Cb = 128 - RGB_YCbCr(1, 0) * color.red + RGB_YCbCr(1, 1) * color.green + RGB_YCbCr(1, 2) * color.blue;
+        Cr = 128 + RGB_YCbCr(2, 0) * color.red + RGB_YCbCr(2, 1) * color.green + RGB_YCbCr(2, 2) * color.blue;
     }
 
     static Color<uint8_t> YCbCr(uint8_t Y, uint8_t Cb, uint8_t Cr) {

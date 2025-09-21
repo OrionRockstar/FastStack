@@ -49,9 +49,6 @@
     <ClCompile Include="SourceFiles\Core\Image.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\ImageOperations.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SourceFiles\Core\Drizzle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -89,9 +86,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SourceFiles\TIFF.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SourceFiles\Core\LocalHistogramEqualization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProcessDialog.cpp">
@@ -229,10 +223,31 @@
     <ClCompile Include="SourceFiles\Gui\LRGBCombinationDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SCNR.cpp">
+    <ClCompile Include="SourceFiles\Core\SCNR.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SCNRDialog.cpp">
+    <ClCompile Include="SourceFiles\Gui\SCNRDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Core\ExponentialTransformation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\ExponentialTransformationDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Core\LocalHistogramEqualization.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Histogram.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\MediaPlayerDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\HistogramView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SourceFiles\Gui\ImageSubWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -249,9 +264,6 @@
     <ClInclude Include="HeaderFiles\Core\Interpolator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HeaderFiles\ImageOperations.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="HeaderFiles\Core\Drizzle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -259,9 +271,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\Core\RGBColorSpace.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="HeaderFiles\Core\Maths.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HeaderFiles\Core\GaussianFilter.h">
@@ -417,10 +426,19 @@
     <ClInclude Include="HeaderFiles\Gui\LRGBCombinationDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SCNR.h">
+    <ClInclude Include="HeaderFiles\Core\SCNR.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SCNRDialog.h">
+    <ClInclude Include="HeaderFiles\Gui\SCNRDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\ExponentialTransformation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Gui\ExponentialTransformationDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HeaderFiles\Core\Maths.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -483,6 +501,15 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="ImageWindowMenu.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\MediaPlayerDialog.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\HistogramView.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="HeaderFiles\Gui\ImageSubWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

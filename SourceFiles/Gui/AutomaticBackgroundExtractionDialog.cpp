@@ -5,10 +5,9 @@
 using ABE = AutomaticBackgroundExtraction;
 using ABED = AutomaticBackgroundExtractionDialog;
 
-ABED::AutomaticBackgroundExtractionDialog(QWidget* parent) : ProcessDialog(m_abe_str, QSize(530, 380), FastStack::recast(parent)->workspace(), true) {
+ABED::AutomaticBackgroundExtractionDialog(QWidget* parent) : ProcessDialog("Automatic Background Extraction", QSize(530, 380), FastStack::recast(parent)->workspace(), true) {
 
-    setPreviewMethod(this, &ABED::applytoPreview);
-    connectToolbar(this, &ABED::apply, &ABED::showPreview, &ABED::resetDialog);
+    connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_apply_to_preview_pb->setDisabled(true); });
 
     addSampleGeneration();
     addSampleRejection();
@@ -28,7 +27,7 @@ void ABED::addSampleGeneration() {
     m_sample_radius_le->move(160, 30);
     addLabel(m_sample_radius_le, new QLabel("Sample Radius:   ", gb));
 
-    m_sample_radius_slider = new Slider(Qt::Horizontal, gb);
+    m_sample_radius_slider = new Slider(gb);
     m_sample_radius_slider->setRange(1, 50);
     m_sample_radius_slider->setFixedWidth(250);
     m_sample_radius_slider->setValue(5);
@@ -56,7 +55,7 @@ void ABED::addSampleGeneration() {
     m_sample_seperation_le->move(160, 75);
     addLabel(m_sample_seperation_le, new QLabel("Sample Seperation:   ", gb));
 
-    m_sample_seperation_slider = new Slider(Qt::Horizontal, gb);
+    m_sample_seperation_slider = new Slider(gb);
     m_sample_seperation_slider->setRange(0, 50);
     m_sample_seperation_slider->setFixedWidth(250);
     m_sample_seperation_slider->setValue(5);
@@ -90,7 +89,7 @@ void ABED::addSampleRejection() {
     m_sigma_low_le->move(160, 30);
     addLabel(m_sigma_low_le, new QLabel("Sigma Low:   ", gb));
 
-    m_sigma_low_slider = new Slider(Qt::Horizontal, gb);
+    m_sigma_low_slider = new Slider(gb);
     m_sigma_low_slider->setRange(0, 100);
     m_sigma_low_slider->setFixedWidth(250);
     m_sigma_low_slider->setValue(20);
@@ -118,7 +117,7 @@ void ABED::addSampleRejection() {
     m_sigma_high_le->move(160, 75);
     addLabel(m_sigma_high_le, new QLabel("Sigma High:   ", gb));
 
-    m_sigma_high_slider = new Slider(Qt::Horizontal, gb);
+    m_sigma_high_slider = new Slider(gb);
     m_sigma_high_slider->setRange(0, 100);
     m_sigma_high_slider->setFixedWidth(250);
     m_sigma_high_slider->setValue(10);
@@ -162,19 +161,22 @@ void ABED::addOther() {
     connect(m_apply_to_preview_pb, &QPushButton::released, this, [this]() { std::thread t(&ABED::applytoPreview, this); t.detach(); });
 }
 
+void ABED::closeEvent(QCloseEvent* e) {
+
+    if (m_preview)
+        m_preview->close();
+
+    ProcessDialog::closeEvent(e);
+}
+
 void ABED::resetDialog() {}
 
 void ABED::showPreview() {
 
-    ProcessDialog::showPreview(true);
+    showPreviewWindow(true);
 
-    if (m_preview != nullptr) {
+    if (m_preview != nullptr && !m_apply_to_preview_pb->isEnabled())
         m_apply_to_preview_pb->setEnabled(true);
-        connect(previewRecast(m_preview)->windowSignals(), &WindowSignals::windowClosed, this, [this]() { m_apply_to_preview_pb->setDisabled(true); });
-    }
-
-    std::thread t(&ABED::applytoPreview, this);
-    t.detach();
 }
 
 void ABED::apply() {
@@ -200,7 +202,7 @@ void ABED::apply() {
 
 }
 
-void ABED::applytoPreview() {
+void ABED::applyPreview() {
 
     if (!isPreviewValid())
         return;

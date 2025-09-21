@@ -6,9 +6,7 @@
 
 BilateralFilterDialog::BilateralFilterDialog(QWidget* parent) : ProcessDialog("BilateralFilter", QSize(470, 145), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(750);
-	setPreviewMethod(this, &BilateralFilterDialog::applytoPreview);
-	connectToolbar(this, &BilateralFilterDialog::apply, &BilateralFilterDialog::showPreview, &BilateralFilterDialog::resetDialog);
+	setDefaultTimerInterval(750);
 
 	addSigmaInputs();
 	addSigmaIntensityInputs();
@@ -29,7 +27,7 @@ void BilateralFilterDialog::addSigmaInputs() {
 	m_sigma_s_le->move(140, 15);
 	addLabel(m_sigma_s_le, new QLabel("StdDev Spatial:", drawArea()));
 
-	m_sigma_s_slider = new Slider(Qt::Horizontal, drawArea());
+	m_sigma_s_slider = new Slider(drawArea());
 	m_sigma_s_slider->setRange(1, 100);
 	m_sigma_s_slider->setFixedWidth(240);
 	m_sigma_s_slider->setValue(m_bf.sigmaSpatial() * 10);
@@ -62,7 +60,7 @@ void BilateralFilterDialog::addSigmaIntensityInputs() {
 	m_sigma_r_le->move(140, 55);
 	addLabel(m_sigma_r_le, new QLabel("StdDev Range:", drawArea()));
 
-	m_sigma_r_slider = new Slider(Qt::Horizontal, drawArea());
+	m_sigma_r_slider = new Slider(drawArea());
 	m_sigma_r_slider->setRange(1, 100);
 	m_sigma_r_slider->setFixedWidth(240);
 	m_sigma_r_slider->setValue(m_bf.sigmaRange() * 100);
@@ -123,18 +121,10 @@ void BilateralFilterDialog::resetDialog() {
 	applytoPreview();
 }
 
-void BilateralFilterDialog::showPreview() {
-
-	ProcessDialog::showPreview();
-	applytoPreview();
-}
-
 void BilateralFilterDialog::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
-
-	enableSiblings(false);
 
 	//std::unique_ptr<ProgressDialog> pd(std::make_unique<ProgressDialog>(m_bf.progressSignal()));
 
@@ -142,27 +132,20 @@ void BilateralFilterDialog::apply() {
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_bf, &BilateralFilter::apply);
-		break;
+		return iwptr->applyToSource(m_bf, &BilateralFilter::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->applyToSource(m_bf, &BilateralFilter::apply);
-		break;
+		return iw16->applyToSource(m_bf, &BilateralFilter::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->applyToSource(m_bf, &BilateralFilter::apply);
-		break;
+		return iw32->applyToSource(m_bf, &BilateralFilter::apply);
 	}
 	}
-
-	enableSiblings(true);
-
-	applytoPreview();
 }
 
-void BilateralFilterDialog::applytoPreview() {
+void BilateralFilterDialog::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

@@ -7,8 +7,6 @@
 
 RotationDialog::RotationDialog(QWidget* parent) :ProcessDialog("ImageRotation", QSize(275, 175), FastStack::recast(parent)->workspace(), false) {
 
-	connectToolbar(this, &RotationDialog::apply, &RotationDialog::showPreview, &RotationDialog::resetDialog);
-
 	QLabel* label = new QLabel("Rotation Angle(\u00B0):", drawArea());
 	label->move(10, 40);
 
@@ -73,8 +71,6 @@ void RotationDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
@@ -93,8 +89,6 @@ void RotationDialog::apply() {
 		break;
 	}
 	}
-
-	enableSiblings(true);
 }
 
 
@@ -104,8 +98,6 @@ void RotationDialog::apply() {
 FastRotationDialog::FastRotationDialog(QWidget* parent) :ProcessDialog("FastRotation", QSize(250, 130), FastStack::recast(parent)->workspace(), false) {
 
 	using enum FastRotation::Type;
-
-	connectToolbar(this, &FastRotationDialog::apply, &FastRotationDialog::showPreview, &FastRotationDialog::resetDialog);
 
 	QString str = QString("Rotate 90\u00B0 Clockwise");
 	m_90cw_rb = new RadioButton(str, drawArea());
@@ -144,8 +136,6 @@ void FastRotationDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
@@ -164,8 +154,6 @@ void FastRotationDialog::apply() {
 		break;
 	}
 	}
-
-	enableSiblings(true);
 }
 
 
@@ -175,8 +163,6 @@ void FastRotationDialog::apply() {
 
 
 IntegerResampleDialog::IntegerResampleDialog(QWidget* parent) :ProcessDialog("IntegerResample", QSize(210, 155), FastStack::recast(parent)->workspace(), false) {
-
-	connectToolbar(this, &IntegerResampleDialog::apply, &IntegerResampleDialog::showPreview, &IntegerResampleDialog::resetDialog);
 
 	m_type_bg = new QButtonGroup(this);
 	RadioButton* rb = new RadioButton("Downsample", drawArea());
@@ -218,8 +204,6 @@ void IntegerResampleDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
@@ -238,8 +222,6 @@ void IntegerResampleDialog::apply() {
 		break;
 	}
 	}
-
-	enableSiblings(true);
 }
 
 
@@ -275,12 +257,20 @@ void CropFrame::resetFrame() {
 	this->setGeometry(m_default_geometry);
 }
 
+void CropFrame::enterEvent(QEnterEvent* e) {
+
+}
+
+void CropFrame::leaveEvent(QEvent* e) {
+
+}
+
 void CropFrame::mousePressEvent(QMouseEvent* e) {
 
 	if (e->buttons() == Qt::LeftButton && m_frame.isOnFrame(e->pos())) {
 		m_resizing = true;
 		m_start_pos = e->pos();
-		m_start_rec = geometry();
+		m_start_rect = geometry();
 		m_current_border = m_frame.rectBorder(e->pos());
 	}
 
@@ -289,6 +279,9 @@ void CropFrame::mousePressEvent(QMouseEvent* e) {
 		m_moving = true;
 		m_start_pos = e->pos();
 	}
+
+	if (e->buttons() == Qt::RightButton)
+		this->setCursor(QCursor(QPixmap(style()->standardPixmap(QStyle::SP_BrowserReload))));
 }
 
 void CropFrame::mouseMoveEvent(QMouseEvent* e) {
@@ -313,11 +306,11 @@ void CropFrame::mouseMoveEvent(QMouseEvent* e) {
 			break;
 
 		case RectBorder::RightEdge:
-			r.setRight(m_start_rec.right() + dp.x());
+			r.setRight(m_start_rect.right() + dp.x());
 			break;
 
 		case RectBorder::BottomEdge:
-			r.setBottom(m_start_rec.bottom() + dp.y());
+			r.setBottom(m_start_rect.bottom() + dp.y());
 			break;
 
 		case RectBorder::TopLeftCorner:
@@ -325,15 +318,15 @@ void CropFrame::mouseMoveEvent(QMouseEvent* e) {
 			break;
 
 		case RectBorder::TopRightCorner:
-			r.setTopRight(QPoint(m_start_rec.right() + dp.x(), top));
+			r.setTopRight(QPoint(m_start_rect.right() + dp.x(), top));
 			break;
 
 		case RectBorder::BottomLeftCorner:
-			r.setBottomLeft(QPoint(left, m_start_rec.bottom() + dp.y()));
+			r.setBottomLeft(QPoint(left, m_start_rect.bottom() + dp.y()));
 			break;
 
 		case RectBorder::BottomRightCorner:
-			r.setBottomRight(m_start_rec.bottomRight() + dp);
+			r.setBottomRight(m_start_rect.bottomRight() + dp);
 			break;
 		}
 
@@ -360,7 +353,7 @@ void CropFrame::mouseMoveEvent(QMouseEvent* e) {
 		this->move(r.topLeft());
 	}
 
-	else
+	else if (e->buttons() == Qt::NoButton)
 		setCursor(m_frame.cursorAt(e->pos(), m_cursor));	
 }
 
@@ -373,6 +366,9 @@ void CropFrame::mouseReleaseEvent(QMouseEvent* e) {
 
 		setCursor(m_frame.cursorAt(e->pos(), m_cursor));
 	}
+
+	if (e->button() == Qt::RightButton && rect().contains(e->pos()))
+		resetFrame();
 }
 
 void CropFrame::resizeEvent(QResizeEvent* e) {
@@ -430,7 +426,9 @@ void NonCropArea::paintEvent(QPaintEvent* e) {
 
 
 template<typename T>
-CropPreview<T>::CropPreview(QWidget* image_window) : PreviewWindow<T>(image_window, true) {
+CropPreview<T>::CropPreview(QWidget* image_window) : PreviewWindow<T>(imageRecast<T>(image_window), true) {
+
+	this->resizeSource();
 	QRect rect = QRect(20, 20, this->m_image_label->width() - 40, this->m_image_label->height() - 40);
 	m_cf = new CropFrame(rect, this->m_image_label);
 	m_nca = new NonCropArea(*m_cf, this->m_image_label);
@@ -457,10 +455,8 @@ template class CropPreview<float>;
 
 
 
-CropDialog::CropDialog(QWidget* parent) : ProcessDialog(m_crop_image_str, QSize(220, 60), FastStack::recast(parent)->workspace(), false, false) {
+CropDialog::CropDialog(QWidget* parent) : ProcessDialog("Crop Image", QSize(220, 60), FastStack::recast(parent)->workspace(), false, false) {
 	
-	connectToolbar(this, &CropDialog::apply, &CropDialog::showPreview, &CropDialog::resetDialog);
-
 	m_image_sel = new ComboBox(drawArea());
 	m_image_sel->addItem("No Image Selected");
 	m_image_sel->setFixedWidth(200);
@@ -469,8 +465,6 @@ CropDialog::CropDialog(QWidget* parent) : ProcessDialog(m_crop_image_str, QSize(
 	for (auto sw : m_workspace->subWindowList())
 		m_image_sel->addItem(imageRecast(sw->widget())->name());
 
-	connect(reinterpret_cast<Workspace*>(m_workspace), &Workspace::imageWindowClosed, this, &CropDialog::onWindowClose);
-	connect(reinterpret_cast<Workspace*>(m_workspace), &Workspace::imageWindowCreated, this, &CropDialog::onWindowOpen);
 	connect(m_image_sel, &QComboBox::activated, this, &CropDialog::onActivation_imageSelection); // show preview on activation
 
 	show();
@@ -478,46 +472,43 @@ CropDialog::CropDialog(QWidget* parent) : ProcessDialog(m_crop_image_str, QSize(
 
 void CropDialog::closeEvent(QCloseEvent* e) {
 
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iw = imageRecast<>(sw->widget());
-		auto pw = iw->preview();
-		if (pw && pw->processType() == name())
-			iw->closePreview();
-	}
+	if (m_preview)
+		m_preview->close();
 
-	emit windowClosed();
-	e->accept();
+	ProcessDialog::closeEvent(e);
 }
 
-void CropDialog::onWindowOpen() {
-	QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
-	m_image_sel->addItem(str);
+void CropDialog::onImageWindowCreated() {
+	//QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
+	m_image_sel->addImage(imageRecast<>(m_workspace->subWindowList().last()->widget()));
 }
 
-void CropDialog::onWindowClose() {
+void CropDialog::onImageWindowClosed() {
 
-	QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
-	int index = m_image_sel->findText(str);
-
-	m_preview = nullptr;
+	//QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
+	int index = m_image_sel->findImage(&imageRecast<>(m_workspace->currentSubWindow()->widget())->source());//m_image_sel->findText(str);
 	m_image_sel->removeItem(index);
 	m_image_sel->setCurrentIndex(0);
 }
 
 void CropDialog::onActivation_imageSelection(int index) {
-
+	
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iwptr = imageRecast<>(sw->widget());
 
 		if (iwptr->previewExists()) {
-			if (index == 0 && iwptr->preview()->processType() != name())
+			if (index != 0 && iwptr->preview()->processType() == name())
 				return;
 			else
-				iwptr->closePreview();
+				m_preview->close();
 		}
 	}
-	
-	m_image_sel->setCurrentIndex(index);
+
+
+	//needed???
+	auto cp = [this]<typename T>(ImageWindow<T>* iwb) {
+		connect(iwb, &ImageWindowBase::windowUpdated, this, [this]() {  previewRecast<T>(m_preview)->updatePreview(); });
+	};
 
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iwptr = imageRecast<>(sw->widget());
@@ -527,26 +518,23 @@ void CropDialog::onActivation_imageSelection(int index) {
 			switch (iwptr->type()) {
 			case ImageType::UBYTE: {
 				iwptr->showPreview(new CropPreview<uint8_t>(iwptr));
-				connect(iwptr->windowSignals(), &WindowSignals::windowUpdated, this, [this]() {  previewRecast<>(m_preview)->updatePreview(); });
-
+				cp(iwptr);
 				break;
 			}
 			case ImageType::USHORT: {
 				auto iw16 = imageRecast<uint16_t>(iwptr);
 				iw16->showPreview(new CropPreview<uint16_t>(iw16));
-				connect(iwptr->windowSignals(), &WindowSignals::windowUpdated, this, [this]() {  previewRecast<uint16_t>(m_preview)->updatePreview(); });
-
+				cp(iw16);
 				break;
 			}
 			case ImageType::FLOAT: {
 				auto iw32 = imageRecast<float>(iwptr);
 				iw32->showPreview(new CropPreview<float>(iw32));
-				connect(iwptr->windowSignals(), &WindowSignals::windowUpdated, this, [this]() {  previewRecast<float>(m_preview)->updatePreview(); });
-
+				cp(iw32);
 				break;
 			}
 			}
-			connect(iwptr->preview()->windowSignals(), &WindowSignals::windowClosed, this, [this]() { m_preview = nullptr; m_image_sel->setCurrentIndex(0); });
+			connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { m_image_sel->setCurrentIndex(0); });
 
 			m_preview = iwptr->preview();
 			iwptr->preview()->setTitle(iwptr->name() + " Crop Window");
@@ -571,8 +559,6 @@ void CropDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iwptr = reinterpret_cast<ImageWindow8*>(sw->widget());
 		if (m_image_sel->currentText() == iwptr->name()) {
@@ -582,36 +568,31 @@ void CropDialog::apply() {
 				auto iw8 = reinterpret_cast<ImageWindow8*>(iwptr);
 				m_crop.setRegion(reinterpret_cast<CropPreview<uint8_t>*>(iw8->preview())->cropRect());
 				iw8->applyToSource_Geometry(m_crop, &Crop::apply);
-				iw8->closePreview();
 				break;
 			}
 			case ImageType::USHORT: {
 				auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
 				m_crop.setRegion(reinterpret_cast<CropPreview<uint16_t>*>(iw16->preview())->cropRect());
 			    iw16->applyToSource_Geometry(m_crop, &Crop::apply);
-				iw16->closePreview();
 				break;
 			}
 			case ImageType::FLOAT: {
 				auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
 				m_crop.setRegion(reinterpret_cast<CropPreview<float>*>(iw32->preview())->cropRect());
 				iw32->applyToSource_Geometry(m_crop, &Crop::apply);
-				iw32->closePreview();
 				break;
 			}
 			}
 		}
 	}
 
-	enableSiblings(true);
+	if (m_preview)
+		m_preview->close();
 }
 
 
 
 ResizeDialog::ResizeDialog(QWidget* parent) :ProcessDialog("Resize Image", QSize(280, 115), FastStack::recast(parent)->workspace(), false) {
-
-	connectToolbar(this, &ResizeDialog::apply, &ResizeDialog::showPreview, &ResizeDialog::resetDialog);
-
 
 	m_row_le = new IntLineEdit(1'000, new IntValidator(1, 100'000), drawArea());
 	m_row_le->setFixedWidth(70);
@@ -648,8 +629,6 @@ void ResizeDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
@@ -667,9 +646,7 @@ void ResizeDialog::apply() {
 		iw32->applyToSource_Geometry(m_rs, &Resize::apply);
 		break;
 	}
-	}
-		
-	enableSiblings(true);
+	}		
 }
 
 
@@ -677,8 +654,6 @@ void ResizeDialog::apply() {
 
 
 HomographyTransformationDialog::HomographyTransformationDialog(QWidget* parent) :ProcessDialog("ImageTransformation", QSize(300, 250), FastStack::recast(parent)->workspace(), parent, false) {
-
-	connectToolbar(this, &HomographyTransformationDialog::apply, &HomographyTransformationDialog::showPreview, &HomographyTransformationDialog::resetDialog);
 
 	QLabel* label = new QLabel("Homography:", this);
 	label->move(15, 5);
@@ -723,8 +698,6 @@ void HomographyTransformationDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
@@ -743,6 +716,4 @@ void HomographyTransformationDialog::apply() {
 		break;
 	}
 	}
-
-	enableSiblings(true);
 }

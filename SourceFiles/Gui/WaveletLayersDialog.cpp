@@ -6,8 +6,6 @@
 
 WaveletLayersDialog::WaveletLayersDialog(QWidget* parent) : ProcessDialog("WaveletLayers", QSize(345, 100), FastStack::recast(parent)->workspace(), false, true, false) {
 
-	connectToolbar(this, &WaveletLayersDialog::apply, &WaveletLayersDialog::showPreview, &WaveletLayersDialog::resetDialog);
-
 	m_layers_sb = new SpinBox(drawArea());
 	m_layers_sb->setRange(1, 6);
 	m_layers_sb->setValue(m_wavelet.layers());
@@ -46,7 +44,7 @@ void WaveletLayersDialog::apply() {
 
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
-	enableSiblings(false);
+	enableSiblings_Subwindows(false);
 
 	std::vector<Image32> wavelet_vector;
 
@@ -82,5 +80,5 @@ void WaveletLayersDialog::apply() {
 		ImageWindow32* iw = new ImageWindow32(std::move(wavelet_vector[i]), QString::fromStdString(name), m_workspace);
 	}
 
-	enableSiblings(true);
+	enableSiblings_Subwindows(true);
 }

@@ -1,39 +1,37 @@
 #pragma once
 #include <qwidget.h>
 #include "Star.h"
-#include "Matrix.h"
 #include "Workspace.h"
 #include "CustomWidgets.h"
-#include "Image.h"
-//#include "ImageWindow.h"
 
 
 class DialogToolbar : public QWidget {
 	Q_OBJECT
 
+public:
 	static const int m_toolbarHeight = 24;
 	QSize m_button_size = { 24,24 };
 
 	bool m_apply_dd = true;
-	PushButton* m_apply_dd_pb = nullptr;
+	FlatPushButton* m_apply_dd_pb = nullptr;
 	QIcon m_apply_to_icon;
 
 	bool m_apply = true;
-	PushButton* m_apply_pb = nullptr;
+	FlatPushButton* m_apply_pb = nullptr;
 	QIcon m_apply_icon;
 
 	bool m_preview = true;
-	PushButton* m_preview_pb = nullptr;
+	FlatPushButton* m_preview_pb = nullptr;
 	QIcon m_preview_icon;
 
-	PushButton* m_reset_pb = nullptr;
+	FlatPushButton* m_reset_pb = nullptr;
 	QIcon m_reset_icon;
 
 public:
 	DialogToolbar(QWidget* parent, bool preview = true, bool apply_dd = true, bool apply = true);
 
-	template <typename Func1, typename Func2>
-	void connectFunctions(const QObject* receiver,Func1 apply_to_dd, Func2 apply, Func2 preview, Func2 reset) {
+	template <typename Func>
+	void connectFunctions(const QObject* receiver, Func&& apply_to_dd, Func&& apply, Func&& preview, Func&& reset) {
 
 		connect(m_apply_dd_pb, &QPushButton::pressed, receiver, apply_to_dd);
 		connect(m_apply_pb, &QPushButton::released, receiver, apply);
@@ -62,29 +60,40 @@ private:
 
 class Timer : public QTimer {
 	Q_OBJECT
+private:
+	uint32_t m_default_interval_msec = 100;
+
+	void onTimout() { 
+		if (this->interval() != m_default_interval_msec)
+			this->setInterval(m_default_interval_msec); 
+	}
 
 public:
-	Timer(int interval_ms, QWidget* parent = nullptr) : QTimer(parent) {
+	Timer(int default_interval_msec, QWidget* parent = nullptr) : m_default_interval_msec(default_interval_msec), QTimer(parent) {
 		this->setSingleShot(true);
-		this->setInterval(interval_ms);
+		this->setInterval(default_interval_msec);
+		connect(this, &QTimer::timeout, this, &Timer::onTimout);
 	}
 
 	Timer() = default;
+
+	uint32_t defaultInterval()const { return m_default_interval_msec; }
+
+	void setDefaultInterval(uint32_t msec) { this->setInterval(m_default_interval_msec = msec); }
 };
 
 
 
 class ProgressSignal: public QObject {
 	Q_OBJECT
-public:
-	ProgressSignal(QObject* parent = nullptr) {}
-	~ProgressSignal() {}
-public slots:
 
+public:
 signals:
 	void emitProgress(int val);
 
 	void emitText(const QString& text);
+
+	void finished();
 };
 
 
@@ -120,11 +129,9 @@ class ProgressDialog : public QProgressDialog {
 	Q_OBJECT
 
 public:
-
 	ProgressDialog(QWidget* parent = nullptr);
 
-	ProgressDialog(const ProgressSignal& signal_object, QWidget* parent = nullptr);
-
+	ProgressDialog(ProgressSignal* signal_object, QWidget* parent = nullptr);
 };
 
 
@@ -177,36 +184,28 @@ static void MessageBox(const QString& message, QWidget* parent) {
 
 
 
-
+class PreviewWindowBase;
 class ProcessDialog : public Dialog {
 	Q_OBJECT
 
 private:
 	DialogToolbar* m_toolbar = nullptr;
+	std::unique_ptr<Timer> m_timer = std::make_unique<Timer>(100, this);
 
-	std::unique_ptr<Timer> m_timer;
-
-	const ProcessDialog* m_obj = nullptr;
-//protected:
-	typedef void (ProcessDialog::* Function)();
-//private:
-	Function m_func = nullptr;
+	bool m_finished = true;
 
 protected:
 	QString m_name;
-	QMdiArea* m_workspace;
+	Workspace* m_workspace;
 
-	QDialog* m_preview = nullptr;
-
-	inline static QString m_crop_image_str = "Crop Image";
-	inline static QString m_abe_str = "Automatic Background Extraction";
+	PreviewWindowBase* m_preview = nullptr;
 
 public:
-	ProcessDialog(const QString& name, const QSize& size, QMdiArea* parent_workspace, bool preview = true, bool apply_dd = true, bool apply = true);
+	ProcessDialog(const QString& name, const QSize& size, Workspace* parent_workspace, bool preview = true, bool apply_dd = true, bool apply = true);
 
 	QString name()const { return m_name; }
 
-	void enableSiblings(bool enable);
+	void enableSiblings_Subwindows(bool enable);
 
 	void resizeDialog(const QSize& size);
 
@@ -215,39 +214,38 @@ public:
 signals:
 	void processDropped();
 
+	void previewAdded();
+
+	void previewRemoved();
+
 private:
 	void createDragInstance();
 
+	void connectZoomWindow();
+
 protected:
+	void applytoPreview();
+
 	void startTimer()const { m_timer->start(); }
 
-	void setTimerInterval(int interval)const {
-		m_timer->setInterval(interval);
+	void setDefaultTimerInterval(int msec) {
+		m_timer->setDefaultInterval(msec);
 	}
 
-	template<typename Func>
-	void setPreviewMethod(const ProcessDialog* obj, Func func) {
+	void showPreviewWindow(bool ignore_zoomwindow = false);
 
-		m_obj = obj;
-		m_func = reinterpret_cast<void(ProcessDialog::*)()>(func);
-		connect(m_timer.get(), &QTimer::timeout, m_obj, m_func, Qt::UniqueConnection);
-	}
+	virtual void onImageWindowCreated() {}
 
-	template <typename Func>
-	void connectToolbar(const QObject* obj, Func apply, Func preview, Func reset) {
-
-		connect(this, &ProcessDialog::processDropped, obj, apply);
-		m_toolbar->connectFunctions(obj, &ProcessDialog::createDragInstance, apply, preview, reset);
-	}
-
-	virtual void showPreview(bool ignore_zoomwindow = false);
+	virtual void onImageWindowClosed() {}
 
 	virtual void closeEvent(QCloseEvent* close);
 
-private:
-	void czw()const;
+	virtual void resetDialog() {}
 
-	void connectZoomWindow();
-public:
-	const Image8* findImage(const QString& name);
+	virtual void showPreview() { showPreviewWindow(); }
+
+	virtual void apply() {}
+
+	virtual void applyPreview() {};
 };
+

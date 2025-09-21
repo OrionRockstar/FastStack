@@ -5,7 +5,7 @@
 
 
 
-class RangeSlider : public QSlider {
+class RangeSlider : public Slider {
 	Q_OBJECT
 
 private:
@@ -53,7 +53,7 @@ public:
 
 
 private:
-	void wheelEvent(QWheelEvent* e) {}
+	bool event(QEvent* e);
 
 	void mousePressEvent(QMouseEvent* e);
 
@@ -62,6 +62,8 @@ private:
 	void mouseReleaseEvent(QMouseEvent* e);
 
 	void paintEvent(QPaintEvent* e);
+
+	void wheelEvent(QWheelEvent* e) {}
 };
 
 
@@ -101,9 +103,7 @@ private:
 
 	void resetDialog();
 
-	void showPreview();
-
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };

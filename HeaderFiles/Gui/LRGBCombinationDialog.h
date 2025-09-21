@@ -47,9 +47,9 @@ class LRGBCombinationDialog : public ProcessDialog {
 public:
 	LRGBCombinationDialog(QWidget* parent);
 private:
-	void onWindowOpen();
+	void onImageWindowCreated()override;
 
-	void onWindowClose();
+	void onImageWindowClosed()override;
 
 	void addImageSelection();
 

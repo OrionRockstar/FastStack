@@ -2,39 +2,34 @@
 #include "FastStack.h"
 #include "LocalHistogramEqualization.h"
 
-
 using LHE = LocalHistogramEqualization;
 
-
-LHE::KernelHistogram::KernelHistogram(Histogram::Resolution resolution, int kernel_radius, bool circular) {
+LHE::KernelHistogram::KernelHistogram(Histogram::Resolution resolution, int kernel_radius, bool circular) : m_radius(kernel_radius), m_dimension(2 * kernel_radius + 1) {
 
 	m_histogram = Histogram(resolution);
 	m_multiplier = m_histogram.resolution() - 1;
 
-	m_radius = kernel_radius;
-	m_is_circular = circular;
-	m_dimension = 2 * kernel_radius + 1;
+	int total = dimension() * dimension();
 
-	int total = m_dimension * m_dimension;
-	if (m_is_circular) {
+	if (circular) {
 
 		k_mask.resize(total, false);
-		back_pix.resize(m_dimension);
-		front_pix.resize(m_dimension);
+		back_pix.resize(dimension());
+		front_pix.resize(dimension());
 
-		for (int j = 0; j < m_dimension; ++j) {
+		for (int j = 0; j < dimension(); ++j) {
 
-			int dy2 = j - kernel_radius;
+			int dy2 = j - radius();
 			dy2 *= dy2;
 
 			bool new_x = true;
 
-			for (int i = 0; i < m_dimension; ++i) {
+			for (int i = 0; i < dimension(); ++i) {
 
-				int dx = i - kernel_radius;
-				int loc = j * m_dimension + i;
+				int dx = i - radius();
+				int loc = j * dimension() + i;
 
-				if (sqrt(dx * dx + dy2) <= kernel_radius) {
+				if (sqrt(dx * dx + dy2) <= radius()) {
 					k_mask[loc] = true;
 					m_count++;
 				}
@@ -49,13 +44,12 @@ LHE::KernelHistogram::KernelHistogram(Histogram::Resolution resolution, int kern
 					front_pix[j] = dx;
 			}
 		}
-
 	}
 
 	else {
 		k_mask.resize(total, true);
-		back_pix.resize(m_dimension, -kernel_radius);
-		front_pix.resize(m_dimension, kernel_radius);
+		back_pix.resize(dimension(), -radius());
+		front_pix.resize(dimension(), radius());
 		m_count = total;
 	}
 }
@@ -68,7 +62,6 @@ LHE::KernelHistogram::KernelHistogram(const KernelHistogram& kh) {
 
 	m_radius = kh.m_radius;
 	m_dimension = kh.m_dimension;
-	m_is_circular = kh.m_is_circular;
 
 	back_pix = kh.back_pix;
 	front_pix = kh.front_pix;
@@ -78,10 +71,9 @@ LHE::KernelHistogram::KernelHistogram(const KernelHistogram& kh) {
 template<typename T>
 void LHE::KernelHistogram::populate(Image<T>& img, int y) {
 
-	for (int i = 0; i < m_histogram.resolution(); ++i)
-		m_histogram[i] = 0;
+	m_histogram.fill(0);
 
-	for (int j = -m_radius, j_mask = 0; j <= m_radius; ++j, j_mask += m_dimension) {
+	for (int j = -radius(), j_mask = 0; j <= radius(); ++j, j_mask += dimension()) {
 
 		int yy = y + j;
 		if (yy < 0)
@@ -89,14 +81,14 @@ void LHE::KernelHistogram::populate(Image<T>& img, int y) {
 		else if (yy >= img.rows())
 			yy = 2 * img.rows() - (yy + 1);
 
-		for (int i = -m_radius, i_m = 0; i <= m_radius; ++i, ++i_m) {
+		for (int i = -radius(), i_m = 0; i <= radius(); ++i, ++i_m) {
 
 			int xx = i;
 			if (xx < 0)
 				xx = -xx;
 
-			if (k_mask[j_mask + i_m] && img.isInBounds(xx,yy)) 
-				m_histogram[Pixel<float>::toType(img(xx,yy)) * m_multiplier]++;
+			if (k_mask[j_mask + i_m] && img.isInBounds(xx, yy))
+				m_histogram[Pixel<float>::toType(img(xx,yy)) * multiplier()]++;
 			
 		}
 	}
@@ -108,7 +100,7 @@ template void LHE::KernelHistogram::populate(Image32&, int);
 template<typename T>
 void LHE::KernelHistogram::update(Image<T>& img, int x, int y) {
 
-	for (int j = -m_radius, s = 0; j <= m_radius; ++j, ++s) {
+	for (int j = -radius(), s = 0; j <= radius(); ++j, ++s) {
 
 		int yy = y + j;
 		if (yy < 0)
@@ -122,8 +114,9 @@ void LHE::KernelHistogram::update(Image<T>& img, int x, int y) {
 		if (xx >= img.cols())
 			xx = 2 * img.cols() - (xx + 1);
 
-		if (img.isInBounds(xx,yy))
-			m_histogram[Pixel<float>::toType(img(xx, yy)) * m_multiplier]++;
+		if (img.isInBounds(xx, yy))
+			m_histogram[Pixel<float>::toType(img(xx, yy)) * multiplier()]++;
+
 
 		//back
 		xx = x + back_pix[s] - 1;
@@ -131,8 +124,8 @@ void LHE::KernelHistogram::update(Image<T>& img, int x, int y) {
 		if (xx < 0)
 			xx = -xx;
 
-		if (img.isInBounds(xx, yy))
-			m_histogram[Pixel<float>::toType(img(xx, yy)) * m_multiplier]--;
+		if (img.isInBounds(xx,yy))
+			m_histogram[Pixel<float>::toType(img(xx, yy)) * multiplier()]--;
 	}
 }
 template void LHE::KernelHistogram::update(Image8&, int, int);
@@ -140,79 +133,66 @@ template void LHE::KernelHistogram::update(Image16&, int, int);
 template void LHE::KernelHistogram::update(Image32&, int, int);
 
 
-
 template<typename T>
 void LHE::apply(Image<T>& img) {
-
-	float original_amount = 1.0 - m_amount;
 
 	Image<T> temp;
 
 	if (img.channels() == 3) {
-		m_ps.emitText("Getting CIE Luminance...");
+		m_ps->emitText("Getting CIE Luminance...");
 		img.RGBtoCIELab();
 		img.copyTo(temp);
 	}
 	else
 		temp = Image<T>(img);
 
-	int sum = 0;
-	m_ps.emitText("CLAHE...");
+	std::atomic_uint32_t psum = 0;
+	m_ps->emitText("CLAHE...");
 
-	KernelHistogram k_hist(m_hist_res, m_kernel_radius, m_is_circular);
+	QEventThreads().run([&, this](uint32_t start, uint32_t end, uint32_t num) {
 
-#pragma omp parallel for firstprivate(k_hist)
-	for (int y = 0; y < img.rows(); ++y) {
+		KernelHistogram k_hist(histogramResolution(), kernelRadius(), isCircular());
+		float original_amount = 1.0 - amount();
+		uint32_t m = Histogram::resolutionValue(histogramResolution()) - 1;
+		Histogram histogram;
 
-		k_hist.populate(img, y);
+		for (int y = start; y < end; ++y) {
 
-		int limit = (m_contrast_limit * k_hist.count()) / (k_hist.histogram().resolution() - 1);
+			for (int x = 0; x < img.cols(); ++x) {
+				float pixel = Pixel<float>::toType(img(x, y));
 
-		if (limit == 0)
-			limit = 1;
+				if (x == 0)
+					k_hist.populate(img, y);
+				else
+					k_hist.update(img, x, y);
 
-		for (int x = 0; x < img.cols(); ++x) {
-			float pixel = Pixel<float>::toType(img(x, y));
+				histogram = k_hist.histogram();
+				histogram.clip(math::max<uint32_t>(1, (contrastLimit() * histogram.count()) / m) + 0.5);
+				histogram.convertToCDF();
+				uint32_t min = histogram.minCount();
+				uint32_t max = histogram[m];
+				uint32_t cdf = histogram[pixel * m];
 
-			if (x != 0)
-				k_hist.update(img, x, y);
+				temp(x, y) = Pixel<T>::toType((original_amount * pixel) + (amount() * float(cdf - min) / (max - min)));
+			}
 
-			Histogram k_hist_cl(k_hist.histogram());
-			k_hist_cl.clip(limit);
+			psum++;
 
-			int sum = 0;
-			int val = pixel * k_hist.multiplier();
-
-			for (int el = 0; el <= val; ++el)
-				sum += k_hist_cl[el];
-
-			int cdf = sum;
-			int min = 0;
-
-			for (int el = 0; el < k_hist_cl.resolution(); ++el)
-				if (k_hist_cl[el] != 0) { min = k_hist_cl[el]; break; }
-
-			for (int el = val + 1; el < k_hist_cl.resolution(); ++el)
-				sum += k_hist_cl[el];
-
-			temp(x, y) = Pixel<T>::toType((original_amount * pixel) + (m_amount * float(cdf - min) / (sum - min)));
+			if (num == 0)
+				m_ps->emitProgress((psum * 100) / img.rows());
 		}
+	}, img.rows());
 
-#pragma omp atomic
-		++sum;
-
-		if (omp_get_thread_num() == 0) 
-			m_ps.emitProgress((sum * 100) / img.rows());		
-	}
-
-	m_ps.emitProgress(100);
+	m_ps->emitProgress(100);
 
 	temp.moveTo(img);
 
 	if (img.channels() == 3) {
-		m_ps.emitText("CIE Lab to RGB...");
+		m_ps->emitText("CIE Lab to RGB...");
 		img.CIELabtoRGB();
 	}
+
+	m_ps->finished();
 }
 template void LHE::apply(Image8&);
 template void LHE::apply(Image16&);

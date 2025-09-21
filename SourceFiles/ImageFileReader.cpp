@@ -5,13 +5,7 @@
 #include "TIFF.h"
 #include "Bitmap.h"
 
-ImageFileReader::ImageFileReader(QMdiArea* workspace) {
-	m_workspace = workspace;
-}
-
-
-
-
+ImageFileReader::ImageFileReader(Workspace* workspace) : m_workspace(workspace) {}
 
 Status ImageFileReader::read(std::filesystem::path file_path) {
 	Image8 img8;
@@ -86,6 +80,7 @@ Status ImageFileReader::read(std::filesystem::path file_path) {
 
 	else
 		return { false, "Unsupported File Type!" };
+
 
 	if (img8.exists())
 		ImageWindow8* iw8 = new ImageWindow8(std::move(img8), name.c_str(), m_workspace);

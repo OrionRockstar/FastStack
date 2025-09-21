@@ -7,12 +7,12 @@ class Matrix {
 
     int m_rows = 0;
     int m_cols = 0;
-    int m_count = 0;
+    //int m_count = 0;
 
     std::vector<double> data;
 
 public:
-    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols), m_count(rows*cols) {
+    Matrix(int rows, int cols = 1) :m_rows(rows), m_cols(cols) {
         data.resize(rows * cols, 0);
     }
 
@@ -54,7 +54,6 @@ public:
         data = other.data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-
         return *this;
     }
 
@@ -62,7 +61,6 @@ public:
         data = other.data;
         m_rows = other.m_rows;
         m_cols = other.m_cols;
-
         return *this;
     }
 
@@ -159,6 +157,8 @@ public:
 
     int cols()const { return m_cols; }
 
+    int count()const { return data.size(); }
+
     std::array<int, 2> size()const { return { m_rows, m_cols }; }
 
     bool isSize(int rows, int cols)const {
@@ -180,8 +180,7 @@ public:
             el = value;
     }
 
-    template<typename T = double>
-    void setRow(int row, const std::initializer_list<T>& list) {
+    void setRow(int row, const std::initializer_list<double>& list) {
 
         int size = (list.size() < cols()) ? list.size() : cols();
 

@@ -6,9 +6,8 @@ using ASSD = ASinhStretchDialog;
 
 ASSD::ASinhStretchDialog(QWidget* parent) : ProcessDialog("ASinhStretch", QSize(500, 155), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(250);
-	setPreviewMethod(this, &ASSD::applytoPreview);
-	connectToolbar(this, &ASSD::apply, &ASSD::showPreview, &ASSD::resetDialog);
+	setDefaultTimerInterval(250);
+	connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_bp_comp->setEnabled(false); });
 
 	m_bp_comp = new PushButton("Compute Blackpoint", drawArea());
 	m_bp_comp->move(90, 110);
@@ -30,39 +29,29 @@ ASSD::ASinhStretchDialog(QWidget* parent) : ProcessDialog("ASinhStretch", QSize(
 
 void ASSD::addStretchFactorInputs() {
 
-	m_sf_le = new DoubleLineEdit(1.00, new DoubleValidator(1.00, 375, 2), 4, drawArea());
-	m_sf_le->setFixedWidth(75);
-	m_sf_le->setMaxLength(4);
-	m_sf_le->move(135, 15);
-	addLabel(m_sf_le, new QLabel("Stretch Factor:", drawArea()));
+	m_sf_input = new DoubleInput("Stretch Factor:   ", m_ash.stretchFactor(), new DoubleValidator(1.0, 375.0, 2), drawArea());
+	m_sf_input->onAction([this](int) { m_sf_input->setLineEditValue(pow(1.024, m_sf_input->sliderValue())); });
+	m_sf_input->onEdited([this]() { m_sf_input->setSliderValue(log10(m_sf_input->valuef()) / log10(1.024) + 0.5); });
 
-	m_sf_slider = new Slider(Qt::Horizontal, drawArea());
-	m_sf_slider->setRange(0, 250);
-	m_sf_slider->setFixedWidth(250);
-	m_sf_le->addSlider(m_sf_slider);
+	m_sf_input->setMaxLength(4);
+	m_sf_input->setLineEditWidth(75);
+	m_sf_input->move(135, 15);
+
+	m_sf_input->setSliderAttributes(0, 250);
+	m_sf_input->setSliderWidth(250);
 
 	auto action = [this](int) {
-		float sf = pow(1.024, m_sf_slider->sliderPosition());
-
-		m_sf_le->setValue(sf);
-		m_ash.setStretchFactor(sf);
-
+		m_ash.setStretchFactor(m_sf_input->valuef());
 		startTimer();
 	};
 
 	auto edited = [this]() {
-		float sf = m_sf_le->valuef();
-
-		int new_pos = (log10(sf) / log10(1.024)) + 0.5;
-		m_sf_slider->setValue(new_pos);
-
-		m_ash.setStretchFactor(sf);
-
+		m_ash.setStretchFactor(m_sf_input->valuef());
 		applytoPreview();
 	};
 
-	connect(m_sf_slider, &QSlider::actionTriggered, this, action);
-	connect(m_sf_le, &DoubleLineEdit::editingFinished, this, edited);
+	connect(m_sf_input, &InputBase::actionTriggered, this, action);
+	connect(m_sf_input, &InputBase::editingFinished, this, edited);
 }
 
 void ASSD::addBlackpointInputs() {
@@ -73,7 +62,7 @@ void ASSD::addBlackpointInputs() {
 	m_bp_le->setMaxLength(8);
 	addLabel(m_bp_le, new QLabel("Blackpoint:", drawArea()));
 
-	m_bp_slider = new Slider(Qt::Horizontal, drawArea());
+	m_bp_slider = new Slider(drawArea());
 	m_bp_slider->setRange(0, 200);
 	m_bp_slider->setFixedWidth(250);
 	m_bp_le->addSlider(m_bp_slider);
@@ -98,7 +87,7 @@ void ASSD::addBlackpointInputs() {
 
 void ASSD::addFinetuneInputs() {
 
-	m_fine_tune = new Slider(Qt::Horizontal, drawArea());
+	m_fine_tune = new Slider(drawArea());
 	m_fine_tune->move(135, 85);
 	m_fine_tune->setFixedWidth(340);
 	m_fine_tune->setRange(-500, 500);
@@ -163,10 +152,12 @@ void ASSD::computeBlackpoint() {
 }
 
 void ASSD::resetDialog() {
+
 	m_ash = ASinhStretch();
 
-	m_sf_le->setText("1.00");
-	m_sf_slider->setSliderPosition(0);
+	m_sf_input->reset();
+	//m_sf_le->setText("1.00");
+	//m_sf_slider->setSliderPosition(0);
 
 	m_bp_le->setText("0.000000");
 	m_bp_slider->setSliderPosition(0);
@@ -180,12 +171,8 @@ void ASSD::showPreview() {
 
 	ProcessDialog::showPreview();
 
-	if (m_preview != nullptr) {
+	if (m_preview != nullptr && !m_bp_comp->isEnabled())
 		m_bp_comp->setEnabled(true);
-		connect(previewRecast(m_preview)->windowSignals(), &WindowSignals::windowClosed, this, [this]() {m_bp_comp->setEnabled(false); });
-	}
-
-	applytoPreview();
 }
 
 void ASSD::apply() {
@@ -197,25 +184,20 @@ void ASSD::apply() {
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_ash, &ASinhStretch::apply);
-		break;
+		return iwptr->applyToSource(m_ash, &ASinhStretch::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->applyToSource(m_ash, &ASinhStretch::apply);
-		break;
+		return iw16->applyToSource(m_ash, &ASinhStretch::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = imageRecast<float>(iwptr);
-		iw32->applyToSource(m_ash, &ASinhStretch::apply);
-		break;
+		return iw32->applyToSource(m_ash, &ASinhStretch::apply);
 	}
 	}
-
-	applytoPreview();
 }
 
-void ASSD::applytoPreview() {
+void ASSD::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

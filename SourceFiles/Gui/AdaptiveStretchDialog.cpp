@@ -6,9 +6,7 @@ using ASD = AdaptiveStretchDialog;
 
 ASD::AdaptiveStretchDialog(QWidget* parent) : ProcessDialog("AdaptiveStretch", QSize(650, 135), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(500);
-	setPreviewMethod(this, &ASD::applytoPreview);
-	connectToolbar(this, &ASD::apply, &ASD::showPreview, &ASD::resetDialog);
+	setDefaultTimerInterval(500);
 
 	addNoiseThresholdInputs();
 	addContrastProtectionInputs();
@@ -45,7 +43,7 @@ void ASD::addNoiseThresholdInputs() {
 	m_noise_coef_le->setFixedWidth(50);
 	m_noise_coef_le->move(240, dy);
 
-	m_noise_coef_slider = new Slider(Qt::Horizontal, drawArea());
+	m_noise_coef_slider = new Slider(drawArea());
 	m_noise_coef_slider->setRange(100, 999);
 	m_noise_coef_slider->setFixedWidth(250);
 	m_noise_coef_le->addSlider(m_noise_coef_slider);
@@ -141,7 +139,7 @@ void ASD::addContrastProtectionInputs() {
 	m_contrast_coef_le->setFixedWidth(50);
 	m_contrast_coef_le->move(240, dy);
 
-	m_contrast_coef_slider = new Slider(Qt::Horizontal, drawArea());
+	m_contrast_coef_slider = new Slider(drawArea());
 	m_contrast_coef_slider->setRange(100, 999);
 	m_contrast_coef_slider->setFixedWidth(250);
 	m_contrast_coef_le->addSlider(m_contrast_coef_slider);
@@ -240,12 +238,6 @@ void ASD::connectContrastInputs() {
 	connect(m_contrast_cb, &QCheckBox::clicked, this, onClicked);
 }
 
-void ASD::showPreview() {
-
-	ProcessDialog::showPreview();
-	applytoPreview();
-}
-
 void ASD::resetDialog() {
 
 	m_noise_coef_le->setValue(1.0);
@@ -272,25 +264,20 @@ void ASD::apply() {
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
 		auto iw8 = reinterpret_cast<ImageWindow8*>(iwptr);
-		iw8->applyToSource(m_as, &AdaptiveStretch::apply);
-		break;
+		return iw8->applyToSource(m_as, &AdaptiveStretch::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->applyToSource(m_as, &AdaptiveStretch::apply);
-		break;
+		return iw16->applyToSource(m_as, &AdaptiveStretch::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->applyToSource(m_as, &AdaptiveStretch::apply);
-		break;
+		return iw32->applyToSource(m_as, &AdaptiveStretch::apply);
 	}
 	}
-
-	applytoPreview();
 }
 
-void ASD::applytoPreview() {
+void ASD::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

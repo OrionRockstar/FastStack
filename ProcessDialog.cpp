@@ -3,19 +3,17 @@
 #include "FastStack.h"
 #include "ImageWindow.h"
 //#include "Interpolator.h"
-#include "HistogramTransformation.h"
+//#include "HistogramTransformation.h"
 
 
 
 DialogToolbar::DialogToolbar(QWidget* parent, bool preview, bool apply_dd, bool apply) : m_preview(preview), m_apply_dd(apply_dd), m_apply(apply), QWidget(parent) {
-
-	//this->setGeometry(0, parent->size().height() - m_button_size.height(), parent->size().width(), m_button_size.width());
 	
 	addApplyDDButton();
 	addApplyButton();
 	addPreviewButton();
 
-	m_reset_pb = new PushButton("R", this);
+	m_reset_pb = new FlatPushButton("R", this);
 	m_reset_pb->setAutoDefault(false);
 	m_reset_pb->setToolTip("Reset");
 	m_reset_pb->move(size().width() - m_button_size.width(), 0);
@@ -36,19 +34,18 @@ void DialogToolbar::setGeometry(int x, int y, int w) { QWidget::setGeometry(x, y
 
 void DialogToolbar::addApplyDDButton() {
 
-	m_apply_dd_pb = new PushButton("A2", this);
+	m_apply_dd_pb = new FlatPushButton("A2", this);
 	m_apply_dd_pb->setAutoDefault(false);
 	m_apply_dd_pb->setToolTip("Apply to... (Drag and Drop)");
 	m_apply_dd_pb->resize(m_button_size);
 	m_apply_dd_pb->setVisible(m_apply_dd);
 	m_apply_dd_pb->setEnabled(m_apply_dd);
-	connect(m_apply_dd_pb, &QPushButton::pressed, [this]() { m_apply_dd_pb->setDown(false); });
-
+	connect(m_apply_dd_pb, &PushButton::pressed, [this]() { m_apply_dd_pb->setDown(false); });
 }
 
 void DialogToolbar::addApplyButton() {
 
-	m_apply_pb = new PushButton("A", this);
+	m_apply_pb = new FlatPushButton("A", this);
 	m_apply_pb->setAutoDefault(false);
 
 	if (m_apply_dd) {
@@ -65,7 +62,7 @@ void DialogToolbar::addApplyButton() {
 
 void DialogToolbar::addPreviewButton() {
 
-	m_preview_pb = new PushButton("P", this);
+	m_preview_pb = new FlatPushButton("P", this);
 	m_preview_pb->setAutoDefault(false);
 	m_preview_pb->setToolTip("Show Preview");
 
@@ -116,11 +113,18 @@ ProgressDialog::ProgressDialog(QWidget* parent) : QProgressDialog(parent) {
 	this->show();
 }
 
-ProgressDialog::ProgressDialog(const ProgressSignal& signal_object, QWidget* parent) : QProgressDialog(parent) {
+ProgressDialog::ProgressDialog(ProgressSignal* signal_object, QWidget* parent) : QProgressDialog(parent) {
 
-	connect(&signal_object, &ProgressSignal::emitProgress, this, &QProgressDialog::setValue);
-	connect(&signal_object, &ProgressSignal::emitText, this, &QProgressDialog::setLabelText);
+	connect(signal_object, &ProgressSignal::emitProgress, this, &QProgressDialog::setValue);
+	connect(signal_object, &ProgressSignal::emitText, this, &QProgressDialog::setLabelText);
+	connect(signal_object, &ProgressSignal::finished, this, &QProgressBar::close);
 
+	QPalette pal;
+	pal.setBrush(QPalette::Highlight, QColor(69,0,128));
+	this->setPalette(pal);
+
+
+	this->setAttribute(Qt::WA_DeleteOnClose);
 	this->setRange(0, 100);
 	this->setModal(true);
 	this->setCancelButton(nullptr);
@@ -219,9 +223,7 @@ void TextDisplay::displayPSFData(uint16_t size, const PSF& psf) {
 
 
 
-ProcessDialog::ProcessDialog(const QString& name, const QSize& size, QMdiArea* parent_workspace, bool preview, bool apply_dd, bool apply) : m_name(name), Dialog(parent_workspace) {
-
-	m_workspace = parent_workspace;
+ProcessDialog::ProcessDialog(const QString& name, const QSize& size, Workspace* parent_workspace, bool preview, bool apply_dd, bool apply) : m_name(name), m_workspace(parent_workspace), Dialog(parent_workspace) {
 
 	this->resize(size.width() + 2 * m_border_width, size.height() + DialogTitleBar::titleBarHeight() + DialogToolbar::toolbarHeight() + m_border_width);
 	this->setTitle(name);
@@ -229,20 +231,28 @@ ProcessDialog::ProcessDialog(const QString& name, const QSize& size, QMdiArea* p
 	drawArea()->setGeometry(QRect({ m_border_width, DialogTitleBar::titleBarHeight() }, size));
 
 	m_toolbar = new DialogToolbar(this, preview, apply_dd, apply);
-	m_toolbar->setGeometry(m_border_width, drawArea()->geometry().bottom(), size.width());
-	m_timer = std::make_unique<Timer>(100);
+	m_toolbar->setGeometry(m_border_width, drawArea()->geometry().bottom() + 1, size.width());
+	
+	connect(this, &ProcessDialog::processDropped, this, &ProcessDialog::apply, Qt::UniqueConnection);
+	m_toolbar->connectFunctions(this, &ProcessDialog::createDragInstance, &ProcessDialog::apply, &ProcessDialog::showPreview, &ProcessDialog::resetDialog);
+	connect(m_timer.get(), &QTimer::timeout, this, &ProcessDialog::applytoPreview, Qt::UniqueConnection);
+
+	connect(m_workspace, &Workspace::imageWindowCreated, this, &ProcessDialog::onImageWindowCreated);
+	connect(m_workspace, &Workspace::imageWindowClosed, this, &ProcessDialog::onImageWindowClosed);
 
 	this->setWindowOpacity(m_default_opacity);
-
-	//this->setWindowFlags(Qt::WindowStaysOnTopHint);
-	//this->setWindowFlags(this->windowFlags() | Qt::WindowStaysOnTopHint);
 	this->setAttribute(Qt::WA_DeleteOnClose);
 }
 
-void ProcessDialog::enableSiblings(bool enable) {
-	for (auto child : parentWidget()->children())
-		if (child->inherits("ProcessDialog"))
-			((QWidget*)child)->setEnabled(enable);
+void ProcessDialog::enableSiblings_Subwindows(bool enable) {
+
+	for (auto sw : m_workspace->subWindowList())
+		sw->setEnabled(enable);
+
+	for (auto child : m_workspace->children())
+		if (dynamic_cast<ProcessDialog*>(child))
+			reinterpret_cast<ProcessDialog*>(child)->setEnabled(enable);
+
 	QApplication::processEvents();
 }
 
@@ -276,26 +286,40 @@ void ProcessDialog::createDragInstance() {
 	Qt::DropAction dropAction = drag->exec(Qt::CopyAction | Qt::MoveAction);
 }
 
-void ProcessDialog::showPreview(bool ignore_zoomwindow) {
+void ProcessDialog::connectZoomWindow() {
+
+	auto ptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	if (ptr->preview())
+		if (ptr->preview()->processType() == m_name)
+			if (ptr->zoomWindow())
+				ptr->zoomWindow()->connectZoomWindow(this, &ProcessDialog::applytoPreview);
+}
+
+void ProcessDialog::applytoPreview() {
+
+	if (!m_finished)
+		return m_timer->start(100);
+
+	m_finished = false;
+	applyPreview();
+	m_finished = true;
+}
+
+void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iw = imageRecast<>(sw->widget());
-		if (iw->previewExists())
-			if (iw->preview()->processType() == name() || iw != iwptr)
+		if (iw->previewExists()) {
+			//is same process or different image(window)
+			if (iw->preview()->processType() == name() || iw != iwptr) {
 				return;
+			}
+		}
 	}
-
-	if (iwptr->previewExists()) {
-		auto type = previewRecast<>(iwptr->preview())->processType();
-		if (type == m_crop_image_str || type == m_abe_str)
-			return;
-	}
-
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -323,31 +347,38 @@ void ProcessDialog::showPreview(bool ignore_zoomwindow) {
 	}
 	}
 
-	connect(iwptr->preview()->windowSignals(), &WindowSignals::windowClosed, this, [this]() { m_preview = nullptr; });
-
+	////
 	//transfers preview to current process
 	for (auto child : m_workspace->children()) {
 		auto ptr = dynamic_cast<ProcessDialog*>(child);
 		if (ptr != nullptr) {
 			if (ptr->m_preview == iwptr->preview()) {
 				ptr->m_preview = nullptr;
+				emit ptr->previewRemoved();
 				break;
 			}
 		}
 	}
 	m_preview = iwptr->preview();
+	emit previewAdded();
+
+	//updates preview after apply
+	connect(iwptr, &ImageWindowBase::windowUpdated, this, &ProcessDialog::applytoPreview);
+	connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { m_preview = nullptr; emit previewRemoved(); });
 
 	iwptr->preview()->setTitle(iwptr->name() + " Preview: " + name());
 	iwptr->preview()->setProcessType(name());
 
-	iwptr->connectPreview(m_obj, m_func);
-	if (!ignore_zoomwindow)
+	if (!ignore_zoomwindow) {
 		connectZoomWindow();
+		connect(iwptr, &ImageWindowBase::zoomWindowCreated, this, &ProcessDialog::connectZoomWindow, Qt::UniqueConnection);
+		connect(iwptr, &ImageWindowBase::zoomWindowClosed, this, &ProcessDialog::applytoPreview, Qt::UniqueConnection);
+	}
+
+	applytoPreview();
 }
 
 void ProcessDialog::closeEvent(QCloseEvent* close) {
-
-	m_preview = nullptr;
 
 	for (auto sw : m_workspace->subWindowList()) {
 
@@ -355,14 +386,13 @@ void ProcessDialog::closeEvent(QCloseEvent* close) {
 		if (iwptr->previewExists()) {
 			QString str = iwptr->preview()->title();
 			if (str.contains(name())) {
-				if (name() == m_abe_str) {
-					iwptr->closePreview();
-					break;
-				}
 				str.remove(name());
 				PreviewWindow8* pptr = previewRecast(iwptr->preview());
 				pptr->setTitle(str);
 				pptr->setProcessType();
+				if (iwptr->zoomWindow())
+					iwptr->zoomWindow()->disconnectZoomWindow();
+				//iwptr->di
 				switch (pptr->type()) {
 				case ImageType::UBYTE:
 					pptr->updatePreview();
@@ -380,31 +410,4 @@ void ProcessDialog::closeEvent(QCloseEvent* close) {
 
 	emit windowClosed();
 	close->accept();
-}
-
-void ProcessDialog::czw()const {
-	auto ptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-	ptr->zoomWindow()->connectZoomWindow(m_obj, m_func);
-}
-
-void ProcessDialog::connectZoomWindow() {
-
-	auto ws = dynamic_cast<Workspace*>(m_workspace);
-
-	auto ptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-	if (ptr->zoomWindow())
-		ptr->zoomWindow()->connectZoomWindow(m_obj, m_func);
-
-	connect(ws, &Workspace::zoomWindowCreated, this, &ProcessDialog::czw);
-	connect(ws, &Workspace::zoomWindowClosed, m_obj, m_func);
-}
-
-const Image8* ProcessDialog::findImage(const QString& name) {
-
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iw = reinterpret_cast<ImageWindow8*>(sw->widget());
-		if (name == iw->name())
-			return &iw->source();
-	}
-	return nullptr;
 }

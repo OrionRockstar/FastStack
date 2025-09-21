@@ -4,18 +4,20 @@
 #include "Maths.h"
 
 
-enum class MorphologicalFilter {
-	erosion,
-	dialation,
-	opening,
-	closing,
-	selection,
-	median,
-	midpoint
-};
-
 class MorphologicalTransformation {
 
+public:
+	enum class Type {
+		erosion,
+		dialation,
+		opening,
+		closing,
+		selection,
+		median,
+		midpoint
+	};
+
+private:
 	ProgressSignal* m_ps = new ProgressSignal();
 
 	int m_kernel_dim = 3;
@@ -27,7 +29,7 @@ class MorphologicalTransformation {
 
 	float m_selection = 0.5;
 
-	MorphologicalFilter m_morph_filter = MorphologicalFilter::erosion;
+	Type m_morph_filter = Type::erosion;
 
 	float m_amount = 1.00;
 	float m_orig_amount = 1 - m_amount;
@@ -157,10 +159,9 @@ class MorphologicalTransformation {
 	};
 
 public:
-
 	MorphologicalTransformation() = default;
 
-	MorphologicalTransformation(int kernel_dimension);
+	MorphologicalTransformation(Type filter_type) : m_morph_filter(filter_type) {}
 
 	ProgressSignal* progressSignal()const { return m_ps; }
 
@@ -170,8 +171,9 @@ public:
 
 	bool kernelMaskAt(int el) { return m_kmask[el]; }
 
-	MorphologicalFilter morphologicalFilter()const { return m_morph_filter; }
+	Type morphologicalFilter()const { return m_morph_filter; }
 
+	void setMorphologicalFilter(Type filter) { m_morph_filter = filter; }
 
 	void setKernelMaskAt(int el, bool value) {
 		m_kmask[el] = value;
@@ -191,8 +193,6 @@ public:
 		m_amount = amount;
 		m_orig_amount = 1.00 - m_amount;
 	}
-
-	void setMorphologicalFilter(MorphologicalFilter filter) { m_morph_filter = filter; }
 
 	void setMask_All(bool value);
 

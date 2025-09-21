@@ -81,6 +81,9 @@ void Image<T>::normalize() {
 
 	computeMinMax(min, max);
 
+	if (min == max)
+		return;
+
 	if (min < Pixel<T>::min() || Pixel<T>::max() < max)
 		rescale(min, max);
 }
@@ -123,7 +126,7 @@ uint32_t Image<T>::computeClippedPxCount(int ch)const {
 template<typename T>
 T Image<T>::computeMax_clipped(int ch)const {
 
-	T max = Pixel<T>::min();
+	T max = std::numeric_limits<T>::min();
 
 	for (T pixel : image_channel(*this, ch)) {
 
@@ -158,14 +161,14 @@ float Image<T>::computeMean_Clipped(int ch)const {
 	double sum = 0;
 	int count = 0;
 
-	for (const T& pixel : image_channel(*this, ch)) {
+	for (T pixel : image_channel(*this, ch)) {
 		if (isClipped(pixel))
 			continue;
 		sum += pixel;
 		count++;
 	}
 
-	return sum / count;
+	return (count != 0) ? sum / count : 0;
 }
 
 template<typename T>
@@ -182,7 +185,7 @@ float Image<T>::computeStdDev_Clipped(int ch, float mean)const {
 		count++;
 	}
 
-	return sqrt(var / count);
+	return (count != 0) ? sqrt(var / count) : 0;
 }
 
 template<typename T>
@@ -198,14 +201,14 @@ float Image<T>::computeAvgDev_Clipped(int ch, T median)const {
 		count++;
 	}
 
-	return sum / count;
+	return (count != 0) ? sum / count : 0;
 }
 
 template<typename T>
 void Image<T>::computeMinMax(T& min, T& max)const {
 
-	max = Pixel<T>::min();
-	min = Pixel<T>::max();
+	max = std::numeric_limits<T>::min();
+	min = std::numeric_limits<T>::max();
 
 	for (auto pixel : *this) {
 		if (pixel > max)
@@ -256,7 +259,7 @@ float Image<T>::computeMean(int ch, bool clip)const {
 	for (T pixel : image_channel(*this, ch))
 		sum += pixel;
 
-	return sum / m_pixel_count;
+	return (pxCount() != 0) ? sum / pxCount() : 0;
 }
 
 template<typename T>
@@ -290,7 +293,7 @@ float Image<T>::computeStdDev(int ch, float mean, bool clip)const {
 		var += d * d;
 	}
 
-	return sqrt(var / m_pixel_count);
+	return (pxCount() != 0) ? sqrt(var / pxCount()) : 0;
 }
 
 template<typename T>
@@ -312,8 +315,7 @@ float Image<T>::computeAvgDev(int ch, T median, bool clip)const {
 	for (T pixel : image_channel(*this, ch))
 		sum += fabs(pixel - median);
 
-
-	return sum / m_pixel_count;
+	return (pxCount() != 0) ? sum / pxCount() : 0;
 }
 
 template<typename T>

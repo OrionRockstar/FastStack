@@ -15,6 +15,7 @@ public:
 		maximum_mask,
 		additive_mask,
 		average_neutral,
+		minimum_neutral,
 		maximum_neutral
 	};
 
@@ -28,11 +29,7 @@ private:
 		return color * (1 - amount())* (1 - v) + v * color;
 	}
 
-	void removeRed(Color<float>& color)const;
-
-	void removeGreen(Color<float>& color)const;
-
-	void removeBlue(Color<float>& color)const;
+	float remove(float color, float v1, float v2)const;
 
 	void removeColor(Color<float>& color)const;
 

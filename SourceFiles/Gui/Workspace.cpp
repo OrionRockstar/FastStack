@@ -2,17 +2,25 @@
 #include "Workspace.h"
 #include "ImageFileReader.h"
 #include "FastStackToolBar.h"
-
+#include "ImageWindow.h"
 
 Workspace::Workspace(QWidget* parent) : QMdiArea(parent) {
     this->setAcceptDrops(true);
     m_process_stack = new QUndoStack(this);
 
+    connect(this, &QMdiArea::subWindowActivated, this, [this](QMdiSubWindow* subwindow) { if (subwindow) emit imageActivated(&imageRecast(subwindow->widget())->source()); });
+
+    this->installEventFilter(this);
+
     this->setActivationOrder(QMdiArea::StackingOrder);
     this->setBackground(QColor(96,96,96));
 }
 
-void Workspace::UpdateOffsets() {
+ImageSubWindow* Workspace::addImageSubWindow(ImageSubWindow* isw, Qt::WindowFlags windowFlags) {
+
+    auto sw = QMdiArea::addSubWindow(isw, windowFlags);
+    emit imageWindowCreated();
+    sw->move(m_offsetx, m_offsety);
     m_offsetx += 10;
     m_offsety += 10;
 
@@ -21,6 +29,24 @@ void Workspace::UpdateOffsets() {
 
     if (m_offsety > size().height() * 0.5)
         m_offsety = 0;
+    
+    return dynamic_cast<ImageSubWindow*>(sw);
+}
+
+void Workspace::removeImageSubWindow(ImageSubWindow* subwindow) {
+
+    emit imageWindowClosed();
+    QMdiArea::removeSubWindow(subwindow);
+
+    if (!this->currentSubWindow())
+        emit imageActivated(nullptr);
+}
+
+void Workspace::enableChildren(bool enable) {
+
+    for (auto c : children())
+        if (dynamic_cast<QWidget*>(c))
+            reinterpret_cast<QWidget*>(c)->setEnabled(enable);
 }
 
 void Workspace::dragEnterEvent(QDragEnterEvent* event) {
@@ -47,3 +73,4 @@ void Workspace::mouseDoubleClickEvent(QMouseEvent* event) {
 
     ImageFileReader(this).read(f_path);
 }
+

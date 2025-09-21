@@ -5,10 +5,7 @@
 
 using LRGBCD = LRGBCombinationDialog;
 
-
 LRGBCD::LRGBCombinationDialog(QWidget* parent) : ProcessDialog("LRGBCombination", { 400,275 }, FastStack::recast(parent)->workspace(), false, false) {
-
-    connectToolbar(this, &LRGBCD::apply, &LRGBCD::showPreview, &LRGBCD::resetDialog);
 
     m_toolbox = new QToolBox(drawArea());
     m_toolbox->setBackgroundRole(QPalette::Window);
@@ -27,36 +24,33 @@ LRGBCD::LRGBCombinationDialog(QWidget* parent) : ProcessDialog("LRGBCombination"
     addImageWeights();
     m_toolbox->addItem(m_image_weight_gb, "Image Weights");
 
-    connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::imageWindowClosed, this, &LRGBCD::onWindowClose);
-    connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::imageWindowCreated, this, &LRGBCD::onWindowOpen);
-
     this->show();
 }
 
-void LRGBCD::onWindowOpen() {
+void LRGBCD::onImageWindowCreated() {
 
-    auto iw = reinterpret_cast<ImageWindow8*>(m_workspace->subWindowList().last()->widget());
+    auto iw = imageRecast<>(m_workspace->subWindowList().last()->widget());
 
     if (iw->channels() == 1) {
-        m_lum_combo->addItem(iw->name());
-        m_red_combo->addItem(iw->name());
-        m_green_combo->addItem(iw->name());
-        m_blue_combo->addItem(iw->name());
+        m_lum_combo->addImage(iw);
+        m_red_combo->addImage(iw);
+        m_green_combo->addImage(iw);
+        m_blue_combo->addImage(iw);
     }
 }
 
-void LRGBCD::onWindowClose() {
+void LRGBCD::onImageWindowClosed() {
 
-    QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
+    auto img = &imageRecast<>(m_workspace->currentSubWindow()->widget())->source();
 
-    int index = m_lum_combo->findText(str);
+    int index = m_lum_combo->findImage(img);
     if (index == m_lum_combo->currentIndex()) {
         m_lrgbc.setLum(nullptr);
         m_lum_combo->setCurrentIndex(0);
     }
     m_lum_combo->removeItem(index);
 
-    index = m_red_combo->findText(str);
+    index = m_red_combo->findImage(img);
     if (index == m_red_combo->currentIndex()) {
         m_lrgbc.channelCombination().setRed(nullptr);
         m_red_combo->setCurrentIndex(0);
@@ -64,7 +58,7 @@ void LRGBCD::onWindowClose() {
     m_red_combo->removeItem(index);
 
 
-    index = m_green_combo->findText(str);
+    index = m_green_combo->findImage(img);
     if (index == m_green_combo->currentIndex()) {
         m_lrgbc.channelCombination().setGreen(nullptr);
         m_green_combo->setCurrentIndex(0);
@@ -72,7 +66,7 @@ void LRGBCD::onWindowClose() {
     m_green_combo->removeItem(index);
 
 
-    index = m_blue_combo->findText(str);
+    index = m_blue_combo->findImage(img);
     if (index == m_blue_combo->currentIndex()) {
         m_lrgbc.channelCombination().setBlue(nullptr);
         m_blue_combo->setCurrentIndex(0);
@@ -81,7 +75,6 @@ void LRGBCD::onWindowClose() {
 }
 
 void LRGBCD::addImageSelection() {
-
 
     m_image_selection_gb = new GroupBox(this);
     m_image_selection_layout = new QGridLayout;
@@ -94,10 +87,10 @@ void LRGBCD::addImageSelection() {
     for (auto sw : m_workspace->subWindowList()) {
         auto iw = imageRecast<>(sw->widget());
         if (iw->channels() == 1) {
-            m_lum_combo->addItem(iw->name());
-            m_red_combo->addItem(iw->name());
-            m_green_combo->addItem(iw->name());
-            m_blue_combo->addItem(iw->name());
+            m_lum_combo->addImage(iw);
+            m_red_combo->addImage(iw);
+            m_green_combo->addImage(iw);
+            m_blue_combo->addImage(iw);
         }
     }
 
@@ -118,7 +111,7 @@ void LRGBCD::addLumInputs() {
     m_image_selection_layout->addWidget(m_lum_combo, 0, 1);
     m_lum_combo->addItem("No Selected Image", 0);
 
-    connect(m_lum_combo, &QComboBox::activated, this, [this]() { m_lrgbc.setLum(findImage(m_lum_combo->currentText())); });
+    connect(m_lum_combo, &QComboBox::activated, this, [this]() { m_lrgbc.setLum(m_lum_combo->currentImage()); });
 }
 
 void LRGBCD::addRedInputs() {
@@ -134,7 +127,7 @@ void LRGBCD::addRedInputs() {
     m_image_selection_layout->addWidget(m_red_combo, 1, 1);
     m_red_combo->addItem("No Selected Image", 0);
 
-    connect(m_red_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setRed(findImage(m_red_combo->currentText())); });
+    connect(m_red_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setRed(m_red_combo->currentImage()); });
 }
 
 void LRGBCD::addGreenInputs() {
@@ -151,7 +144,7 @@ void LRGBCD::addGreenInputs() {
     m_image_selection_layout->addWidget(m_green_combo, 2, 1);
     m_green_combo->addItem("No Selected Image", 0);
 
-    connect(m_green_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setGreen(findImage(m_green_combo->currentText())); });
+    connect(m_green_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setGreen(m_green_combo->currentImage()); });
 }
 
 void LRGBCD::addBlueInputs() {
@@ -167,7 +160,7 @@ void LRGBCD::addBlueInputs() {
     m_image_selection_layout->addWidget(m_blue_combo, 3, 1);
     m_blue_combo->addItem("No Selected Image", 0);
 
-    connect(m_blue_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setBlue(findImage(m_blue_combo->currentText())); });
+    connect(m_blue_combo, &QComboBox::activated, this, [this]() { m_lrgbc.channelCombination().setBlue(m_blue_combo->currentImage()); });
 }
 
 void LRGBCD::addImageWeights() {
@@ -186,12 +179,12 @@ void LRGBCD::addImageWeights() {
 
 void LRGBCD::addLWeightInputs() {
 
-    m_lum_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6), this);
-    m_lum_le->setValue(1.0);
+    m_lum_le = new DoubleLineEdit(m_lrgbc.lumWeight() , new DoubleValidator(0.0, 1.0, 6), this);
+    //m_lum_le->setValue(1.0);
     m_image_weight_layout->addWidget(new QLabel("Lum", this), 0, 0);
     m_image_weight_layout->addWidget(m_lum_le, 0, 1);
 
-    m_lum_slider = new Slider(Qt::Horizontal, this);
+    m_lum_slider = new Slider(this);
     m_lum_slider->setFixedWidth(200);
     m_lum_slider->setRange(0, 200);
     m_lum_slider->setValue(200);
@@ -212,12 +205,12 @@ void LRGBCD::addLWeightInputs() {
 
 void LRGBCD::addRWeightInputs() {
 
-    m_red_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6), this);
-    m_red_le->setValue(1.0);
+    m_red_le = new DoubleLineEdit(1.0,new DoubleValidator(0.0, 1.0, 6), this);
+    //m_red_le->setValue(1.0);
     m_image_weight_layout->addWidget(new QLabel("Red", this), 1, 0);
     m_image_weight_layout->addWidget(m_red_le, 1, 1);
 
-    m_red_slider = new Slider(Qt::Horizontal, this);
+    m_red_slider = new Slider(this);
     m_red_slider->setFixedWidth(200);
     m_red_slider->setRange(0, 200);
     m_red_slider->setValue(200);
@@ -238,12 +231,12 @@ void LRGBCD::addRWeightInputs() {
 
 void LRGBCD::addGWeightInputs() {
 
-    m_green_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6), this);
-    m_green_le->setValue(1.0);
+    m_green_le = new DoubleLineEdit(1.0, new DoubleValidator(0.0, 1.0, 6), this);
+    //m_green_le->setValue(1.0);
     m_image_weight_layout->addWidget(new QLabel("Green", this), 2, 0);
     m_image_weight_layout->addWidget(m_green_le, 2, 1);
 
-    m_green_slider = new Slider(Qt::Horizontal, this);
+    m_green_slider = new Slider(this);
     m_green_slider->setFixedWidth(200);
     m_green_slider->setRange(0, 200);
     m_green_slider->setValue(200);
@@ -264,12 +257,12 @@ void LRGBCD::addGWeightInputs() {
 
 void LRGBCD::addBWeightInputs() {
 
-    m_blue_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 6), this);
-    m_blue_le->setValue(1.0);
+    m_blue_le = new DoubleLineEdit(1.0, new DoubleValidator(0.0, 1.0, 6), this);
+    //m_blue_le->setValue(1.0);
     m_image_weight_layout->addWidget(new QLabel("Blue", this), 3, 0);
     m_image_weight_layout->addWidget(m_blue_le, 3, 1);
 
-    m_blue_slider = new Slider(Qt::Horizontal, this);
+    m_blue_slider = new Slider(this);
     m_blue_slider->setFixedWidth(200);
     m_blue_slider->setRange(0, 200);
     m_blue_slider->setValue(200);

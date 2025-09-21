@@ -4,15 +4,6 @@
 
 using MT = MorphologicalTransformation;
 
-MT::MorphologicalTransformation(int kernel_dimension) : m_kernel_dim(kernel_dimension) {
-	if (m_kernel_dim % 2 == 0)
-		m_kernel_dim -= 1;
-
-	m_kernel_radius = (m_kernel_dim - 1) / 2;
-	m_kernel_size = kernel_dimension * kernel_dimension;
-	m_kmask.resize(m_kernel_size, true);
-}
-
 void MT::resizeKernel(int new_dim) {
 	int old_dim = m_kernel_dim;
 	m_kernel_dim = new_dim;
@@ -523,26 +514,24 @@ template void MT::fastMedian(Image32&, int);
 template <typename T>
 void MT::apply(Image<T>& src) {
 
-	using MF = MorphologicalFilter;
-
 	GetMaskedLocations();
 	if (m_mask_loc.size() == 0)
 		return src.FillZero();
 
 	switch (m_morph_filter) {
-	case MF::erosion:
+	case Type::erosion:
 		return erosion(src);
-	case MF::dialation:
+	case Type::dialation:
 		return dialation(src);
-	case MF::opening:
+	case Type::opening:
 		return opening(src);
-	case MF::closing:
+	case Type::closing:
 		return closing(src);
-	case MF::selection:
+	case Type::selection:
 		return selection(src);
-	case MF::median:
+	case Type::median:
 		return median(src);
-	case MF::midpoint:
+	case Type::midpoint:
 		return midpoint(src);
 	default:
 		return erosion(src);

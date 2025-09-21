@@ -96,9 +96,7 @@ private:
 
 	void resetDialog();
 
-	void showPreview();
-
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };

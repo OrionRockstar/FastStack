@@ -106,7 +106,7 @@ double Matrix::determinant()const {
 
 void Matrix::resize(int nrows, int ncols) {
 
-    if (rows() == nrows && m_cols == ncols)
+    if (rows() == nrows && cols() == ncols)
         return;
 
     Matrix other(nrows, ncols);

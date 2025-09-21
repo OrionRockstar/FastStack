@@ -63,19 +63,19 @@ Color<double> ChannelCombination::outputColor(const Color<double>& inp)const {
 		return inp;
 
 	case CST::hsv:
-		return ColorSpace::HSVtoRGB(inp.red(), inp.green(), inp.blue());
+		return ColorSpace::HSVtoRGB(inp.red, inp.green, inp.blue);
 
 	case CST::hsi:
-		return ColorSpace::HSItoRGB(inp.red(), inp.green(), inp.blue());
+		return ColorSpace::HSItoRGB(inp.red, inp.green, inp.blue);
 
 	case CST::ciexyz:
-		return ColorSpace::XYZtoRGB(inp.red(), inp.green(), inp.blue());
+		return ColorSpace::XYZtoRGB(inp.red, inp.green, inp.blue);
 
 	case CST::cielab:
-		return ColorSpace::CIELabtoRGB(inp.red(), inp.green(), inp.blue());
+		return ColorSpace::CIELabtoRGB(inp.red, inp.green, inp.blue);
 
 	case CST::cielch:
-		return ColorSpace::CIELchtoRGB(inp.red(), inp.green(), inp.blue());
+		return ColorSpace::CIELchtoRGB(inp.red, inp.green, inp.blue);
 
 	default:
 		return inp;

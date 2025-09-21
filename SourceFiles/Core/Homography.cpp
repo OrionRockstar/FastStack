@@ -110,7 +110,6 @@ Matrix Homography::computeHomography(const StarPairVector& spv) {
         }
     }
 
-
     //std::cout << maxmatch<<" "<<spv.size() << "\n";
     if (maxmatch < .25 * tvgtotal) {
         homography.fill(std::numeric_limits<double>::quiet_NaN());

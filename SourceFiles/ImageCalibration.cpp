@@ -222,8 +222,6 @@ void CCD::IntegrationGroupBox::reset() {
 
 CCD::CalibrationCombinationDialog(QWidget* parent) :ProcessDialog("Calibration Combination", QSize(540, 400), FastStack::recast(parent)->workspace(), parent, false) {
 
-	connectToolbar(this, &CCD::apply, &CCD::showPreview, &CCD::resetDialog);
-
 	m_toolbox = new QToolBox(this);
 	m_toolbox->setFixedWidth(520);
 	m_toolbox->move(10, 0);
@@ -342,7 +340,4 @@ void CCD::apply() {
 
 		ImageWindow32* iw32 = new ImageWindow32(std::move(master), "MasterFlat", reinterpret_cast<Workspace*>(m_workspace));
 	}
-
-
-	//this->setEnabledAll(true);
 }

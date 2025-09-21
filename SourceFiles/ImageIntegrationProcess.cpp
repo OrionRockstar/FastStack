@@ -104,17 +104,16 @@ Status ImageIntegrationProcess::integrateImages(Image32& output) {
 		calibrator.calibrateImage(output);
 
 		if (file_it == m_paths.begin() && count != 0) {
-			ref_sv = m_sd.applyStarDetection(output);
+			ref_sv = m_sd.DAOFIND(output);
 			m_iss.emitPSFData(ref_sv.size(), m_sd.meanPSF());
 			ref_sv.shrink_to_size(m_maxstars);
 		}
 
 		else if (file_it != m_paths.begin()){
 			if ((*file_it).alignment.empty()) {
-				StarVector tgt_sv = m_sd.applyStarDetection(output);
+				StarVector tgt_sv = m_sd.DAOFIND(output);
 				m_iss.emitPSFData(tgt_sv.size(), m_sd.meanPSF());
 				tgt_sv.shrink_to_size(m_maxstars);
-
 				StarPairVector spv = sm.matchStars(ref_sv, tgt_sv);
 
 				Matrix h = Homography::computeHomography(spv);

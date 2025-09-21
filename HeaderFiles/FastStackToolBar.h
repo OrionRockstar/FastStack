@@ -16,7 +16,8 @@ class ImageInformationLabel : public QLabel {
 public:
 	ImageInformationLabel(QWidget* parent);
 
-	void displayText(const QMdiSubWindow* window);
+	void displayText(const Image8* img);
+
 };
 
 class PixelValueLabel : public QLabel {
@@ -56,7 +57,7 @@ public:
 
 	void displayText(const Image8* img, const QPointF& p);
 
-	void displayPreviewText(const Image8* img, const QPointF& p, float factor, const QPointF offset = QPointF(0,0));
+	void displayPreviewText(const Image8* img, const QPoint& preview_pos, const QPointF& img_pos);
 };
 
 

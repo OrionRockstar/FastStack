@@ -74,8 +74,6 @@ using MTD = MorphologicalTransformationDialog;
 
 MTD::MorphologicalTransformationDialog(QWidget* parent) : ProcessDialog("MorphologicalTransformation", QSize(310, 460), FastStack::recast(parent)->workspace(), false) {
 
-	connectToolbar(this, &MTD::apply, &MTD::showPreview, &MTD::resetDialog);
-
 	addKernelScene();
 	addKernelSizeCombo();
 
@@ -218,7 +216,7 @@ void MTD::addFilterSelectionCombo() {
 
 	auto activate = [this](int index) {
 
-		if (MorphologicalFilter(index) == MorphologicalFilter::selection) {
+		if (MT::Type(index) == MT::Type::selection) {
 			m_selection_le->setEnabled(true);
 			m_selection_slider->setEnabled(true);
 		}
@@ -227,7 +225,7 @@ void MTD::addFilterSelectionCombo() {
 			m_selection_slider->setDisabled(true);
 		}
 
-		m_mt.setMorphologicalFilter(MorphologicalFilter(index));
+		m_mt.setMorphologicalFilter(MT::Type(index));
 	};
 
 	connect(m_filter_cb, &QComboBox::activated, this, activate);
@@ -242,7 +240,7 @@ void MTD::addSelectionInputs() {
 	m_selection_le->setDisabled(true);
 	addLabel(m_selection_le, new QLabel("Selection:", drawArea()), 2);
 
-	m_selection_slider = new Slider(Qt::Horizontal, drawArea());
+	m_selection_slider = new Slider(drawArea());
 	m_selection_le->addSlider(m_selection_slider);
 
 	m_selection_slider->setRange(0, 100);
@@ -282,7 +280,7 @@ void MTD::addAmountInputs() {
 	const QString tt = "Blend amount between original pixel and new pixel value.";
 	m_amount_le->setToolTip(tt);
 
-	m_amount_slider = new Slider(Qt::Horizontal, drawArea());
+	m_amount_slider = new Slider(drawArea());
 	m_amount_le->addSlider(m_amount_slider);
 	m_amount_slider->setRange(0, 100);
 	m_amount_slider->setValue(100);
@@ -320,8 +318,6 @@ void MTD::resetDialog() {
 	m_amount_slider->setSliderPosition(m_mt.blendAmount() * m_selection_slider->maximum());
 }
 
-void MTD::showPreview() {}
-
 void MTD::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
@@ -330,7 +326,7 @@ void MTD::apply() {
 	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
 
 	std::unique_ptr<ProgressDialog> pd;
-	if (m_mt.kernelDimension() >= 9 || m_mt.morphologicalFilter() == MorphologicalFilter::selection)
+	if (m_mt.kernelDimension() >= 9 || m_mt.morphologicalFilter() == MT::Type::selection)
 		pd = std::unique_ptr<ProgressDialog>(new ProgressDialog(m_mt.progressSignal()));
 
 	switch (iwptr->type()) {
@@ -347,5 +343,3 @@ void MTD::apply() {
 	}
 	}
 }
-
-void MTD::applytoPreview() {}

@@ -6,8 +6,6 @@ using CCD = ChannelCombinationDialog;
 
 CCD::ChannelCombinationDialog(QWidget* parent) : ProcessDialog("ChannelCombination", { 560, 165 }, FastStack::recast(parent)->workspace(), false, false) {
 
-	connectToolbar(this, &CCD::apply, &CCD::showPreview, &CCD::resetDialog);
-
 	addColorSpaceBG();
 	addRedInputs();
 	addGreenInputs();
@@ -16,14 +14,11 @@ CCD::ChannelCombinationDialog(QWidget* parent) : ProcessDialog("ChannelCombinati
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iw = imageRecast<>(sw->widget());
 		if (iw->channels() == 1) {
-			m_red_combo->addItem(iw->name());
-			m_green_combo->addItem(iw->name());
-			m_blue_combo->addItem(iw->name());
+			m_red_combo->addImage(iw);
+			m_green_combo->addImage(iw);
+			m_blue_combo->addImage(iw);
 		}
 	}
-
-	connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::imageWindowClosed, this, &CCD::onWindowClose);
-	connect(reinterpret_cast<const Workspace*>(m_workspace), &Workspace::imageWindowCreated, this, &CCD::onWindowOpen);
 
 	this->show();
 }
@@ -69,38 +64,36 @@ void CCD::addColorSpaceBG() {
 	gb->setLayout(gl);
 }
 
-void CCD::onWindowOpen() {
+void CCD::onImageWindowCreated() {
 
-	auto iw = reinterpret_cast<ImageWindow8*>(m_workspace->subWindowList().last()->widget());
+	auto iw = imageRecast<>(m_workspace->subWindowList().last()->widget());
 
 	if (iw->channels() == 1) {
-		m_red_combo->addItem(iw->name());
-		m_green_combo->addItem(iw->name());
-		m_blue_combo->addItem(iw->name());
+		m_red_combo->addImage(iw);
+		m_green_combo->addImage(iw);
+		m_blue_combo->addImage(iw);
 	}
 }
 
-void CCD::onWindowClose() {
+void CCD::onImageWindowClosed() {
 
-	QString str = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget())->name();
+	auto img = &imageRecast<>(m_workspace->currentSubWindow()->widget())->source();
 
-	int index = m_red_combo->findText(str);
+	int index = m_red_combo->findImage(img);
 	if (index == m_red_combo->currentIndex()) {
 		m_cc.setRed(nullptr);
 		m_red_combo->setCurrentIndex(0);
 	}
 	m_red_combo->removeItem(index);
 
-
-	index = m_green_combo->findText(str);
+	index = m_green_combo->findImage(img);
 	if (index == m_green_combo->currentIndex()) {
 		m_cc.setGreen(nullptr);
 		m_green_combo->setCurrentIndex(0);
 	}
 	m_green_combo->removeItem(index);
 
-
-	index = m_blue_combo->findText(str);
+	index = m_blue_combo->findImage(img);
 	if (index == m_blue_combo->currentIndex()) {
 		m_cc.setBlue(nullptr);
 		m_blue_combo->setCurrentIndex(0);
@@ -120,7 +113,7 @@ void CCD::addRedInputs() {
 	m_red_combo->addItem("No Selected Image", 0);
 	m_red_combo->move(300, 28);
 
-	connect(m_red_combo, &QComboBox::activated, this, [this]() { m_cc.setRed(findImage(m_red_combo->currentText())); });
+	connect(m_red_combo, &QComboBox::activated, this, [this]() { m_cc.setRed(m_red_combo->currentImage()); });
 }
 
 void CCD::addGreenInputs() {
@@ -135,7 +128,7 @@ void CCD::addGreenInputs() {
 	m_green_combo->addItem("No Selected Image", 0);
 	m_green_combo->move(300, 68);
 
-	connect(m_green_combo, &QComboBox::activated, this, [this]() { m_cc.setGreen(findImage(m_green_combo->currentText())); });
+	connect(m_green_combo, &QComboBox::activated, this, [this]() { m_cc.setGreen(m_green_combo->currentImage()); });
 }
 
 void CCD::addBlueInputs() {
@@ -150,7 +143,7 @@ void CCD::addBlueInputs() {
 	m_blue_combo->addItem("No Selected Image", 0);
 	m_blue_combo->move(300, 108);
 
-	connect(m_blue_combo, &QComboBox::activated, this, [this]() { m_cc.setBlue(findImage(m_blue_combo->currentText())); });
+	connect(m_blue_combo, &QComboBox::activated, this, [this]() { m_cc.setBlue(m_blue_combo->currentImage()); });
 }
 
 void CCD::resetDialog() {

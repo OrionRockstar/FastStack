@@ -223,9 +223,7 @@ ColorSaturationDialog::ColorSaturationDialog(QWidget* parent) : ProcessDialog("C
 
 	this->setStyleSheet("QDialog::title {background-color:blue;}");
 
-	setTimerInterval(250);
-	setPreviewMethod(this, &CSD::applytoPreview);
-	connectToolbar(this, &CSD::apply, &CSD::showPreview, &CSD::resetDialog);
+	setDefaultTimerInterval(250);
 
 	m_css = new ColorSaturationScene(&m_cs, QRect(0, 0, 480, 200), drawArea());
 	connect(m_css, &CurveScene::itemARC, this, &CSD::onItemARC);
@@ -317,7 +315,7 @@ void ColorSaturationDialog::addHueShift() {
 	m_hue_shift_le->move(95, 290);
 	addLabel(m_hue_shift_le, new QLabel("Hue Shift:", drawArea()));
 
-	m_hue_shift_slider = new Slider(Qt::Horizontal, drawArea());
+	m_hue_shift_slider = new Slider(drawArea());
 	m_hue_shift_slider->setFixedWidth(280);
 	m_hue_shift_slider->setRange(0, 480);
 	m_hue_shift_le->addSlider(m_hue_shift_slider);
@@ -346,7 +344,7 @@ void ColorSaturationDialog::addHueShift() {
 
 void ColorSaturationDialog::addPointSelection() {
 
-	QPushButton* pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekForward), "", drawArea());
+	PushButton* pb = new PushButton(style()->standardIcon(QStyle::SP_MediaSeekForward), "", drawArea());
 	pb->setAutoDefault(false);
 	pb->move(185, 257);
 
@@ -366,9 +364,9 @@ void ColorSaturationDialog::addPointSelection() {
 		onItemARC();
 	};
 
-	connect(pb, &QPushButton::pressed, this, next);
+	connect(pb, &QPushButton::released, this, next);
 
-	pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekBackward), "", drawArea());
+	pb = new PushButton(style()->standardIcon(QStyle::SP_MediaSeekBackward), "", drawArea());
 	pb->setAutoDefault(false);
 	pb->move(185, 222);
 
@@ -387,7 +385,7 @@ void ColorSaturationDialog::addPointSelection() {
 
 		onItemARC();
 	};
-	connect(pb, &QPushButton::pressed, this, previous);
+	connect(pb, &QPushButton::released, this, previous);
 
 	m_current_point = new QLabel("  1 / 2", drawArea());
 	m_current_point->move(230, 220);
@@ -414,12 +412,6 @@ void ColorSaturationDialog::resetDialog() {
 	applytoPreview();
 }
 
-void ColorSaturationDialog::showPreview() {
-
-	ProcessDialog::showPreview();
-	applytoPreview();
-}
-
 void ColorSaturationDialog::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
@@ -429,25 +421,20 @@ void ColorSaturationDialog::apply() {
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_cs, &ColorSaturation::apply);
-		break;
+		return iwptr->applyToSource(m_cs, &ColorSaturation::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->applyToSource(m_cs, &ColorSaturation::apply);
-		break;
+		return iw16->applyToSource(m_cs, &ColorSaturation::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->applyToSource(m_cs, &ColorSaturation::apply);
-		break;
+		return iw32->applyToSource(m_cs, &ColorSaturation::apply);
 	}
 	}
-
-	applytoPreview();
 }
 
-void ColorSaturationDialog::applytoPreview() {
+void ColorSaturationDialog::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

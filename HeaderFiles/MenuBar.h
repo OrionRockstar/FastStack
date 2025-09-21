@@ -26,6 +26,7 @@
 #include "CurvesTransformationDialog.h"
 #include "LocalHistogramEqualizationDialog.h"
 #include "BinerizeDialog.h"
+#include "ExponentialTransformationDialog.h"
 
 //
 #include "WaveletLayersDialog.h"
@@ -44,6 +45,7 @@
 //noise reduction
 #include "SCNRDialog.h"
 
+#include "MediaPlayerDialog.h"
 
 
 
@@ -128,6 +130,7 @@ class ImageTransformationsMenu : public QMenu {
     std::unique_ptr<BinerizeDialog> m_bd;
     std::unique_ptr<ColorSaturationDialog> m_csd;
     std::unique_ptr<CurvesTransformationDialog> m_ctd;
+    std::unique_ptr<ExponentialTransformationDialog> m_etd;
     std::unique_ptr<HistogramTransformationDialog> m_ht;
     std::unique_ptr<LocalHistogramEqualizationDialog> m_lhed;
 
@@ -149,6 +152,8 @@ private:
 
     void histogramTransformationSelection();
 
+    void exponentialTransformationSelection();
+
     void localHistogramEqualizationSelection();
 };
 
@@ -169,6 +174,18 @@ private:
 };
 
 
+
+
+
+class MediaMenu : public QMenu {
+    std::unique_ptr<MediaPlayerDialog> m_mpd;
+
+public:
+    MediaMenu(QWidget* parent);
+
+private:
+    void mediaPlayerSelection();
+};
 
 
 
@@ -233,6 +250,7 @@ class ProcessMenu : public QMenu {
     MaskMenu* m_mask = nullptr;
     MorphologyMenu* m_morphology = nullptr;
     NoiseReductionMenu* m_noise_reduction_menu = nullptr;
+    MediaMenu* m_media_menu = nullptr;
 
 public:
 

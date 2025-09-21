@@ -28,9 +28,9 @@ void LRGBCombination::combineLuminance(Image32& rgb, const Image<T>& lum) {
         for (int x = 0; x < rgb.cols(); ++x) {
             auto color = rgb.color<double>(x, y);
 
-            color.rRed() *= m_R_weight;
-            color.rGreen() *= m_G_weight;
-            color.rBlue() *= m_B_weight;
+            color.red *= m_R_weight;
+            color.green *= m_G_weight;
+            color.blue *= m_B_weight;
 
             double L, c, h;
 

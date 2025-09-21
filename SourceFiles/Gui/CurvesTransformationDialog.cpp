@@ -126,9 +126,7 @@ using CTD = CurvesTransformationDialog;
 
 CTD::CurvesTransformationDialog(QWidget* parent) : ProcessDialog("CurveTransform", QSize(400, 515), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(250);
-	setPreviewMethod(this, &CTD::applytoPreview);
-	connectToolbar(this, &CTD::apply, &CTD::showPreview, &CTD::resetDialog);
+	setDefaultTimerInterval(250);
 
 	m_cs = new CurveTransformScene(&m_ct, QRect(0, 0, 380, 380), drawArea());
 	connect(m_cs, &CurveScene::itemARC, this, &CTD::onItemARC);
@@ -265,9 +263,9 @@ void CTD::addPointLineEdits() {
 
 void CTD::addPointSelection() {
 
-	QPushButton* pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekForward), "", drawArea());
+	PushButton* pb = new PushButton(style()->standardIcon(QStyle::SP_MediaSeekForward), "", drawArea());
 	pb->setAutoDefault(false);
-	pb->move(350, 430);
+	pb->move(355, 430);
 
 	auto next = [this]() {
 		CurveItem* curve = m_cs->curveItem(ColorComponent(m_component_bg->checkedId()));
@@ -285,9 +283,9 @@ void CTD::addPointSelection() {
 		onItemARC();
 	};
 
-	connect(pb, &QPushButton::pressed, this, next);
+	connect(pb, &QPushButton::released, this, next);
 
-	pb = new QPushButton(style()->standardIcon(QStyle::SP_MediaSeekBackward), "", drawArea());
+	pb = new PushButton(style()->standardIcon(QStyle::SP_MediaSeekBackward), "", drawArea());
 	pb->setAutoDefault(false);
 	pb->move(320, 430);
 
@@ -307,7 +305,7 @@ void CTD::addPointSelection() {
 		onItemARC();
 	};
 
-	connect(pb, &QPushButton::pressed, this, previous);
+	connect(pb, &QPushButton::released, this, previous);
 
 	m_current_point = new QLabel("  1 / 2", drawArea());
 	m_current_point->move(330, 460);
@@ -328,57 +326,45 @@ void CTD::resetDialog() {
 	applytoPreview();
 }
 
-void CTD::showPreview() {
-
-	ProcessDialog::showPreview();
-	applytoPreview();
-}
-
 void CTD::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_ct, &CurveTransform::apply);
-		break;
+		return iwptr->applyToSource(m_ct, &CurveTransform::apply);
 	}
 	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		iw16->applyToSource(m_ct, &CurveTransform::apply);
-		break;
+		auto iw16 = imageRecast<uint16_t>(iwptr);
+		return iw16->applyToSource(m_ct, &CurveTransform::apply);
 	}
 	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		iw32->applyToSource(m_ct, &CurveTransform::apply);
-		break;
+		auto iw32 = imageRecast<float>(iwptr);
+		return iw32->applyToSource(m_ct, &CurveTransform::apply);
 	}
 	}
-
-	applytoPreview();
 }
 
-void CTD::applytoPreview() {
+void CTD::applyPreview() {
 
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<PreviewWindow8*>(m_preview);
+	auto iwptr = previewRecast<>(m_preview);
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		auto iw8 = iwptr;
-		return iw8->updatePreview(m_ct, &CurveTransform::apply);
+		return iwptr->updatePreview(m_ct, &CurveTransform::apply);
 	}
 	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr);
+		auto iw16 = previewRecast<uint16_t>(iwptr);
 		return iw16->updatePreview(m_ct, &CurveTransform::apply);
 	}
 	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr);
+		auto iw32 = previewRecast<float>(iwptr);
 		return iw32->updatePreview(m_ct, &CurveTransform::apply);
 	}
 	}

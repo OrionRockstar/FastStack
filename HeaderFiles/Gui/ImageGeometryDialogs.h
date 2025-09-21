@@ -100,7 +100,7 @@ class CropFrame : public QWidget {
 
 	QCursor m_cursor = Qt::CursorShape::OpenHandCursor;
 
-	QRect m_start_rec;
+	QRect m_start_rect;
 	QPoint m_start_pos;
 	bool m_resizing = false;
 	bool m_moving = false;
@@ -116,6 +116,10 @@ public:
 	void resetFrame();
 
 private:
+	void enterEvent(QEnterEvent* e);
+
+	void leaveEvent(QEvent* e);
+
 	void mousePressEvent(QMouseEvent* e);
 
 	void mouseMoveEvent(QMouseEvent* e);
@@ -168,15 +172,15 @@ public:
 private:
 	void closeEvent(QCloseEvent* e);
 
-	void onWindowOpen();
+	void onImageWindowCreated()override;
 
-	void onWindowClose();
+	void onImageWindowClosed()override;
 
 	void onActivation_imageSelection(int index);
 
 	void resetDialog();
 
-	void showPreview() {}
+	//void showPreview() {}
 
 	void apply();
 };

@@ -454,11 +454,11 @@ public:
 	}
 
 	T& operator()(const Point& p) {
-		return m_data[p.y() * m_cols + p.x()];
+		return m_data[p.y * m_cols + p.x];
 	}
 
 	const T& operator()(const Point& p)const {
-		return m_data[p.y() * m_cols + p.x()];
+		return m_data[p.y * m_cols + p.x];
 	}
 
 	T& operator()(const ImagePoint& p) {
@@ -560,15 +560,23 @@ private:
 	template<typename P = T>
 	void setColor(int el, const Color<P>& color) {
 
-		m_red[el] = Pixel<T>::toType(color.red());
-		m_green[el] = Pixel<T>::toType(color.green());
-		m_blue[el] = Pixel<T>::toType(color.blue());
+		m_red[el] = Pixel<T>::toType(color.red);
+		m_green[el] = Pixel<T>::toType(color.green);
+		m_blue[el] = Pixel<T>::toType(color.blue);
 	}
 
 public:
 	Color<T> color(int x, int y)const {
 		int el = y * cols() + x;
 		return { m_red[el],m_green[el],m_blue[el] };
+	}
+
+	Color<T> colorAt(int x, int y)const {
+		if (isInBounds(x, y)) {
+			int el = y * cols() + x;
+			return { m_red[el],m_green[el],m_blue[el] };
+		}
+		return Color<T>();
 	}
 
 	template<typename P>
@@ -582,16 +590,28 @@ public:
 		return { r,g,b };
 	}
 
+	template<typename P>
+	Color<P> colorAt(int x, int y)const {
+		if (isInBounds(x, y)) {
+			int el = y * cols() + x;
+			P r = Pixel<P>::toType(m_red[el]);
+			P g = Pixel<P>::toType(m_green[el]);
+			P b = Pixel<P>::toType(m_blue[el]);
+			return { r,g,b };
+		}
+		return Color<P>();
+	}
+
 	Color<T> color(const Point& p)const {
 
-		int el = p.y() * cols() + p.x();
+		int el = p.y * cols() + p.x;
 		return { m_red[el],m_green[el],m_blue[el] };
 	}
 
 	template<typename P>
 	Color<P> color(const Point& p)const {
 
-		int el = p.y() * cols() + p.x();
+		int el = p.y * cols() + p.x;
 		P r = Pixel<P>::toType(m_red[el]);
 		P g = Pixel<P>::toType(m_green[el]);
 		P b = Pixel<P>::toType(m_blue[el]);
@@ -601,34 +621,43 @@ public:
 
 	void setColor(int x, int y, const Color<T>& color) {
 		int el = y * cols() + x;
-		m_red[el] = color.red();
-		m_green[el] = color.green();
-		m_blue[el] = color.blue();
+		m_red[el] = color.red;
+		m_green[el] = color.green;
+		m_blue[el] = color.blue;
 	}
 
 	template<typename P>
 	void setColor(int x, int y, const Color<P>& color) {
 		int el = y * cols() + x;
-		m_red[el] = Pixel<T>::toType(color.red());
-		m_green[el] = Pixel<T>::toType(color.green());
-		m_blue[el] = Pixel<T>::toType(color.blue());
+		m_red[el] = Pixel<T>::toType(color.red);
+		m_green[el] = Pixel<T>::toType(color.green);
+		m_blue[el] = Pixel<T>::toType(color.blue);
 	}
 
 	void setColor(const Point& p, const Color<T>& color) {
-		int el = p.y() * cols() + p.x();
-		m_red[el] = color.red();
-		m_green[el] = color.green();
-		m_blue[el] = color.blue();
+		int el = p.y * cols() + p.x;
+		m_red[el] = color.red;
+		m_green[el] = color.green;
+		m_blue[el] = color.blue;
 	}
 
 	template<typename P>
 	void setColor(const Point& p, const Color<P>& color) {
-		int el = p.y() * cols() + p.x();
-		m_red[el] = Pixel<T>::toType(color.red());
-		m_green[el] = Pixel<T>::toType(color.green());
-		m_blue[el] = Pixel<T>::toType(color.blue());
+		int el = p.y * cols() + p.x;
+		m_red[el] = Pixel<T>::toType(color.red);
+		m_green[el] = Pixel<T>::toType(color.green);
+		m_blue[el] = Pixel<T>::toType(color.blue);
 	}
 
+	void setPixel(T pixel, int x, int y) {
+		if (isInBounds(x, y))
+			(*this)(x, y) = pixel;
+	}
+
+	void setPixel(T pixel, int x, int y, int ch) {
+		if (isInBounds(x, y) && ch < channels())
+			(*this)(x, y, ch) = pixel;
+	}
 
 	void RGBtoGray() {
 
@@ -639,10 +668,7 @@ public:
 		for (int el = 0; el < pxCount(); ++el)
 			m_data[el] = Pixel<T>::toType(ColorSpace::CIEL(color<double>(el)));
 		
-
-		T* temp = (T*)realloc(m_data.get(), pxCount() * sizeof(T));
-		m_data.release();
-		m_data.reset(temp);
+		m_data.reset((T*)std::realloc(m_data.release(), pxCount() * sizeof(T)));
 
 		m_channels = 1;
 		m_total_pixel_count = m_pixel_count;
@@ -669,7 +695,7 @@ public:
 #pragma omp parallel for num_threads(2)
 		for (int el = 0; el < pxCount(); ++el) {
 			auto c = color<double>(el);//
-			setColor<>(el, ColorSpace::CIELabtoRGB(c.red(), c.green(), c.blue()));
+			setColor<>(el, ColorSpace::CIELabtoRGB(c.red, c.green, c.blue));
 		}
 	}
 
@@ -825,6 +851,9 @@ typedef Image<uint16_t> Image16;
 typedef Image<uint8_t> Image8;
 
 
+template<typename P, typename T>
+const Image<P>* recastImage(const Image<T>* img) { return reinterpret_cast<const Image<P>*>(img); }
+
 template<typename T>
 constexpr static bool isUByteImage(const Image<T>& img) {
 	return (img.type() == ImageType::UBYTE);
@@ -890,7 +919,11 @@ image_channel(const Image<T>& img, int channel) {
 	return ConstImageChannel<T>(img, channel);
 }
 
-typedef std::vector<Image32> ImageVector;
+//typedef std::vector<Image32> ImageVector;
 typedef std::vector<Image8> Image8Vector;
+
+template<typename T>
+using ImageVector = std::vector<Image<T>>;
+
 typedef std::vector<std::filesystem::path> FileVector;
 typedef std::vector<std::filesystem::path> PathVector;

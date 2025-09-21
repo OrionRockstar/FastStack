@@ -31,12 +31,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtModules>core;gui;widgets;charts;datavisualization</QtModules>
-    <QtInstall>6.8.1_msvc2022_64</QtInstall>
+    <QtInstall>6.9.1_msvc2022_64</QtInstall>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtModules>core;gui;widgets;charts;datavisualization</QtModules>
     <QMakeCodeLines>$(QMakeCodeLines)</QMakeCodeLines>
-    <QtInstall>6.8.1_msvc2022_64</QtInstall>
+    <QtInstall>6.9.1_msvc2022_64</QtInstall>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
     <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
@@ -57,6 +57,10 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <VcpkgConfiguration>Debug</VcpkgConfiguration>
+  </PropertyGroup>
+  <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -108,8 +112,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="SCNR.cpp" />
-    <ClCompile Include="SCNRDialog.cpp" />
+    <ClCompile Include="Histogram.cpp" />
+    <ClCompile Include="SourceFiles\Gui\HistogramView.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ImageSubWindow.cpp" />
+    <ClCompile Include="SourceFiles\MediaPlayerDialog.cpp" />
+    <ClCompile Include="SourceFiles\Gui\ExponentialTransformationDialog.cpp" />
+    <ClCompile Include="SourceFiles\Core\ExponentialTransformation.cpp" />
+    <ClCompile Include="SourceFiles\Core\SCNR.cpp" />
+    <ClCompile Include="SourceFiles\Gui\SCNRDialog.cpp" />
     <ClCompile Include="SourceFiles\Gui\LRGBCombinationDialog.cpp" />
     <ClCompile Include="SourceFiles\Gui\ChannelCombinationDialog.cpp" />
     <ClCompile Include="ImageWindowMenu.cpp" />
@@ -165,7 +175,6 @@
     <ClCompile Include="SourceFiles\Core\HistogramTransformation.cpp" />
     <ClCompile Include="SourceFiles\Core\Homography.cpp" />
     <ClCompile Include="SourceFiles\Core\Image.cpp" />
-    <ClCompile Include="SourceFiles\ImageOperations.cpp" />
     <ClCompile Include="SourceFiles\ImageWindow.cpp" />
     <ClCompile Include="SourceFiles\Core\Matrix.cpp" />
     <ClCompile Include="SourceFiles\Core\MorphologicalTransformation.cpp" />
@@ -193,12 +202,14 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="HeaderFiles\Gui\ExponentialTransformationDialog.h" />
+    <ClInclude Include="HeaderFiles\Core\ExponentialTransformation.h" />
     <ClInclude Include="HeaderFiles\Gui\ChannelCombinationDialog.h" />
     <ClInclude Include="HeaderFiles\Gui\GaussianFilterDialog.h" />
     <ClInclude Include="HeaderFiles\Gui\StarMaskDialog.h" />
     <ClInclude Include="HeaderFiles\Gui\WaveletLayersDialog.h" />
-    <ClInclude Include="SCNR.h" />
-    <ClInclude Include="SCNRDialog.h" />
+    <ClInclude Include="HeaderFiles\Core\SCNR.h" />
+    <ClInclude Include="HeaderFiles\Gui\SCNRDialog.h" />
     <QtMoc Include="HeaderFiles\Gui\RangeMaskDialog.h" />
     <QtMoc Include="HeaderFiles\Gui\Workspace.h" />
     <QtMoc Include="HeaderFiles\Gui\ASinhStretchDialog.h" />
@@ -246,7 +257,6 @@
     <ClInclude Include="HeaderFiles\Core\ImageGeometry.h" />
     <ClInclude Include="HeaderFiles\Gui\ImageGeometryDialogs.h" />
     <ClInclude Include="HeaderFiles\ImageIntegrationProcess.h" />
-    <ClInclude Include="HeaderFiles\ImageOperations.h" />
     <QtMoc Include="HeaderFiles\ImageWindow.h" />
     <QtMoc Include="HeaderFiles\Core\ImageStacking.h" />
     <QtMoc Include="HeaderFiles\Gui\ImageStackingDialog.h" />
@@ -262,6 +272,9 @@
     <QtMoc Include="HeaderFiles\Gui\LocalHistogramEqualizationDialog.h" />
     <QtMoc Include="ImageWindowMenu.h" />
     <ClInclude Include="HeaderFiles\Gui\LRGBCombinationDialog.h" />
+    <QtMoc Include="HeaderFiles\MediaPlayerDialog.h" />
+    <QtMoc Include="HeaderFiles\Gui\HistogramView.h" />
+    <QtMoc Include="HeaderFiles\Gui\ImageSubWindow.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="HeaderFiles\Core\RGBColorSpace.h" />
     <QtMoc Include="HeaderFiles\SaveFileOptionsWindows.h" />

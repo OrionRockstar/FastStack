@@ -194,398 +194,37 @@ void StatisticsDialog::addBitDepthCombo() {
 
 
 
-HistogramView::HistogramView(const QSize& size, QWidget* parent) : QGraphicsView(parent) {
-
-	this->resize(size);
-	this->setRenderHints(QPainter::Antialiasing);
-	this->setMouseTracking(true);
-	this->installEventFilter(this);
-
-	addScrollBars();
-
-	m_gs = new QGraphicsScene();
-	m_gs->setBackgroundBrush(QColor(19, 19, 19));
-	
-	this->setScene(m_gs);
-
-	this->setCursor(Qt::BlankCursor);
-
-	m_gs->setSceneRect(QRect({ 0,0 }, QSize(width()-2,height()-2)));
-	m_rect = this->sceneRect().toRect();
-
-	this->drawGrid();
-
-	this->show();
-}
-
-void HistogramView::drawGrid() {
-
-	QPen pen = QColor(255, 255, 255);
-	pen.setWidthF(0.5);
-
-	for (int y = (50 - int(m_offsety) % 50); y < m_gs->height(); y += 50) 
-		m_gs->addLine(0, y, m_gs->width(), y, pen);
-	
-	for (int x = (100 - int(m_offsetx) % 100); x < m_gs->width(); x += 100)
-		m_gs->addLine(x, 0, x, m_gs->height(), pen);
-}
-
-template<typename T>
-void HistogramView::drawHistogramScene(const Image<T>& img) {
-
-	m_histograms.resize(img.channels());
-
-	for (int ch = 0; ch < img.channels(); ++ch)
-		m_histograms[ch].constructHistogram(img, ch);
-
-	this->clearScene();
-	this->drawHistogram();
-}
-
-template<typename T>
-void HistogramView::constructHistogram(const Image<T>& img) {
-
-	m_histograms.resize(img.channels());
-
-	for (int ch = 0; ch < img.channels(); ++ch)
-		m_histograms[ch].constructHistogram(img, ch);
-}
-template void HistogramView::constructHistogram(const Image8&);
-template void HistogramView::constructHistogram(const Image16&);
-template void HistogramView::constructHistogram(const Image32&);
-
-template<typename T>
-void HistogramView::constructHistogram(const Image<T>& img, Histogram::Resolution resolution) {
-
-	m_histograms.resize(img.channels());
-
-	for (int ch = 0; ch < img.channels(); ++ch) {
-		m_histograms[ch].constructHistogram(img, ch);
-		m_histograms[ch].resample(resolution);
-	}
-}
-template void HistogramView::constructHistogram(const Image8&, Histogram::Resolution);
-template void HistogramView::constructHistogram(const Image16&, Histogram::Resolution);
-template void HistogramView::constructHistogram(const Image32&, Histogram::Resolution);
-
-void HistogramView::clearHistogram() {
-
-	clearScene();
-	m_histograms.clear();
-	m_histograms.shrink_to_fit();
-}
-
-void HistogramView::drawHistogram() {
-
-	if (m_histograms.size() == 0)
-		return;
-
-	this->clearScene();
-	this->adjustHistogramRect();
-
-	int channel_start = 0;
-	int channel_end = m_histograms.size();
-
-	auto comp = colorComponent();
-
-	if (comp == ColorComponent::red || comp == ColorComponent::green || comp == ColorComponent::blue) {
-
-		if (channel_end == 1)
-			return;
-
-		channel_end = 1 + (channel_start = int(comp));
-	}
-
-	uint32_t peak = 0;
-	for (int ch = channel_start; ch < channel_end; ++ch) {
-		if (m_clip)
-			peak = math::max(peak, m_histograms[ch].peak(1, m_histograms[ch].resolution() - 2));
-		else
-			peak = math::max(peak, m_histograms[ch].peak());
-	}
-
-	for (int ch = channel_start; ch < channel_end; ++ch) {
-		auto& hist = m_histograms[ch];
-
-		QPolygonF line;
-
-		double k = double(m_rect.width() - 1) / (m_histograms[ch].resolution() - 1);
-		int start = m_rect.x() / k;
-		int end = math::min((int)hist.resolution() - 1, int(m_rect.topRight().x() / k));
-
-		for (int i = start, x0 = 0, y0 = 0; i <= end; ++i) {
-
-			int x = (i * k) - m_rect.x();
-			int y = math::max(-1, (int)round((1 - double(hist[i]) / peak) * (m_rect.height() - 1)) - m_rect.y());
-
-			if (i == start || i == end || x != x0)
-				line.push_back(QPointF(x0 = x, y0 = y));
-
-			else if (y < y0)
-				line.back().setY(y0 = y);
-
-		}
-
-		if (m_clip) {
-			line.pop_front();
-			line.pop_back();
-		}
-
-		QPainterPath path;
-		path.addPolygon(line);
-		if (m_histograms.size() == 3)
-			m_gs->addPath(path, m_pens[ch]);
-		else
-			m_gs->addPath(path, m_pens[3]);
-	}
-}
-
-
-void HistogramView::addScrollBars() {
-
-	m_vsb = new ScrollBar();
-	this->setVerticalScrollBar(m_vsb);
-	m_vsb->setCursor(Qt::ArrowCursor);
-
-	auto verticalAction = [this](int) {
-
-		m_rect = QRect({m_rect.x(), m_vsb->value()}, m_rect.size());
-		m_offsety = m_vsb->sliderPosition();
-		m_gs->clear();
-		this->drawGrid();
-		drawHistogram();
-	};
-
-	connect(m_vsb, &QScrollBar::actionTriggered, this, verticalAction);
-
-	m_hsb = new ScrollBar();
-	this->setHorizontalScrollBar(m_hsb);
-	m_hsb->setCursor(Qt::ArrowCursor);
-
-	auto horizontalAction = [this](int) {
-		m_rect = QRect({ m_hsb->value(), m_rect.y()}, m_rect.size());
-		m_offsetx = m_hsb->sliderPosition();
-		m_gs->clear();
-		this->drawGrid();
-		drawHistogram();
-	};
-
-	connect(m_hsb, &QScrollBar::actionTriggered, this, horizontalAction);
-
-}
-
-void HistogramView::showHorizontalScrollBar() {
-
-	this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-	int w = m_gs->width();
-	int m = (w * m_scale) - w;
-	m_hsb->setRange(0, m);
-	m_hsb->setValue(math::clip(int(m_offsetx), 0, m));
-	m_hsb->setPageStep(w);
-}
-
-void HistogramView::hideHorizontalScrollBar() {
-
-	this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-}
-
-void HistogramView::showVerticalScrollBar() {
-
-	this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-
-	int h = m_gs->height();
-	int m =(h * m_scale) - h;
-	m_vsb->setRange(0, m);
-	m_vsb->setValue(math::clip(int(m_offsety), 0, m));
-	m_vsb->setPageStep(h);
-}
-
-void HistogramView::hideVerticalScrollBar() {
-
-	this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-}
-
-void HistogramView::showScrollBars() {
-
-	if (m_scale > 1) {
-		showVerticalScrollBar();
-		showHorizontalScrollBar();
-	}
-	else {
-		hideVerticalScrollBar();
-		hideHorizontalScrollBar();
-	}
-}
-
-void HistogramView::adjustHistogramRect() {
-
-	QRect r0 = this->sceneRect().toRect();
-
-	int x0 = r0.x() + m_offsetx;
-	int y0 = r0.y() + m_offsety;
-	int x1 = x0 + m_gs->width() * m_scale;
-	int y1 = y0 + m_gs->height() * m_scale;
-
-	m_rect = QRect(QPoint(x0, y0), QPoint(x1, y1));
-
-	if (m_scale != 1)
-		m_rect.adjust(0, 0, -verticalScrollBar()->width(), -horizontalScrollBar()->height());
-}
-
-void HistogramView::clearScene(bool draw_grid) {
-	
-	m_gs->clear();
-
-	m_cursor_lines.fill(nullptr);
-
-	if (draw_grid)
-		this->drawGrid();
-}
-
-void HistogramView::removeCursor() {
-
-	if (m_cursor_lines[0]) {
-		m_gs->removeItem(m_cursor_lines[0]);
-		m_cursor_lines[0] = nullptr;
-	}
-
-	if (m_cursor_lines[1]) {
-		m_gs->removeItem(m_cursor_lines[1]);
-		m_cursor_lines[1] = nullptr;
-	}
-}
-
-void HistogramView::drawCursor(const QPoint& p) {
-
-	removeCursor();
-
-	QPen pen({ 150,69,255 });
-	pen.setWidth(2);
-
-	m_cursor_lines[0] = m_gs->addLine(0, p.y(), m_gs->width(), p.y(), pen);
-	m_cursor_lines[1] = m_gs->addLine(p.x(), 0, p.x(), m_gs->height(), pen);
-}
-
-void HistogramView::resizeEvent(QResizeEvent* e) {
-
-	QGraphicsView::resizeEvent(e);
-	m_gs->setSceneRect(QRect({ 0,0 }, QSize(width() - 2, height() - 2)));
-
-	this->showScrollBars();
-	this->drawHistogram();
-}
-
-
-void HistogramView::wheelEvent(QWheelEvent* e) {
-
-	int dy = e->angleDelta().y() / 120;
-
-	if (m_histograms.size() == 0)
-		return;
-
-	if (m_scale + dy > 200)
-		return;
-
-	else if (m_scale + dy < 1)
-		return;
-
-	m_scale += dy;
-
-	int x = e->scenePosition().x();
-	int y = e->scenePosition().y();
-
-	double x_old = x * m_old_scale;
-	double x_new = x * m_scale;
-	m_offsetx += (x_new - x_old);
-
-	double y_old = y * m_old_scale;
-	double y_new = y * m_scale;
-	m_offsety += (y_new - y_old);
-
-	m_offsetx = math::clip(m_offsetx, 0.0, (m_gs->width() * m_scale) - m_gs->width());
-	m_offsety = math::clip(m_offsety, 0.0, (m_gs->height() * m_scale) - m_gs->height());
-
-	this->showScrollBars();
-	this->drawHistogram();
-	this->drawCursor(e->position().toPoint());
-
-	m_old_scale = m_scale;
-}
-
-bool HistogramView::eventFilter(QObject* obj, QEvent* e) {
-
-	if (obj == this && e->type() == QEvent::Enter)
-		mouseMoveEvent((QMouseEvent*)e);
-	
-	if (obj == this && e->type() == QEvent::Leave) {
-		emit histogramValue(0, 0, 0);
-		removeCursor();
-	}
-
-	if ((obj == horizontalScrollBar() || obj == verticalScrollBar()) && e->type() == QEvent::Enter)
-		removeCursor();
-
-	return false;
-}
-
-void HistogramView::mouseMoveEvent(QMouseEvent* e) {
-
-	drawCursor(e->pos());
-
-	if (m_histograms.size() > 0) {
-		double k = double(m_rect.width() - 1) / (m_histograms[0].resolution() - 1);
-
-		uint16_t low = (e->pos().x() + m_rect.x()) / k;
-		uint16_t high = (e->pos().x() + 1 + m_rect.x()) / k;
-
-		if (m_clip) {
-			if (low == 0)
-				low++;
-			if (high == (m_histograms[0].resolution() - 1))
-				high--;
-		}
-
-		uint32_t pixel_count = 0;
-		for (int ch = 0; ch < m_histograms.size(); ++ch) {
-			Histogram& hist = m_histograms[ch];
-			for (uint32_t i = low; i <= high; ++i)
-				pixel_count += hist[i];
-		}
-
-		emit histogramValue(low, high, pixel_count);
-	}
-}
-
-
-
-
 template<typename T>
 HistogramDialog::HistogramDialog(const QString& img_name, const Image<T>& img, QWidget* parent) : Dialog(parent,true) {
 
 	this->setTitle(img_name + " Histogram");
-	this->setDefaultSize({ 630, 365 });
-	this->setMinimumSize(400,265);
-	
-
+	this->setDefaultSize({ 630, 400 });
+	this->setMinimumSize(630,400);
 	this->setFocus();
-	//this->setAttribute(Qt::WA_DeleteOnClose);
+
+	m_img = reinterpret_cast<const Image8*>(&img);
 
 	m_hist_view = new HistogramView({ 600,300 }, drawArea());
-	m_hist_view->drawHistogramScene(img);
-	m_hist_view->move(15, 50);
+	m_hist_view->move(15, 85);
 
-	m_clip_cb = new CheckBox("Clip Shadows && Highlights", drawArea());
-	m_clip_cb->move(15, 15);
+	m_clip_cb = new CheckBox("Clip", drawArea());
+	m_clip_cb->setToolTip("Clip Shadows && Highlights");
+	m_clip_cb->move(50, 18);
 	m_clip_cb->setChecked(true);
 	connect(m_clip_cb, &QCheckBox::clicked, this, [this](bool v) { m_hist_view->clipHistogram(v); });
 
-	m_hist_data = new QLabel(drawArea());
-	m_hist_data->move(275, 18);
+	QWidget* label_background = new QWidget(drawArea());
+	label_background->setGeometry(135, 55, 360, 20);
+	label_background->setStyleSheet("QWidget{background: rgb(69,69,69);}");
+
+	m_hist_data = new QLabel(label_background);
+	m_hist_data->move(30, 0);
+	//m_hist_data->move(165, 53);
 
 	auto setLabel = [this](uint16_t pixelValue_low, uint16_t pixelValue_high, uint32_t pixel_count) {
 
-		if (pixelValue_low == 0 && pixelValue_high == 0 && pixel_count == 0)
-			return m_hist_data->setText("");
+		//if (pixelValue_low == 0 && pixelValue_high == 0 && pixel_count == 0)
+			//return m_hist_data->setText("");
 
 		QString data = "Pixel Value Range : Count   " + QString::number(pixelValue_low) + "-" + QString::number(pixelValue_high) + " : ";
 		data += QString::number(pixel_count);
@@ -594,12 +233,62 @@ HistogramDialog::HistogramDialog(const QString& img_name, const Image<T>& img, Q
 	};
 
 	connect(m_hist_view, &HistogramView::histogramValue, this, setLabel);
+	connect(m_hist_view, &HistogramView::cursorLeave, this, [this]() { m_hist_data->setText(""); });
 
+	addResolutionCombo();
+	addGraphStyleCombo();
 	this->show();
 }
 template HistogramDialog::HistogramDialog(const QString&, const Image8&, QWidget*);
 template HistogramDialog::HistogramDialog(const QString&, const Image16&, QWidget*);
 template HistogramDialog::HistogramDialog(const QString&, const Image32&, QWidget*);
+
+void HistogramDialog::addResolutionCombo() {
+
+	m_resolution_combo = new ComboBox(drawArea());
+	m_resolution_combo->addItems({ "8-bit", "10-bit", "12-bit", "14-bit", "16-bit" });
+	m_resolution_combo->setFixedWidth(75);
+	m_resolution_combo->move(300, 15);
+	m_resolution_combo->addLabel(new QLabel("Histogram Resolution:   ", drawArea()));
+
+	for (int i = 0, s = 8; i < m_resolution_combo->count(); ++i, s += 2)
+		m_resolution_combo->setItemData(i, 1 << s);
+
+	int index = (m_img->type() == ImageType::UBYTE) ? 0 : 4;
+	m_resolution_combo->setCurrentIndex(index);
+
+	auto activation = [this](int index) {
+		auto hr = Histogram::Resolution(m_resolution_combo->itemData(index).toInt());
+		switch (m_img->type()) {
+		case ImageType::UBYTE:
+			return m_hist_view->drawHistogramView(*m_img, hr);
+
+		case ImageType::USHORT:
+			return m_hist_view->drawHistogramView(*reinterpret_cast<const Image16*>(m_img), hr);
+
+		case ImageType::FLOAT:
+			return m_hist_view->drawHistogramView(*reinterpret_cast<const Image32*>(m_img), hr);
+		}
+	};
+	connect(m_resolution_combo, &QComboBox::activated, this, activation);
+	activation(index);
+}
+
+void HistogramDialog::addGraphStyleCombo() {
+
+	using GS = HistogramView::GraphStyle;
+	m_gstyle_combo = new ComboBox(drawArea());
+	m_gstyle_combo->setFixedWidth(75);
+	m_gstyle_combo->move(500, 15);
+	m_gstyle_combo->addLabel(new QLabel("Graph Style:   ", drawArea()));
+
+	m_gstyle_combo->addItem("Line", QVariant::fromValue(GS::line));
+	m_gstyle_combo->addItem("Area", QVariant::fromValue(GS::area));
+	m_gstyle_combo->addItem("Bars", QVariant::fromValue(GS::bars));
+	m_gstyle_combo->addItem("Dots", QVariant::fromValue(GS::dots));
+
+	connect(m_gstyle_combo, &QComboBox::activated, this, [this](int index)  {m_hist_view->setGraphStyle(m_gstyle_combo->itemData(index).value<GS>()); });
+}
 
 void HistogramDialog::resizeEvent(QResizeEvent* e) {
 
@@ -662,20 +351,15 @@ void SideWidget::onPress() {
 
 
 template<typename T>
-Image3DDialog::Image3DDialog(const QString& img_name, const Image<T>& img, QWidget* parent) : Dialog(parent) {
-
-	this->setTitle(img_name + "_3D");
-	m_default_opacity = 1.0;
+Image3DDialog::Image3DDialog(const QString& img_name, const Image<T>& img, QWidget* parent) : QWidget(parent) {
 
 	m_graph = new Q3DSurface();
 	m_graph->setSelectionMode(QAbstract3DGraph::SelectionNone);
-
 
 	std::unique_ptr<Q3DScatter> s = std::make_unique<Q3DScatter>();
 	auto surf_cam = m_graph->scene()->activeCamera();
 	m_graph->scene()->setActiveCamera(s->scene()->activeCamera());
 	s->scene()->setActiveCamera(surf_cam);
-
 
 	auto activeTheme = m_graph->activeTheme();
 	activeTheme->setType(Q3DTheme::ThemeArmyBlue);
@@ -685,7 +369,9 @@ Image3DDialog::Image3DDialog(const QString& img_name, const Image<T>& img, QWidg
 	activeTheme->setLabelBackgroundEnabled(false);
 	activeTheme->setWindowColor(this->palette().color(QPalette::Window));
 
-	m_container = QWidget::createWindowContainer(m_graph, drawArea());
+	m_container = QWidget::createWindowContainer(m_graph, parent, Qt::Tool);
+	m_container->setAttribute(Qt::WA_DeleteOnClose);
+	connect(m_container, &QWidget::destroyed, this, [this]() { emit windowClosed(); });
 
 	m_img_proxy = new QSurfaceDataProxy();
 	m_img_series = new QSurface3DSeries(m_img_proxy);
@@ -706,14 +392,14 @@ Image3DDialog::Image3DDialog(const QString& img_name, const Image<T>& img, QWidg
 	m_graph->setAspectRatio(w/100);
 
 	m_graph->addSeries(m_img_series);
-	this->resizeDialog(w, h);
 	m_container->resize(w, h);
 
 	auto camera = m_graph->scene()->activeCamera();
 	camera->setCameraPreset(Q3DCamera::CameraPresetIsometricRight);
 	camera->setZoomLevel(camera->zoomLevel() * 2);
 
-	this->show();
+	m_container->setWindowModality(Qt::WindowModality::WindowModal);
+	m_container->show();
 }
 template Image3DDialog::Image3DDialog(const QString&, const Image8&, QWidget*);
 template Image3DDialog::Image3DDialog(const QString&, const Image16&, QWidget*);
@@ -796,7 +482,7 @@ float Image3DDialog::lumValue(const Image<T>& img, const Point& p) {
 	default: {
 		float max = 0;
 		for (int ch = 0; ch < img.channels(); ++ch)
-			max = math::max(max, Pixel<float>::toType(img(p.x(), p.y(), ch)));
+			max = math::max(max, Pixel<float>::toType(img(p.x, p.y, ch)));
 		return max;
 	}
 	}

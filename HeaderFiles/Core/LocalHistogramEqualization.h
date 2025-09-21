@@ -5,7 +5,7 @@
 
 class LocalHistogramEqualization {
 
-	ProgressSignal m_ps;
+	std::unique_ptr<ProgressSignal> m_ps =  std::make_unique<ProgressSignal>();
 
 	int m_kernel_radius = 64;
 	float m_contrast_limit = 2.0;
@@ -19,21 +19,42 @@ public:
 
 	LocalHistogramEqualization() = default;
 
+	LocalHistogramEqualization(const LocalHistogramEqualization& other) {
+		*this = other;
+	}
+
+	LocalHistogramEqualization& operator=(const LocalHistogramEqualization& other) {
+
+		if (this != &other) {
+			m_kernel_radius = other.kernelRadius();
+			m_contrast_limit = other.contrastLimit();
+			m_amount = other.amount();
+			m_is_circular = other.isCircular();
+			m_hist_res = other.histogramResolution();
+		}
+		return *this;
+	}
+
 private:
-	struct KernelHistogram {
+	class KernelHistogram {
 
 		Histogram m_histogram;
-		int m_multiplier = m_histogram.resolution() - 1;
-		int m_count = 0;
+		uint16_t m_multiplier = m_histogram.resolution() - 1;
+		uint32_t m_count = 0;
 
 		int m_radius = 64;
-		int m_dimension = 2 * m_radius + 1;
-		bool m_is_circular = false;
+		uint32_t m_dimension = 2 * m_radius + 1;
 
 		std::vector<int> back_pix;//contains displacement from center coloumn
 		std::vector<int> front_pix;//
 		std::vector<char> k_mask;
 
+		uint16_t multiplier()const { return m_multiplier; }
+
+		int radius()const { return m_radius; }
+
+		uint32_t dimension()const { return m_dimension; }
+	public:
 		KernelHistogram(Histogram::Resolution resolution, int kernel_radius, bool circular);
 
 		KernelHistogram(const KernelHistogram& kh);
@@ -41,8 +62,6 @@ private:
 		Histogram& histogram() { return m_histogram; }
 
 		uint32_t count()const { return m_count; }
-
-		int multiplier()const { return m_multiplier; }
 
 		template<typename T>
 		void populate(Image<T>& img, int y);
@@ -52,7 +71,7 @@ private:
 	};
 
 public:
-	const ProgressSignal* progressSignal()const { return &m_ps; }
+	ProgressSignal* progressSignal()const { return m_ps.get(); }
 
 	int kernelRadius()const { return m_kernel_radius; }
 

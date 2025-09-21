@@ -10,31 +10,21 @@ class LocalHistogramEqualizationDialog : public ProcessDialog {
 	Q_OBJECT
 
 	LocalHistogramEqualization m_lhe;
-	std::unique_ptr<ProgressDialog> m_pd;
 
 	//kernel radius
-	IntLineEdit* m_kr_le;
-	Slider* m_kr_slider;
+	IntegerInput* m_kr_input = nullptr;
 
 	//contrast limit
-	DoubleLineEdit* m_cl_le;
-	Slider* m_cl_slider;
+	DoubleInput* m_contrast_input = nullptr;
 
-	//amount
-	DoubleLineEdit* m_amount_le;
-	Slider* m_amount_slider;
+	DoubleInput* m_amount_input = nullptr;
 
-	CheckBox* m_circular;
+	CheckBox* m_circular_cb = nullptr;
 
-	ComboBox* m_histogram_resolution;
-	std::array<int, 3> m_res = { 8,10,12 };
+	ComboBox* m_hist_res_combo = nullptr;
 
 public:
 	LocalHistogramEqualizationDialog(QWidget* parent = nullptr);
-
-private:
-signals:
-	void finished();
 
 private:
 	void addKernelRadiusInputs();
@@ -43,11 +33,9 @@ private:
 
 	void addAmountInputs();
 
-	void showPreview();
-
 	void resetDialog();
 
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };

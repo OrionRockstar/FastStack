@@ -58,7 +58,7 @@ public:
 
 	void setSigma(float sigma);
 
-	void setKernelDimension(int kernel_dimension);
+	//void setKernelDimension(int kernel_dimension);
 
 private:
 	std::vector<float> buildGaussianKernel_1D(uint32_t size, float sigma)const;

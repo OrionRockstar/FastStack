@@ -1,28 +1,29 @@
 #pragma once
+#include "Image.h"
+#include "ImageSubWindow.h"
 
 class Workspace:public QMdiArea {
     Q_OBJECT
 private:
     QUndoStack* m_process_stack;
 
-public:
     int m_offsetx = 0;
     int m_offsety = 0;
 
+public:
     Workspace(QWidget* parent = nullptr);
 
+    ImageSubWindow* addImageSubWindow(ImageSubWindow* isw, Qt::WindowFlags windowFlags = Qt::WindowFlags());
 
-    void UpdateOffsets();
-    //const int Offset_X()const { return m_offsetx; }
+    void removeImageSubWindow(ImageSubWindow* subwindow);
 
+    void enableChildren(bool enable);
 signals:
     void imageWindowClosed();
 
     void imageWindowCreated();
 
-    void zoomWindowCreated();
-
-    void zoomWindowClosed();
+    void imageActivated(const Image8* img);
 
 public:
     void dragEnterEvent(QDragEnterEvent* event);

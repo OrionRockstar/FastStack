@@ -8,13 +8,17 @@ public:
         //this->setColor(QPalette::Inactive, QPalette::Window, QColor(69, 69, 69));
         //this->setColor(QPalette::Disabled, QPalette::Window, QColor(69, 69, 69));
 
+        this->setColor(QPalette::Text, Qt::black);
+
         this->setColor(QPalette::WindowText, Qt::white);
-        this->setColor(QPalette::Button, QColor(169, 169, 169));
+        this->setColor(QPalette::Button, QColor(128, 128, 128));
+        this->setColor(QPalette::ButtonText, Qt::black);
+
 
         this->setColor(QPalette::Disabled, QPalette::Base, QColor(96, 96, 96));
         this->setColor(QPalette::Active, QPalette::Base, QColor(169, 169, 169));
         this->setColor(QPalette::Inactive, QPalette::Base, QColor(169, 169, 169));
-        this->setColor(QPalette::Disabled, QPalette::Text, QColor(196, 196, 196));
+        this->setColor(QPalette::Disabled, QPalette::Text, QColor(128, 128, 128));
 
         this->setColor(QPalette::Highlight, QColor(69, 69, 69));
 
@@ -35,13 +39,13 @@ int main(int argc, char *argv[])
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     //QGuiApplication::setHighDdpiScaleFactorRoundingPolicy();
-    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Floor);
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::RoundPreferFloor);
 
     QApplication::setStyle(QStyleFactory::create("Fusion"));
     //QGuiApplication::setAttribute(Qt::setHighDdpiScaleFactorRoundingPolicy,Qt::HighDpiScaleFactorRoundingPolicy::Floor);
     //qputenv("QT_USE_PHYSICAL_DPI","1");
-    //qputenv("QT_SCALE_FACTOR", ".8");
-    //qputenv("QT_AUTO_SCREEN_SCALE_FACTOR", "1");
+    //qputenv("QT_SCALE_FACTOR", "1.25");
+    qputenv("QT_AUTO_SCREEN_SCALE_FACTOR", "1");
     //argv[1] = 'darkmode';
     QApplication a(argc, argv);
     //a.setStyle("darkmode");

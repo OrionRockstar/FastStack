@@ -22,9 +22,9 @@ public:
 	ChannelCombinationDialog(QWidget* parent);
 
 private:
-	void onWindowOpen();
+	void onImageWindowCreated()override;
 
-	void onWindowClose();
+	void onImageWindowClosed()override;
 
 	void addColorSpaceBG();
 

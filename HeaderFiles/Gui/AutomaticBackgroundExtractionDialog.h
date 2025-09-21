@@ -39,11 +39,13 @@ private:
 
     void addOther();
 
+    void closeEvent(QCloseEvent* e)override;
+
     void resetDialog();
 
     void showPreview();
 
     void apply();
 
-    void applytoPreview();
+    void applyPreview();
 };

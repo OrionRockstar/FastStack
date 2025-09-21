@@ -21,8 +21,6 @@ public:
 	bool realValue()const { return m_real_value; }
 
 	void setRealValue(bool v) { m_real_value = v; }
-
-	void reset() { m_sd = StarDetector(); }
 };
 
 

@@ -10,6 +10,7 @@ class ASinhStretchDialog : public ProcessDialog {
 
 	Slider* m_sf_slider;
 	DoubleLineEdit* m_sf_le;
+	DoubleInput* m_sf_input = nullptr;
 
 	Slider* m_bp_slider;
 	DoubleLineEdit* m_bp_le;
@@ -39,5 +40,5 @@ private:
 
 	void apply();
 
-	void applytoPreview();
+	void applyPreview();
 };

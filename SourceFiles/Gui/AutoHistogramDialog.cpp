@@ -5,17 +5,17 @@
 using AHD = AutoHistogramDialog;
 AHD::AutoHistogramDialog(QWidget* parent) : ProcessDialog("AutoHistogram", QSize(710, 435), FastStack::recast(parent)->workspace()) {
 
-    setTimerInterval(250);
-    setPreviewMethod(this, &AHD::applytoPreview);
-    connectToolbar(this, &AHD::apply, &AHD::showPreview, &AHD::resetDialog);
+    setDefaultTimerInterval(250);
 
-    addTargetMedianInputs();
-    addHistogramClippingInputs();
+    addTargetMedian();
+    addHistogramClipping();
 
     this->show();
 }
 
-void AHD::addTargetMedianInputs() {
+void AHD::addTargetMedian() {
+
+    using CC = ColorComponent;
 
     m_tgt_med_gb = new GroupBox("Target Median", drawArea());
     m_tgt_med_gb->setGeometry(10, 10, 690, 180);
@@ -39,158 +39,89 @@ void AHD::addTargetMedianInputs() {
 
     connect(m_stretch_combo, &QComboBox::activated, this, activation);
 
-    addTargetMedianInputs_Red();
-    addTargetMedianInputs_Green();
-    addTargetMedianInputs_Blue();
+    addTargetMedianInputs();
 
-    auto onClicked = [this](bool v) {
-        for (auto child : m_tgt_med_gb->children())
-            if (child != m_target_enable_cb)
-                reinterpret_cast<QWidget*>(child)->setEnabled(v);
+    auto joined = [this](bool v) {
+        v = !v;
+        float t = m_target_red_inp->valuef();
+        m_target_green_inp->setValue(t);
+        m_target_green_inp->setEnabled(v);
+        m_ah.setTargetMedian(CC::green, t);
+        m_target_blue_inp->setValue(t);
+        m_target_blue_inp->setEnabled(v);
+        m_ah.setTargetMedian(CC::blue, t);
+        applytoPreview();
+    };
+    connect(m_target_rgb_cb, &QCheckBox::toggled, this, joined);
 
+    auto enabled = [this](bool v) {
+        m_target_rgb_cb->setEnabled(v);
+        m_target_red_inp->setEnabled(v);
+        if (!m_target_rgb_cb->isChecked()) {
+            m_target_green_inp->setEnabled(v);
+            m_target_blue_inp->setEnabled(v);
+        }
         m_ah.enableStretching(v);
         applytoPreview();
     };
 
-    connect(m_target_enable_cb, &QCheckBox::clicked, this, onClicked);
-
-    connect(m_target_rgb_cb, &QCheckBox::clicked, this, &AutoHistogramDialog::joinTargetMedian);
+    connect(m_target_enable_cb, &QCheckBox::toggled, this, enabled);
     m_target_rgb_cb->click();
 }
 
-void AHD::addTargetMedianInputs_Red() {
+void AHD::addTargetMedianInputs() {
 
-    m_target_red_le = new DoubleLineEdit(m_ah.targetMedian(ColorComponent::red), new DoubleValidator(0.0, 1.0, 6), m_tgt_med_gb);
-    m_target_red_le->resize(85, m_target_red_le->size().height());
-    m_target_red_le->move(115, 50);
-    addLabel(m_target_red_le, new QLabel("Red:", m_tgt_med_gb));
+    using CC = ColorComponent;
+    auto validator = new DoubleValidator(0.0, 1.0, 3);
+    m_target_red_inp = new DoubleInput("Red:   ", m_ah.targetMedian(CC::red), validator, m_tgt_med_gb, 400);
+    m_target_red_inp->move(115, 50);
 
-    m_target_red_slider = new Slider(Qt::Horizontal, m_tgt_med_gb);
-    m_target_red_slider->setSliderPosition(0.15 * 400);
-    m_target_red_slider->setFixedWidth(400);
-    m_target_red_slider->setRange(0, 400);
-    m_target_red_le->addSlider(m_target_red_slider);
+    m_target_green_inp = new DoubleInput("Green:   ", m_ah.targetMedian(CC::green), validator, m_tgt_med_gb, 400);
+    m_target_green_inp->move(115, 90);
 
-    auto action = [this](int) {
-        float med = float(m_target_red_slider->sliderPosition()) / m_target_red_slider->maximum();
-        m_target_red_le->setValue(med);
+    m_target_blue_inp = new DoubleInput("Blue:   ", m_ah.targetMedian(CC::blue), validator, m_tgt_med_gb, 400);
+    m_target_blue_inp->move(115, 130);
 
-        if (m_target_rgb_cb->isChecked()) {
-            updateJoinedTarget();
-            m_ah.setTargetMedian(ColorComponent::rgb_k, med);
+    for (auto child : m_tgt_med_gb->children()) {
+        auto ptr = dynamic_cast<DoubleInput*>(child);
+        if (ptr) {
+            ptr->setSliderWidth(400);
+            ptr->setLineEditWidth(85);
         }
+    }
 
-        else
-            m_ah.setTargetMedian(ColorComponent::red, med);
-
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_target_red_le->value();
-        m_target_red_slider->setValue(med * m_target_red_slider->maximum());
-
+    auto red = [this]() {    
+        float v = m_target_red_inp->valuef();
         if (m_target_rgb_cb->isChecked()) {
-            updateJoinedTarget();
-            m_ah.setTargetMedian(ColorComponent::rgb_k, med);
+            m_target_green_inp->setValue(v);
+            m_target_blue_inp->setValue(v);
+            m_ah.setTargetMedian(ColorComponent::rgb_k, v);
         }
-
         else
-            m_ah.setTargetMedian(ColorComponent::red, med);
-
-        applytoPreview();
+            m_ah.setTargetMedian(ColorComponent::red, v);
     };
 
-    connect(m_target_red_slider, &QSlider::actionTriggered, this, action);
-    connect(m_target_red_le, &QLineEdit::editingFinished, this, edited);
+    connect(m_target_red_inp, &InputBase::actionTriggered, this, [this, red](int) { red(); startTimer(); });
+    connect(m_target_red_inp, &InputBase::editingFinished, this, [this, red]() { red(); applytoPreview(); });
+
+    connect(m_target_green_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setTargetMedian(CC::green, m_target_green_inp->valuef());
+        startTimer(); });
+    connect(m_target_green_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setTargetMedian(CC::green, m_target_green_inp->valuef());
+        applytoPreview(); });
+
+    connect(m_target_blue_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setTargetMedian(CC::blue, m_target_blue_inp->valuef());
+        startTimer(); });
+    connect(m_target_blue_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setTargetMedian(CC::blue, m_target_blue_inp->valuef());
+        applytoPreview(); });
 }
 
-void AHD::addTargetMedianInputs_Green() {
+void AHD::addHistogramClipping() {
 
-    m_target_green_le = new DoubleLineEdit(m_ah.targetMedian(ColorComponent::green), new DoubleValidator(0.0, 1.0, 6), m_tgt_med_gb);
-    m_target_green_le->resize(85, m_target_green_le->size().height());
-    m_target_green_le->move(115, 90);
-    addLabel(m_target_green_le, new QLabel("Green:", m_tgt_med_gb));
-
-    m_target_green_slider = new Slider(Qt::Horizontal, m_tgt_med_gb);
-    m_target_green_slider->setSliderPosition(0.15 * 400);
-    m_target_green_slider->setFixedWidth(400);
-    m_target_green_slider->setRange(0, 400);
-    m_target_green_le->addSlider(m_target_green_slider);
-
-    auto action = [this](int) {
-        float med = float(m_target_green_slider->sliderPosition()) / m_target_green_slider->maximum();
-        m_target_green_le->setValue(med);
-        m_ah.setTargetMedian(ColorComponent::green, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_target_green_le->value();
-        m_target_green_slider->setValue(med * m_target_green_slider->maximum());
-        m_ah.setTargetMedian(ColorComponent::green, med);
-        applytoPreview();
-    };
-
-    connect(m_target_green_slider, &QSlider::actionTriggered, this, action);
-    connect(m_target_green_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::addTargetMedianInputs_Blue() {
-
-    m_target_blue_le = new DoubleLineEdit(m_ah.targetMedian(ColorComponent::blue), new DoubleValidator(0.0, 1.0, 6), m_tgt_med_gb);
-    m_target_blue_le->resize(85, m_target_blue_le->size().height());
-    m_target_blue_le->move(115, 130);
-    addLabel(m_target_blue_le, new QLabel("Blue:", m_tgt_med_gb));
-
-    m_target_blue_slider = new Slider(Qt::Horizontal, m_tgt_med_gb);
-    m_target_blue_slider->setSliderPosition(0.15 * 400);
-    m_target_blue_slider->setFixedWidth(400);
-    m_target_blue_slider->setRange(0, 400);
-    m_target_blue_le->addSlider(m_target_blue_slider);
-
-    auto action = [this](int) {
-        float med = float(m_target_blue_slider->sliderPosition()) / m_target_blue_slider->maximum();
-        m_target_blue_le->setValue(med);
-        m_ah.setTargetMedian(ColorComponent::blue, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_target_blue_le->value();
-        m_target_blue_slider->setValue(med * m_target_blue_slider->maximum());
-        m_ah.setTargetMedian(ColorComponent::blue, med);
-        applytoPreview();
-    };
-
-    connect(m_target_blue_slider, &QSlider::actionTriggered, this, action);
-    connect(m_target_blue_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::joinTargetMedian(bool v) {
-
-    if (v)
-        updateJoinedTarget();
-
-    m_target_green_le->setDisabled(v);
-    m_target_green_slider->setDisabled(v);
-
-    m_target_blue_le->setDisabled(v);
-    m_target_blue_slider->setDisabled(v);
-}
-
-void AHD::updateJoinedTarget() {
-
-    m_target_green_le->setValue(m_target_red_le->value());
-    m_target_green_slider->setValue(m_target_red_slider->sliderPosition());
-
-    m_target_blue_le->setValue(m_target_red_le->value());
-    m_target_blue_slider->setValue(m_target_red_slider->sliderPosition());
-}
-
-
-void AHD::addHistogramClippingInputs() {
-
+    using CC = ColorComponent;
     m_hist_clip_gb = new GroupBox("Histogram Clipping", drawArea());
     m_hist_clip_gb->setGeometry(10, 200, 690, 220);
 
@@ -207,309 +138,176 @@ void AHD::addHistogramClippingInputs() {
     m_highlight_gb = new GroupBox("Highlight Clipping", m_hist_clip_gb);
     m_highlight_gb->setGeometry(350, 50, 330, 160);
 
-    addHistogramClippingInputs_ShadowRed();
-    addHistogramClippingInputs_ShadowGreen();
-    addHistogramClippingInputs_ShadowBlue();
-    addHistogramClippingInputs_HighlightRed();
-    addHistogramClippingInputs_HighlightGreen();
-    addHistogramClippingInputs_HighlightBlue();
+    addHistogramClippingInputs_Shadow();
+    addHistogramClippingInputs_Highlight();
 
-    connect(m_hist_rgb_cb, &QCheckBox::clicked, this, &AutoHistogramDialog::joinHistogramClipping);
+    auto joined = [this](bool v) {
+        v = !v;
+        float s = m_shadow_red_inp->valuef();
+        m_shadow_green_inp->setValue(s);
+        m_shadow_green_inp->setEnabled(v);
+        m_ah.setShadowClipping(CC::green, s);
+        m_shadow_blue_inp->setValue(s);
+        m_shadow_blue_inp->setEnabled(v);
+        m_ah.setShadowClipping(CC::blue, s);
+
+        float h = m_highlight_red_inp->valuef();
+        m_highlight_green_inp->setValue(h);
+        m_highlight_green_inp->setEnabled(v);
+        m_ah.setHighlightClipping(CC::green, h);
+        m_highlight_blue_inp->setValue(h);
+        m_highlight_blue_inp->setEnabled(v);
+        m_ah.setHighlightClipping(CC::blue, h);
+
+        applytoPreview();
+    };
+
+    connect(m_hist_rgb_cb, &QCheckBox::toggled, this, joined);
     m_hist_rgb_cb->click();
 
-    auto checked = [this](bool v) {
-        for (auto child : m_shadow_gb->children())
-            reinterpret_cast<QWidget*>(child)->setEnabled(v);
-
-        for (auto child : m_highlight_gb->children())
-            reinterpret_cast<QWidget*>(child)->setEnabled(v);
-
+    auto enabled = [this](bool v) {
+        m_hist_rgb_cb->setEnabled(v);
+        m_shadow_red_inp->setEnabled(v);
+        m_highlight_red_inp->setEnabled(v);
+        if (!m_hist_rgb_cb->isChecked()) {
+            m_shadow_green_inp->setEnabled(v);
+            m_shadow_blue_inp->setEnabled(v);
+            m_highlight_green_inp->setEnabled(v);
+            m_highlight_blue_inp->setEnabled(v);
+        }
         m_ah.enableHistogramClipping(v);
         applytoPreview();
     };
 
-    connect(m_hist_enable_cb, &QCheckBox::clicked, this, checked);
+    connect(m_hist_enable_cb, &QCheckBox::toggled, this, enabled);
 }
 
-void AHD::addHistogramClippingInputs_ShadowRed() {
+void AHD::addHistogramClippingInputs_Shadow() {
 
-    m_shadow_red_le = new DoubleLineEdit(0.05, new DoubleValidator(0.0, 1.0, 3), m_shadow_gb);
-    m_shadow_red_le->setFixedWidth(50);
-    m_shadow_red_le->move(60, 30);
-    addLabel(m_shadow_red_le, new QLabel("Red:", m_shadow_gb));
+    using CC = ColorComponent;
+    auto validator = new DoubleValidator(0.0, 1.0, 3);
 
-    m_shadow_red_slider = new Slider(Qt::Horizontal, m_shadow_gb);
-    m_shadow_red_slider->setFixedWidth(200);
-    m_shadow_red_slider->setRange(0, 200);
-    m_shadow_red_slider->setValue(0.02 * m_shadow_red_slider->maximum());
-    m_shadow_red_le->addSlider(m_shadow_red_slider);
+    m_shadow_red_inp = new DoubleInput("Red:  ", m_ah.shadowClipping(CC::red), validator, m_shadow_gb, 200);
+    m_shadow_red_inp->move(60, 30);
 
-    auto action = [this](int) {
-        float med = float(m_shadow_red_slider->sliderPosition()) / m_shadow_red_slider->maximum();
-        m_shadow_red_le->setValue(med);
+    m_shadow_green_inp = new DoubleInput("Green:  ", m_ah.shadowClipping(CC::green), validator, m_shadow_gb, 200);
+    m_shadow_green_inp->move(60,70);
 
+    m_shadow_blue_inp = new DoubleInput("Blue:  ", m_ah.shadowClipping(CC::blue), validator, m_shadow_gb, 200);
+    m_shadow_blue_inp->move(60, 110);
+
+    for (auto child : m_shadow_gb->children()) {
+        auto ptr = dynamic_cast<DoubleInput*>(child);
+        if (ptr) {
+            ptr->setSliderWidth(200);
+            ptr->setLineEditWidth(50);
+        }
+    }
+
+    auto red = [this]() {
+        float v = m_shadow_red_inp->valuef();
         if (m_hist_rgb_cb->isChecked()) {
-            updateJoinedHistogramClipping();
-            m_ah.setShadowClipping(ColorComponent::rgb_k, med);
+            m_shadow_green_inp->setValue(v);
+            m_shadow_blue_inp->setValue(v);
+            m_ah.setShadowClipping(CC::rgb_k, v);
         }
         else
-            m_ah.setShadowClipping(ColorComponent::red, med);
-
-        startTimer();
+            m_ah.setShadowClipping(CC::red, v);
     };
 
-    auto edited = [this]() {
-        float med = m_shadow_red_le->value();
-        m_shadow_red_slider->setValue(med * m_shadow_red_slider->maximum());
+    connect(m_shadow_red_inp, &InputBase::actionTriggered, this, [this, red](int) { red(); startTimer(); });
+    connect(m_shadow_red_inp, &InputBase::editingFinished, this, [this, red]() { red(); applytoPreview(); });
 
+    connect(m_shadow_green_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setShadowClipping(CC::green, m_shadow_green_inp->valuef());
+        startTimer(); });
+    connect(m_shadow_green_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setShadowClipping(CC::green, m_shadow_green_inp->valuef());
+        applytoPreview(); });
+
+    connect(m_shadow_blue_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setShadowClipping(CC::blue, m_shadow_blue_inp->valuef());
+        startTimer(); });
+    connect(m_shadow_blue_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setShadowClipping(CC::blue, m_shadow_blue_inp->valuef());
+        applytoPreview(); });
+}
+
+void AHD::addHistogramClippingInputs_Highlight() {
+
+    using CC = ColorComponent;
+    auto validator = new DoubleValidator(0.0, 1.0, 3);
+
+    m_highlight_red_inp = new DoubleInput("Red:  ", m_ah.highlightClipping(CC::red), validator, m_highlight_gb, 200);
+    m_highlight_red_inp->move(60, 30);
+    m_highlight_green_inp = new DoubleInput("Green:  ", m_ah.highlightClipping(CC::green), validator, m_highlight_gb, 200);
+    m_highlight_green_inp->move(60, 70);
+    m_highlight_blue_inp = new DoubleInput("Blue:  ", m_ah.highlightClipping(CC::blue), validator, m_highlight_gb, 200);
+    m_highlight_blue_inp->move(60, 110);
+
+    for (auto child : m_highlight_gb->children()) {
+        auto ptr = dynamic_cast<DoubleInput*>(child);
+        if (ptr) {
+            ptr->setSliderWidth(200);
+            ptr->setLineEditWidth(50);
+        }
+    }
+
+    auto red = [this]() {
+        float v = m_highlight_red_inp->valuef();
         if (m_hist_rgb_cb->isChecked()) {
-            updateJoinedHistogramClipping();
-            m_ah.setShadowClipping(ColorComponent::rgb_k, med);
+            m_highlight_green_inp->setValue(v);
+            m_highlight_blue_inp->setValue(v);
+            m_ah.setHighlightClipping(CC::rgb_k, v);
         }
         else
-            m_ah.setShadowClipping(ColorComponent::red, med);
-
-        applytoPreview();
+            m_ah.setHighlightClipping(CC::red, v);
     };
 
-    connect(m_shadow_red_slider, &QSlider::actionTriggered, this, action);
-    connect(m_shadow_red_le, &QLineEdit::editingFinished, this, edited);
-}
+    connect(m_highlight_red_inp, &InputBase::actionTriggered, this, [this, red](int) { red(); startTimer(); });
+    connect(m_highlight_red_inp, &InputBase::editingFinished, this, [this, red]() { red(); applytoPreview(); });
 
-void AHD::addHistogramClippingInputs_ShadowGreen() {
+    connect(m_highlight_green_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setHighlightClipping(CC::green, m_highlight_green_inp->valuef());
+        startTimer(); });
+    connect(m_highlight_green_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setHighlightClipping(CC::green, m_highlight_green_inp->valuef());
+        applytoPreview(); });
 
-    m_shadow_green_le = new DoubleLineEdit(0.05, new DoubleValidator(0.0, 1.0, 3), m_shadow_gb);
-    m_shadow_green_le->setFixedWidth(50);
-    m_shadow_green_le->move(60, 70);
-    addLabel(m_shadow_green_le, new QLabel("Green:", m_shadow_gb));
-
-    m_shadow_green_slider = new Slider(Qt::Horizontal, m_shadow_gb);
-    m_shadow_green_slider->setFixedWidth(200);
-    m_shadow_green_slider->setRange(0, 200);
-    m_shadow_green_slider->setValue(0.02 * m_shadow_green_slider->maximum());
-    m_shadow_green_le->addSlider(m_shadow_green_slider);
-
-    auto action = [this](int) {
-        float med = float(m_shadow_green_slider->sliderPosition()) / m_shadow_green_slider->maximum();
-        m_shadow_green_le->setValue(med);
-        m_ah.setShadowClipping(ColorComponent::green, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_shadow_green_le->value();
-        m_shadow_green_slider->setValue(med * m_shadow_green_slider->maximum());
-        m_ah.setShadowClipping(ColorComponent::green, med);
-        applytoPreview();
-    };
-
-    connect(m_shadow_green_slider, &QSlider::actionTriggered, this, action);
-    connect(m_shadow_green_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::addHistogramClippingInputs_ShadowBlue() {
-
-    m_shadow_blue_le = new DoubleLineEdit(0.05, new DoubleValidator(0.0, 1.0, 3), m_shadow_gb);
-    m_shadow_blue_le->setFixedWidth(50);
-    m_shadow_blue_le->move(60, 110);
-    addLabel(m_shadow_blue_le, new QLabel("Blue:", m_shadow_gb));
-
-    m_shadow_blue_slider = new Slider(Qt::Horizontal, m_shadow_gb);
-    m_shadow_blue_slider->setFixedWidth(200);
-    m_shadow_blue_slider->setRange(0, 200);
-    m_shadow_blue_slider->setValue(0.02 * m_shadow_blue_slider->maximum());
-    m_shadow_blue_le->addSlider(m_shadow_blue_slider);
-
-    auto action = [this](int) {
-        float med = float(m_shadow_blue_slider->sliderPosition()) / m_shadow_blue_slider->maximum();
-        m_shadow_blue_le->setValue(med);
-        m_ah.setShadowClipping(ColorComponent::blue, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_shadow_blue_le->value();
-        m_shadow_blue_slider->setValue(med * m_shadow_blue_slider->maximum());
-        m_ah.setShadowClipping(ColorComponent::blue, med);
-        applytoPreview();
-    };
-
-    connect(m_shadow_blue_slider, &QSlider::actionTriggered, this, action);
-    connect(m_shadow_blue_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::addHistogramClippingInputs_HighlightRed() {
-
-    m_highlight_red_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 3), m_highlight_gb);
-    m_highlight_red_le->setFixedWidth(50);
-    m_highlight_red_le->move(60, 30);
-    addLabel(m_highlight_red_le, new QLabel("Red:", m_highlight_gb));
-
-    m_highlight_red_slider = new Slider(Qt::Horizontal, m_highlight_gb);
-    m_highlight_red_slider->setFixedWidth(200);
-    m_highlight_red_slider->setRange(0, 200);
-    m_highlight_red_le->addSlider(m_highlight_red_slider);
-
-    auto action = [this](int) {
-        float med = float(m_highlight_red_slider->sliderPosition()) / m_highlight_red_slider->maximum();
-        m_highlight_red_le->setValue(med);
-
-        if (m_hist_rgb_cb->isChecked()) {
-            updateJoinedHistogramClipping();
-            m_ah.setHighlightClipping(ColorComponent::rgb_k, med);
-        }
-        else
-            m_ah.setHighlightClipping(ColorComponent::red, med);
-
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_highlight_red_le->value();
-        m_highlight_red_slider->setValue(med * m_highlight_red_slider->maximum());
-
-        if (m_hist_rgb_cb->isChecked()) {
-            updateJoinedHistogramClipping();
-            m_ah.setHighlightClipping(ColorComponent::rgb_k, med);
-        }
-        else
-            m_ah.setHighlightClipping(ColorComponent::red, med);
-
-        applytoPreview();
-    };
-
-    connect(m_highlight_red_slider, &QSlider::actionTriggered, this, action);
-    connect(m_highlight_red_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::addHistogramClippingInputs_HighlightGreen() {
-
-    m_highlight_green_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 3), m_highlight_gb);
-    m_highlight_green_le->setFixedWidth(50);
-    m_highlight_green_le->move(60, 70);
-    addLabel(m_highlight_green_le, new QLabel("Green:", m_highlight_gb));
-
-    m_highlight_green_slider = new Slider(Qt::Horizontal, m_highlight_gb);
-    m_highlight_green_slider->setFixedWidth(200);
-    m_highlight_green_slider->setRange(0, 200);
-    m_highlight_green_le->addSlider(m_highlight_green_slider);
-
-    auto action = [this](int) {
-        float med = float(m_highlight_green_slider->sliderPosition()) / m_highlight_green_slider->maximum();
-        m_highlight_green_le->setValue(med);
-        m_ah.setHighlightClipping(ColorComponent::green, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_highlight_green_le->value();
-        m_highlight_green_slider->setValue(med * m_highlight_green_slider->maximum());
-        m_ah.setHighlightClipping(ColorComponent::green, med);
-        applytoPreview();
-    };
-
-    connect(m_highlight_green_slider, &QSlider::actionTriggered, this, action);
-    connect(m_highlight_green_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::addHistogramClippingInputs_HighlightBlue() {
-
-    m_highlight_blue_le = new DoubleLineEdit(0.0, new DoubleValidator(0.0, 1.0, 3), m_highlight_gb);
-    m_highlight_blue_le->setFixedWidth(50);
-    m_highlight_blue_le->move(60, 110);
-    addLabel(m_highlight_blue_le, new QLabel("Blue:", m_highlight_gb));
-
-    m_highlight_blue_slider = new Slider(Qt::Horizontal, m_highlight_gb);
-    m_highlight_blue_slider->setFixedWidth(200);
-    m_highlight_blue_slider->setRange(0, 200);
-    m_highlight_blue_le->addSlider(m_highlight_blue_slider);
-
-    auto action = [this](int) {
-        float med = float(m_highlight_blue_slider->sliderPosition()) / m_highlight_blue_slider->maximum();
-        m_highlight_blue_le->setValue(med);
-        m_ah.setHighlightClipping(ColorComponent::blue, med);
-        startTimer();
-    };
-
-    auto edited = [this]() {
-        float med = m_highlight_blue_le->value();
-        m_highlight_blue_slider->setValue(med * m_highlight_blue_slider->maximum());
-        m_ah.setHighlightClipping(ColorComponent::blue, med);
-        applytoPreview();
-    };
-
-    connect(m_highlight_blue_slider, &QSlider::actionTriggered, this, action);
-    connect(m_highlight_blue_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void AHD::joinHistogramClipping(bool v) {
-    if (v)
-        updateJoinedHistogramClipping();
-
-    m_shadow_green_le->setDisabled(v);
-    m_shadow_green_slider->setDisabled(v);
-
-    m_shadow_blue_le->setDisabled(v);
-    m_shadow_blue_slider->setDisabled(v);
-
-    m_highlight_green_le->setDisabled(v);
-    m_highlight_green_slider->setDisabled(v);
-
-    m_highlight_blue_le->setDisabled(v);
-    m_highlight_blue_slider->setDisabled(v);
-}
-
-void AHD::updateJoinedHistogramClipping() {
-    m_shadow_green_le->setValue(m_shadow_red_le->value());
-    m_shadow_green_slider->setValue(m_shadow_red_slider->sliderPosition());
-
-    m_shadow_blue_le->setValue(m_shadow_red_le->value());
-    m_shadow_blue_slider->setValue(m_shadow_red_slider->sliderPosition());
-
-    m_highlight_green_le->setValue(m_highlight_red_le->value());
-    m_highlight_green_slider->setValue(m_highlight_red_slider->sliderPosition());
-
-    m_highlight_blue_le->setValue(m_highlight_red_le->value());
-    m_highlight_blue_slider->setValue(m_highlight_red_slider->sliderPosition());
-}
-
-
-void AHD::showPreview() {
-    ProcessDialog::showPreview();
-    applytoPreview();
+    connect(m_highlight_blue_inp, &InputBase::actionTriggered, this, [this](int) {
+        m_ah.setHighlightClipping(CC::blue, m_highlight_blue_inp->valuef());
+        startTimer(); });
+    connect(m_highlight_blue_inp, &InputBase::editingFinished, this, [this]() {
+        m_ah.setHighlightClipping(CC::blue, m_highlight_blue_inp->valuef());
+        applytoPreview(); });
 }
 
 void AHD::resetDialog() {
     m_ah = AutoHistogram();
 
-    m_target_enable_cb->setChecked(true);
-
-    for (auto child : m_tgt_med_gb->children())
-        reinterpret_cast<QWidget*>(child)->setEnabled(true);
-
-    m_target_red_le->setValue(m_ah.targetMedian(ColorComponent::red));
-    m_target_red_slider->setValue(m_ah.targetMedian(ColorComponent::red) * m_target_red_slider->maximum());
+    m_target_red_inp->reset();
+    m_target_green_inp->reset();
+    m_target_green_inp->setEnabled(false);
+    m_target_blue_inp->reset();
+    m_target_blue_inp->setEnabled(false);
 
     m_target_rgb_cb->setChecked(true);
-    joinTargetMedian(true);
+    m_target_enable_cb->setChecked(true);
 
+    m_shadow_red_inp->reset();
+    m_shadow_green_inp->reset();
+    m_shadow_green_inp->setEnabled(false);
+    m_shadow_blue_inp->reset();
+    m_shadow_green_inp->setEnabled(false);
 
-    m_hist_enable_cb->setChecked(true);
-
-    for (auto child : m_shadow_gb->children())
-        reinterpret_cast<QWidget*>(child)->setEnabled(true);
-
-    for (auto child : m_highlight_gb->children())
-        reinterpret_cast<QWidget*>(child)->setEnabled(true);
-
-    m_shadow_red_le->setValue(m_ah.shadowClipping(ColorComponent::red));
-    m_shadow_red_slider->setValue(m_ah.shadowClipping(ColorComponent::red) * m_shadow_red_slider->maximum());
-
-    m_highlight_red_le->setValue(m_ah.highlightClipping(ColorComponent::red));
-    m_highlight_red_slider->setValue(m_ah.highlightClipping(ColorComponent::red) * m_highlight_red_slider->maximum());
+    m_highlight_red_inp->reset();
+    m_highlight_green_inp->reset();
+    m_highlight_green_inp->setEnabled(false);
+    m_highlight_blue_inp->reset();
+    m_highlight_green_inp->setEnabled(false);
 
     m_hist_rgb_cb->setChecked(true);
-    joinHistogramClipping(true);
+    m_hist_enable_cb->setChecked(true);
 
     m_stretch_combo->setCurrentIndex(0);
 
@@ -525,25 +323,20 @@ void AHD::apply() {
 
     switch (iwptr->type()) {
     case ImageType::UBYTE: {
-        iwptr->applyToSource(m_ah, &AutoHistogram::apply);
-        break;
+        return iwptr->applyToSource(m_ah, &AutoHistogram::apply);
     }
     case ImageType::USHORT: {
         auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-        iw16->applyToSource(m_ah, &AutoHistogram::apply);
-        break;
+        return iw16->applyToSource(m_ah, &AutoHistogram::apply);
     }
     case ImageType::FLOAT: {
         auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-        iw32->applyToSource(m_ah, &AutoHistogram::apply);
-        break;
+        return iw32->applyToSource(m_ah, &AutoHistogram::apply);
     }
     }
-
-    applytoPreview();
 }
 
-void AHD::applytoPreview() {
+void AHD::applyPreview() {
 
     if (!isPreviewValid())
         return;

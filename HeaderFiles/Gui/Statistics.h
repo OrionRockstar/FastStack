@@ -5,7 +5,7 @@
 #include <QtDataVisualization/Q3DSurface>
 #include <QtDataVisualization/Q3DScatter>
 #include <QtDataVisualization/QSurfaceDataProxy>
-
+#include "HistogramView.h"
 
 
 struct Statistics {
@@ -112,107 +112,16 @@ private:
 
 
 
-class HistogramView : public QGraphicsView {
-	Q_OBJECT
-
-
-private:
-	QGraphicsScene* m_gs = nullptr;
-
-	ColorComponent m_comp = ColorComponent::rgb_k;
-
-	std::vector<Histogram> m_histograms;
-
-	std::array<QGraphicsLineItem*, 2> m_cursor_lines = {nullptr,nullptr};
-
-	int m_scale = 1;
-	int m_old_scale = 1;
-	bool m_clip = true;
-
-	ScrollBar* m_vsb;
-	ScrollBar* m_hsb;
-
-	QRect m_rect;
-	QPoint m_start = QPoint(0,0);
-	double m_offsetx = 0;
-	double m_offsety = 0;
-
-
-protected:
-	const std::array<QPen, 4> m_pens = { QColor(255,0,0),QColor(0,255,0),QColor(0,0,255) ,QColor(255,255,255) };
-	
-public:
-	HistogramView(const QSize& size, QWidget* parent = nullptr);
-
-signals:
-	void histogramValue(uint16_t pixelValue_low, uint16_t pixelValue_high, uint32_t pixel_count);
-
-public:
-	ColorComponent colorComponent()const { return m_comp; }
-
-	void setColorComponent(ColorComponent comp) { m_comp = comp; }
-
-	void drawGrid();
-	
-	template<typename T>
-	void drawHistogramScene(const Image<T>& img);
-
-	template<typename T>
-	void constructHistogram(const Image<T>& img);
-
-	template<typename T>
-	void constructHistogram(const Image<T>& img, Histogram::Resolution resolution);
-
-	void clearHistogram();
-
-	void drawHistogram();
-
-	void clipHistogram(bool clip = true) { m_clip = clip; drawHistogram(); }
-
-	bool isClippedHistogram()const { return m_clip; }
-
-private:
-	void addScrollBars();
-
-	void showHorizontalScrollBar();
-
-	void hideHorizontalScrollBar();
-
-	void showVerticalScrollBar();
-
-	void hideVerticalScrollBar();
-
-	void showScrollBars();
-
-	void adjustHistogramRect();
-
-	void removeCursor();
-
-	void drawCursor(const QPoint& p);
-
-protected:
-	virtual void clearScene(bool draw_grid = true);
-
-	virtual void resizeEvent(QResizeEvent* e);
-
-	virtual void wheelEvent(QWheelEvent* e);
-
-	bool eventFilter(QObject* obj, QEvent* e);
-
-	void mouseMoveEvent(QMouseEvent* e);
-
-	void scrollContentsBy(int dx, int dy) {}
-};
-
-
-
 
 class HistogramDialog : public Dialog {
 	Q_OBJECT
 
+private:
+	const Image8* m_img = nullptr;
 	HistogramView* m_hist_view = nullptr;
 	CheckBox* m_clip_cb = nullptr;
-
+	ComboBox* m_resolution_combo = nullptr;
+	ComboBox* m_gstyle_combo = nullptr;
 	QLabel* m_hist_data = nullptr;
 
 public:
@@ -222,6 +131,10 @@ public:
 	HistogramView* histogramView()const { return m_hist_view; }
 
 private:
+	void addResolutionCombo();
+
+	void addGraphStyleCombo();
+
 	void resizeEvent(QResizeEvent* e);
 };
 
@@ -256,9 +169,8 @@ private:
 };
 
 
-class Image3DDialog : public Dialog {
+class Image3DDialog : public QWidget {
 	Q_OBJECT
-
 
 	Q3DSurface* m_graph = nullptr;
 	QWidget* m_container = nullptr;
@@ -279,6 +191,9 @@ class Image3DDialog : public Dialog {
 public:
 	template<typename T>
 	Image3DDialog(const QString& img_name, const Image<T>& img, QWidget* parent = nullptr);
+
+signals:
+	void windowClosed();
 
 private:
 	QLinearGradient defaultGradient();

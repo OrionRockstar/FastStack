@@ -14,23 +14,15 @@
 class StarDetectionGroupBox : public GroupBox {
 
 	StarDetector* m_sd = nullptr;
+
 	uint16_t m_maxstars = 200;
 
-	SpinBox* m_wavelet_layers_sb = nullptr;
-	ComboBox* m_scale_func_combo = nullptr;
-	CheckBox* m_median_blur_cb = nullptr;
+	DoubleInput* m_sigmaK_input = nullptr;
+	DoubleInput* m_roundness_input = nullptr;
 
-	DoubleLineEdit* m_sigmaK_le = nullptr;
-	Slider* m_sigmaK_slider = nullptr;
-
-	DoubleLineEdit* m_peak_edge_le = nullptr;
-	Slider* m_peak_edge_slider = nullptr;
-
-	DoubleLineEdit* m_roundness_le = nullptr;
-	Slider* m_roundness_slider = nullptr;
-
-	IntLineEdit* m_max_stars_le = nullptr;
-	Slider* m_max_stars_slider = nullptr;
+	SpinBox* m_max_star_sb = nullptr;
+	ComboBox* m_psf_combo = nullptr;
+	DoubleSpinBox* m_beta_sb = nullptr;
 
 public:
 	StarDetectionGroupBox(StarDetector& star_detector, QWidget* parent = nullptr, bool title = false);
@@ -38,15 +30,9 @@ public:
 	uint16_t maxStars()const { return m_maxstars; }
 
 private:
-	void addWaveletInputs();
-
 	void addThresholdInputs();
 
-	void addPeakEdgeRatioInputs();
-
 	void addRoundnessInputs();
-
-	void addMaxStarsInputs();
 
 public:
 	void reset();

@@ -209,40 +209,32 @@ template Image32 EdgeDetection::apply(const Image32&);
 
 EdgeDetectionDialog::EdgeDetectionDialog(QWidget* parent) :ProcessDialog("Canny Edge Detection", QSize(250, 160), FastStack::recast(parent)->workspace(), false) {
 	
-	connectToolbar(this, &EdgeDetectionDialog::apply, &EdgeDetectionDialog::showPreview, &EdgeDetectionDialog::resetDialog);
-
 	GroupBox* gb = new GroupBox("Operator", drawArea());
 	gb->move(15, 10);
 	gb->resize(220, 135);
 
 	QVBoxLayout* layout = new QVBoxLayout;
-	//QLabel* l = new QLabel("Operator:", this);
-	//l->move(10, 10);
 
 	m_operator_bg = new QButtonGroup(this);
 
 	using EDO = EdgeDetection::Operator;
 
 	RadioButton* rb = new RadioButton("Sobel", this);
-	//rb->move(30, 35);
 	rb->setChecked(true);
 	m_operator_bg->addButton(rb, int(EDO::sobel));
 	layout->addWidget(rb);
 
 	rb = new RadioButton("Scharr", this);
-	//rb->move(30, 60);
 	m_operator_bg->addButton(rb, int(EDO::scharr));
 	layout->addWidget(rb);
 
 
 	rb = new RadioButton("Roberts Cross", this);
-	//rb->move(30, 85);
 	m_operator_bg->addButton(rb, int(EDO::roberts_cross));
 	layout->addWidget(rb);
 
 
 	rb = new RadioButton("Prewitt", this);
-	//rb->move(30, 110);
 	m_operator_bg->addButton(rb, int(EDO::prewitt));
 	layout->addWidget(rb);
 	gb->setLayout(layout);
@@ -257,8 +249,6 @@ void EdgeDetectionDialog::apply() {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
-
-	enableSiblings(false);
 
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
@@ -281,6 +271,4 @@ void EdgeDetectionDialog::apply() {
 		break;
 	}
 	}
-
-	enableSiblings(true);
 }

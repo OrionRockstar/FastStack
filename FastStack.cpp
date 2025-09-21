@@ -3,23 +3,18 @@
 
 #include "AutomaticBackgroundExtraction.h"
 #include "ImageStackingDialog.h"
-
 #include "ImageCalibration.h"
 #include "ImageGeometryDialogs.h"
-#include "RangeMask.h"
-#include "ColorSaturation.h"
 #include "ChannelCombination.h"
 #include "LRGBCombination.h"
 #include "StarAlignment.h"
-#include "CustomWidgets.h"
-//#include "FastStackToolBar.h"
-
+#include "MediaPlayerDialog.h"
 
 
 FastStack::FastStack(QWidget *parent) : QMainWindow(parent) { 
     ui.setupUi(this);
 
-    QApplication::setWindowIcon(QIcon("./Icons//fast_stack_icon_fs2.png"));
+    QApplication::setWindowIcon(QIcon("./Icons//fast_stack_icon.png"));
 
     this->setWindowTitle("FastStack");
     this->resize(this->screen()->availableSize());
@@ -36,9 +31,10 @@ FastStack::FastStack(QWidget *parent) : QMainWindow(parent) {
 
     m_toolbar = new FastStackToolBar(this);
     this->addToolBar(Qt::ToolBarArea::BottomToolBarArea, m_toolbar);
-    connect(m_workspace, &QMdiArea::subWindowActivated, m_toolbar->imageInformationLabel(), &ImageInformationLabel::displayText);
+    
+    connect(m_workspace, &Workspace::imageActivated, m_toolbar->imageInformationLabel(), &ImageInformationLabel::displayText);
 
-    //StatisticsDialog* sd = new StatisticsDialog(this);
+    //MediaPlayerDialog* mpd = new MediaPlayerDialog(this);
     //DrizzleIntegrationDialog* did = new DrizzleIntegrationDialog(this);
     //StarAlignmentDialog* sad = new StarAlignmentDialog(this);
 

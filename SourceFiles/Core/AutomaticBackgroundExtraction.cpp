@@ -43,8 +43,8 @@ float ABE::sampleMedian(const Image<T>& img, const ImagePoint& p)const {
 
 void ABE::insertMatrixRow(Matrix& matrix, int row, const Point& p)const {
 
-    std::vector<double> xv = polynomial(p.x(), polynomialDegree());
-    std::vector<double> yv = polynomial(p.y(), polynomialDegree());
+    std::vector<double> xv = polynomial(p.x, polynomialDegree());
+    std::vector<double> yv = polynomial(p.y, polynomialDegree());
 
     for (int j = 0, col = 0; j <= polynomialDegree(); ++j)
         for (int i = 0; i <= polynomialDegree() - j; ++i)
@@ -53,8 +53,8 @@ void ABE::insertMatrixRow(Matrix& matrix, int row, const Point& p)const {
 
 double ABE::computePolynomial(const Matrix& coefficients, const Point& p)const {
 
-    std::vector<double> xv = polynomial(p.x(), polynomialDegree());
-    std::vector<double> yv = polynomial(p.y(), polynomialDegree());
+    std::vector<double> xv = polynomial(p.x, polynomialDegree());
+    std::vector<double> yv = polynomial(p.y, polynomialDegree());
 
     double sum = 0.0;
 

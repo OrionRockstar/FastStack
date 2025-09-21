@@ -38,16 +38,16 @@ void StarAlignment::apply() {
 
 		switch (img->type()) {
 		case ImageType::UBYTE:
-			stars = m_sd.applyStarDetection(*img);
+			stars = m_sd.DAOFIND(*img);
 			break;
 		case ImageType::USHORT:
-			stars = m_sd.applyStarDetection(*reinterpret_cast<const Image16*>(img));
+			stars = m_sd.DAOFIND(*reinterpret_cast<const Image16*>(img));
 			break;
 		case ImageType::FLOAT:
-			stars = m_sd.applyStarDetection(*reinterpret_cast<const Image32*>(img));
+			stars = m_sd.DAOFIND(*reinterpret_cast<const Image32*>(img));
 			break;
 		default:
-			 m_sd.applyStarDetection(*img);
+			 m_sd.DAOFIND(*img);
 			 break;
 		}
 
@@ -151,8 +151,6 @@ ImageSelectionDialog::ImageSelectionDialog(QMdiArea& workspace, QWidget* parent)
 
 
 StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarAlignment", QSize(540, 465), FastStack::recast(parent)->workspace(), false, false) {
-
-	connectToolbar(this, &StarAlignmentDialog::apply, &StarAlignmentDialog::showPreview, &StarAlignmentDialog::resetDialog);
 
 	m_img_list = new ListWidget(drawArea());
 	m_img_list->resize(365, m_img_list->sizeHint().height());

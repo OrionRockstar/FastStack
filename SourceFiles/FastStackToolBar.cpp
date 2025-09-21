@@ -9,31 +9,31 @@ static double memSize_MB(uint32_t count) {
     return count * sizeof(T) / 1048576.0;
 }
 
-void ImageInformationLabel::displayText(const QMdiSubWindow* window) {
+void ImageInformationLabel::displayText(const Image8* img) {
 
-    if (window == nullptr)
+    if (img == nullptr)
         return this->setText("");
 
-    const Image8& img = imageRecast(window->widget())->source();
+    //const Image8& img = imageRecast(window->widget())->source();
 
     QString dot = tr(" \u00B7 ");
     QString txt="";
-    txt += m_rowString + QString::number(img.rows()) + dot;
-    txt += m_colString + QString::number(img.cols()) + dot;
-    txt += m_channelString + QString::number(img.channels()) + dot;
+    txt += m_rowString + QString::number(img->rows()) + dot;
+    txt += m_colString + QString::number(img->cols()) + dot;
+    txt += m_channelString + QString::number(img->channels()) + dot;
 
     txt += m_bitdepthString;
-    switch (img.type()) {
+    switch (img->type()) {
     case ImageType::UBYTE: {
-        txt += "u8" + dot + QString::number(memSize_MB<uint8_t>(img.totalPxCount()), 'f', 3);
+        txt += "u8" + dot + QString::number(memSize_MB<uint8_t>(img->totalPxCount()), 'f', 3);
         break;
     }
     case ImageType::USHORT: {
-        txt += "u16" + dot + QString::number(memSize_MB<uint16_t>(img.totalPxCount()), 'f', 3);
+        txt += "u16" + dot + QString::number(memSize_MB<uint16_t>(img->totalPxCount()), 'f', 3);
         break;
     }
     case ImageType::FLOAT: {
-        txt += "32f" + dot + QString::number(memSize_MB<float>(img.totalPxCount()), 'f', 3);
+        txt += "32f" + dot + QString::number(memSize_MB<float>(img->totalPxCount()), 'f', 3);
         break;
     }
     }
@@ -86,20 +86,20 @@ void PixelValueLabel::displayText(const Image8* img, const QPointF& p) {
     this->setText(txt);
 }
 
-void PixelValueLabel::displayPreviewText(const Image8* img, const QPointF& p, float factor, const QPointF offset) {
+void PixelValueLabel::displayPreviewText(const Image8* img, const QPoint& preview_pos, const QPointF& img_pos) {
 
     if (img == nullptr)
         return this->setText("");
 
-    if (!img->isInBounds(p.x(), p.y()))
+    if (!img->isInBounds(preview_pos.x(), preview_pos.y()))
         return this->setText("");
 
     QString txt = "";
     txt += m_xStr;
-    txt += QString::number(int(p.x() * factor + offset.x()), 'f', 2) + "   ";
+    txt += QString::number(int(img_pos.x()), 'f', 2) + "   ";
     txt += m_yStr;
-    txt += QString::number(int(p.y() * factor + offset.y()), 'f', 2) + "      ";
-    addPixelValue(txt, img, p);
+    txt += QString::number(int(img_pos.y()), 'f', 2) + "      ";
+    addPixelValue(txt, img, preview_pos);
 
     this->setText(txt);
 }

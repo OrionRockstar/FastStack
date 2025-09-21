@@ -6,14 +6,11 @@
 
 BinerizeDialog::BinerizeDialog(QWidget* parent) : ProcessDialog("Binerize", QSize(500, 175), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(150);
-	setPreviewMethod(this, &BinerizeDialog::applytoPreview);
-	connectToolbar(this, &BinerizeDialog::apply, &BinerizeDialog::showPreview, &BinerizeDialog::resetDialog);
+	setDefaultTimerInterval(150);
 
 	addRGBRadioInputs();
-	addRGBK_RedInputs();
-	addGreenInputs();
-	addBlueInputs();
+	addInputs();
+
 	m_rgb_bg->idClicked(0);
 
 	this->show();
@@ -35,173 +32,81 @@ void BinerizeDialog::addRGBRadioInputs() {
 
 		m_rgb_bg->button(id)->setChecked(true);
 
+		m_green_inp->setEnabled(id);
+		m_blue_inp->setEnabled(id);
+
 		if (id == 0) {
+			m_rgbk_red_inp->setText(m_rgbk);
 
-			m_rgbk_label->setVisible(true);
-			m_rk_label->setVisible(false);
-
-			float v = m_rgbk_red_le->valuef();
-			int pos = m_rgbk_red_slider->sliderPosition();
-
-			m_green_le->setValue(v);
-			m_green_slider->setSliderPosition(pos);
+			float v = m_rgbk_red_inp->valuef();
+			m_green_inp->setValue(v);
 			m_binerize.setGreenThreshold(v);
-			m_green_le->setDisabled(true);
-			m_green_slider->setDisabled(true);
-
-			m_blue_le->setValue(v);
-			m_blue_slider->setSliderPosition(pos);
+			m_blue_inp->setValue(v);
 			m_binerize.setBlueThreshold(v);
-			m_blue_le->setDisabled(true);
-			m_blue_slider->setDisabled(true);
 		}
 
-		else if (id == 1) {
+		else if (id == 1)
+			m_rgbk_red_inp->setText(m_rk);
 
-			m_rgbk_label->setVisible(false);
-			m_rk_label->setVisible(true);
-
-			m_green_le->setEnabled(true);
-			m_green_slider->setEnabled(true);
-
-			m_blue_le->setEnabled(true);
-			m_blue_slider->setEnabled(true);
-		}
+		applytoPreview();
 	};
 
 	connect(m_rgb_bg, &QButtonGroup::idClicked, this, clicked);
 }
 
-void BinerizeDialog::addRGBK_RedInputs() {
+void BinerizeDialog::addInputs() {
 
-	m_rgbk_red_le = new DoubleLineEdit(m_binerize.rgbk_RedThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea());
-	m_rgbk_red_le->move(75, 50);
+	m_rgbk_red_inp = new DoubleInput(m_rgbk, m_binerize.rgbk_RedThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea(), 200.0f);
+	m_rgbk_red_inp->move(75, 50);
+	m_rgbk_red_inp->setSliderWidth(300);
 
-	m_rgbk_label = new QLabel(m_rgbk, drawArea());
-	m_rk_label = new QLabel(m_rk, drawArea());
-	m_rk_label->setVisible(false);
+	m_green_inp = new DoubleInput("G:   ", m_binerize.greenThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea(), 200.0f);
+	m_green_inp->move(75, 90);
+	m_green_inp->setSliderWidth(300);
 
-	addLabel(m_rgbk_red_le, m_rgbk_label);
-	addLabel(m_rgbk_red_le, m_rk_label);
+	m_blue_inp = new DoubleInput("B:   ", m_binerize.blueThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea(), 200.0f);
+	m_blue_inp->move(75, 130);
+	m_blue_inp->setSliderWidth(300);
 
-	m_rgbk_red_slider = new Slider(Qt::Horizontal, drawArea());
-	m_rgbk_red_slider->setFixedWidth(300);
-	m_rgbk_red_slider->setRange(0, 200);
-	m_rgbk_red_slider->setValue(m_binerize.rgbk_RedThreshold() * m_rgbk_red_slider->maximum());
-	m_rgbk_red_le->addSlider(m_rgbk_red_slider);
 
-	auto action = [this](int) {
-		float v = float(m_rgbk_red_slider->sliderPosition()) / m_rgbk_red_slider->maximum();
-		m_rgbk_red_le->setValue(v);
-		m_binerize.setRGBK_RedThreshold(v);
-
+	auto func = [this]() {
+		m_binerize.setRGBK_RedThreshold(m_rgbk_red_inp->valuef());
 		if (m_rgb_bg->checkedId() == 0) {
-			int pos = m_rgbk_red_slider->sliderPosition();
-
-			m_green_le->setValue(v);
-			m_green_slider->setSliderPosition(pos);
+			float v = m_rgbk_red_inp->valuef();
+			m_green_inp->setValue(v);
 			m_binerize.setGreenThreshold(v);
-
-			m_blue_le->setValue(v);
-			m_blue_slider->setSliderPosition(pos);
+			m_blue_inp->setValue(v);
 			m_binerize.setBlueThreshold(v);
 		}
-
-		startTimer();
 	};
 
-	auto edited = [this]() {
-		float v = m_rgbk_red_le->valuef();
-		m_rgbk_red_slider->setValue(v * m_rgbk_red_slider->maximum());
-		m_binerize.setRGBK_RedThreshold(v);
+	connect(m_rgbk_red_inp, &InputBase::actionTriggered, this, [this, func](int) { func(); startTimer(); });
+	connect(m_rgbk_red_inp, &InputBase::editingFinished, this, [this, func]() { func(); applytoPreview(); });
 
-		if (m_rgb_bg->checkedId() == 0) {
-			int pos = m_rgbk_red_slider->sliderPosition();
+	connect(m_green_inp, &InputBase::actionTriggered, this, [this](int) {
+		m_binerize.setGreenThreshold(m_green_inp->valuef());
+		startTimer(); });
+	connect(m_green_inp, &InputBase::editingFinished, this, [this]() {
+		m_binerize.setGreenThreshold(m_green_inp->valuef());
+		applytoPreview(); });
 
-			m_green_le->setValue(v);
-			m_green_slider->setSliderPosition(pos);
-			m_binerize.setGreenThreshold(v);
-		}
-		applytoPreview();
-	};
-
-	connect(m_rgbk_red_slider, &QSlider::actionTriggered, this, action);
-	connect(m_rgbk_red_le, &QLineEdit::editingFinished, this, edited);
-
-}
-
-void BinerizeDialog::addGreenInputs() {
-
-	m_green_le = new DoubleLineEdit(m_binerize.greenThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea());
-	m_green_le->move(75, 90);
-	addLabel(m_green_le, new QLabel("G:", drawArea()));
-
-	m_green_slider = new Slider(Qt::Horizontal, drawArea());
-	m_green_slider->setFixedWidth(300);
-	m_green_slider->setRange(0, 200);
-	m_green_slider->setValue(m_binerize.greenThreshold() * m_green_slider->maximum());
-	m_green_le->addSlider(m_green_slider);
-
-
-	auto action = [this](int) {
-		float v = float(m_green_slider->sliderPosition()) / m_green_slider->maximum();
-		m_green_le->setValue(v);
-		m_binerize.setGreenThreshold(v);
-		startTimer();
-	};
-
-	auto edited = [this]() {
-		float v = m_green_le->valuef();
-		m_green_slider->setValue(v * m_green_slider->maximum());
-		m_binerize.setGreenThreshold(v);
-		applytoPreview();
-	};
-
-	connect(m_green_slider, &QSlider::actionTriggered, this, action);
-	connect(m_green_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void BinerizeDialog::addBlueInputs() {
-
-	m_blue_le = new DoubleLineEdit(m_binerize.blueThreshold(), new DoubleValidator(0.0, 1.0, 6), drawArea());
-	m_blue_le->move(75, 130);
-	addLabel(m_blue_le, new QLabel("B:", drawArea()));
-
-	m_blue_slider = new Slider(Qt::Horizontal, drawArea());
-	m_blue_slider->setFixedWidth(300);
-	m_blue_slider->setRange(0, 200);
-	m_blue_slider->setValue(m_binerize.blueThreshold() * m_blue_slider->maximum());
-	m_blue_le->addSlider(m_blue_slider);
-
-	auto action = [this](int) {
-		float v = float(m_blue_slider->sliderPosition()) / m_blue_slider->maximum();
-		m_blue_le->setValue(v);
-		m_binerize.setBlueThreshold(v);
-		startTimer();
-	};
-
-	auto edited = [this]() {
-		float v = m_blue_le->valuef();
-		m_blue_slider->setValue(v * m_blue_slider->maximum());
-		m_binerize.setBlueThreshold(v);
-		applytoPreview();
-	};
-
-	connect(m_blue_slider, &QSlider::actionTriggered, this, action);
-	connect(m_blue_le, &QLineEdit::editingFinished, this, edited);
+	connect(m_blue_inp, &InputBase::actionTriggered, this, [this](int) {
+		m_binerize.setBlueThreshold(m_blue_inp->valuef());
+		startTimer(); });
+	connect(m_blue_inp, &InputBase::editingFinished, this, [this]() {
+		m_binerize.setBlueThreshold(m_blue_inp->valuef());
+		applytoPreview(); });
 }
 
 void BinerizeDialog::resetDialog() {
 
 	m_binerize = Binerize();
-	m_rgbk_red_le->setValue(m_binerize.rgbk_RedThreshold());
-	m_rgbk_red_slider->setSliderPosition(m_binerize.rgbk_RedThreshold() * m_rgbk_red_slider->maximum());
-	m_rgb_bg->idClicked(0);
-}
-
-void BinerizeDialog::showPreview() {
-
-	ProcessDialog::showPreview();
+	m_rgbk_red_inp->reset();
+	m_green_inp->reset();
+	m_green_inp->setEnabled(false);
+	m_blue_inp->reset();
+	m_blue_inp->setEnabled(false);
+	m_rgb_bg->button(0)->setChecked(true);
 	applytoPreview();
 }
 
@@ -214,25 +119,20 @@ void BinerizeDialog::apply() {
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_binerize, &Binerize::apply);
-		break;
+		return iwptr->applyToSource(m_binerize, &Binerize::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->applyToSource(m_binerize, &Binerize::apply);
-		break;
+		return iw16->applyToSource(m_binerize, &Binerize::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = imageRecast<float>(iwptr);
-		iw32->applyToSource(m_binerize, &Binerize::apply);
-		break;
+		return iw32->applyToSource(m_binerize, &Binerize::apply);
 	}
 	}
-
-	applytoPreview();
 }
 
-void BinerizeDialog::applytoPreview() {
+void BinerizeDialog::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

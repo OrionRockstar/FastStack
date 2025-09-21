@@ -1,6 +1,7 @@
 #pragma once
 #include "Image.h"
 #include "RGBColorSpace.h"
+#include "Histogram.h"
 
 class HistogramTransformation {
 
@@ -21,7 +22,7 @@ class HistogramTransformation {
 
 		MTFCurve() = default;
 
-		bool IsIdentity() { return (m_shadow == 0.0 && m_midtone == 0.5 && m_highlights == 1.0); }
+		bool isIdentity() { return (m_shadow == 0.0f && m_midtone == 0.5f && m_highlights == 1.0f); }
 
 		float shadow() const { return m_shadow; }
 
@@ -96,6 +97,8 @@ public:
 	}
 
 	float transformPixel(ColorComponent component, float pixel)const;
+
+	Histogram transformHistogram(ColorComponent component, const Histogram& histogram);
 
 	static float MTF(float pixel, float midtone);
 

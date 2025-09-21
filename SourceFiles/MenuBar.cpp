@@ -174,6 +174,7 @@ ImageTransformationsMenu::ImageTransformationsMenu(QWidget* parent) : QMenu(pare
 	this->addAction(tr("&Color Saturation"), this, &ImageTransformationsMenu::colorSaturationSelection);
 	this->addAction(tr("&Curve Transformation"), this, &ImageTransformationsMenu::curvesTransformationSelection);
 	this->addAction(tr("&Historgram Transformation"), this, &ImageTransformationsMenu::histogramTransformationSelection);
+	this->addAction(tr("&Exponential Transformation"), this, &ImageTransformationsMenu::exponentialTransformationSelection);
 	this->addAction(tr("&Local Histogram Equalization"), this, &ImageTransformationsMenu::localHistogramEqualizationSelection);
 }
 
@@ -222,6 +223,14 @@ void ImageTransformationsMenu::curvesTransformationSelection() {
 	if (m_ctd == nullptr) {
 		m_ctd = std::make_unique<CurvesTransformationDialog>(parentWidget());
 		connect(m_ctd.get(), &ProcessDialog::windowClosed, this, [this]() { m_ctd.reset(); });
+	}
+}
+
+void ImageTransformationsMenu::exponentialTransformationSelection() {
+
+	if (m_etd == nullptr) {
+		m_etd = std::make_unique<ExponentialTransformationDialog>(parentWidget());
+		connect(m_etd.get(), &ProcessDialog::windowClosed, this, [this]() { m_etd.reset(); });
 	}
 }
 
@@ -286,6 +295,20 @@ void MaskMenu::starMaskSelection() {
 }
 
 
+
+MediaMenu::MediaMenu(QWidget* parent) : QMenu(parent) {
+
+	this->setTitle(tr("&Media"));
+	this->addAction(tr("Playlist Player"), this, &MediaMenu::mediaPlayerSelection);
+}
+
+void MediaMenu::mediaPlayerSelection() {
+
+	if (m_mpd == nullptr) {
+		m_mpd = std::make_unique<MediaPlayerDialog>(parentWidget());
+		connect(m_mpd.get(), &ProcessDialog::windowClosed, [this]() { m_mpd.reset(); });
+	}
+}
 
 
 
@@ -375,6 +398,9 @@ void ProcessMenu::createProcessMenu() {
 	m_mask = new MaskMenu(parentWidget());
 	this->addMenu(m_mask);
 
+	m_media_menu = new MediaMenu(parentWidget());
+	this->addMenu(m_media_menu);
+
 	m_morphology = new MorphologyMenu(parentWidget());
 	this->addMenu(m_morphology);
 
@@ -400,7 +426,7 @@ MenuBar::MenuBar(QWidget *parent): QMenuBar(parent) {
 	m_parent = reinterpret_cast<FastStack*>(parent);
 
 	QPalette pal;
-	pal.setColor(QPalette::Window, QColor(169, 169, 169));
+	pal.setColor(QPalette::ButtonText, Qt::white);
 	setPalette(pal);
 
 	addFileMenu();
@@ -409,8 +435,6 @@ MenuBar::MenuBar(QWidget *parent): QMenuBar(parent) {
 
 
 void MenuBar::Open() {
-
-		//QStringList file_paths = QFileDialog::getOpenFileNames(this, tr("Open Files"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], m_typelist);
 
 		std::filesystem::path f_path = QFileDialog::getOpenFileName(this, tr("Open File"), QStandardPaths::standardLocations(QStandardPaths::PicturesLocation)[0], ImageFileReader::typelist()).toStdString();
 
@@ -501,9 +525,8 @@ void MenuBar::SaveAs() {
 void MenuBar::addFileMenu() {
 
 	filemenu = this->addMenu(tr("&File"));
-	filemenu->setPalette(palette());
-	//filemenu->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
 
+	//filemenu->setStyleSheet("QMenu::item:disabled{color:grey}""QMenu::item:selected{background:#696969}");
 
 	open = filemenu->addAction(tr("&Open"), this, &MenuBar::Open);
 	save = filemenu->addAction(tr("&Save"), this, &MenuBar::Save);

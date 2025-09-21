@@ -1,5 +1,6 @@
 #pragma once
 #include "Image.h"
+#include "Workspace.h"
 
 struct Status {
 	bool m_success = true;
@@ -56,7 +57,7 @@ static void QImagetoImage(const QImage& src, Image<T>& dst) {
 
 class ImageFileReader {
 
-	QMdiArea* m_workspace;
+	Workspace* m_workspace;
 
 	inline static QString m_typelist =
 		"All Accepted Formats(*.bmp *.fits *.fts *.fit *.jpg *.jpeg *.png *.tiff *.tif);;"
@@ -68,7 +69,7 @@ class ImageFileReader {
 		"TIFF file(*.tiff *.tif)";
 
 public:
-	ImageFileReader(QMdiArea* workspace);
+	ImageFileReader(Workspace* workspace);
 
 	static const QString& typelist() { return m_typelist; }
 

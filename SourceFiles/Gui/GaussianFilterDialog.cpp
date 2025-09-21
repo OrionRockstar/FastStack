@@ -6,9 +6,7 @@
 
 GaussianFilterDialog::GaussianFilterDialog(QWidget* parent) : ProcessDialog("GaussianFilter", QSize(405, 85), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(250);
-	setPreviewMethod(this, &GaussianFilterDialog::applytoPreview);
-	connectToolbar(this, &GaussianFilterDialog::apply, &GaussianFilterDialog::showPreview, &GaussianFilterDialog::resetDialog);
+	setDefaultTimerInterval(250);
 
 	addSigmaInputs();
 
@@ -22,13 +20,12 @@ GaussianFilterDialog::GaussianFilterDialog(QWidget* parent) : ProcessDialog("Gau
 
 void GaussianFilterDialog::addSigmaInputs() {
 
-	m_sigma_le = new DoubleLineEdit(new DoubleValidator(0.1, 20.0, 2), drawArea());
-	m_sigma_le->setValue(2.0);
+	m_sigma_le = new DoubleLineEdit(m_gf.sigma(), new DoubleValidator(0.1, 20.0, 2), drawArea());
 	m_sigma_le->setFixedWidth(50);
 	m_sigma_le->move(80, 15);
 	addLabel(m_sigma_le, new QLabel("StdDev:", drawArea()));
 
-	m_sigma_slider = new Slider(Qt::Horizontal, drawArea());
+	m_sigma_slider = new Slider(drawArea());
 	m_sigma_slider->setRange(1, 200);
 	m_sigma_slider->setFixedWidth(250);
 	m_sigma_slider->setValue(20);
@@ -62,17 +59,12 @@ void GaussianFilterDialog::onValueChanged(float sigma) {
 }
 
 void GaussianFilterDialog::resetDialog() {
+
 	m_gf = GaussianFilter();
-	m_sigma_le->setValue(m_gf.sigma());
+	m_sigma_le->reset();
 	m_sigma_slider->setValue(m_gf.sigma() * 10);
 	onValueChanged(m_gf.sigma());
 
-	applytoPreview();
-}
-
-void GaussianFilterDialog::showPreview() {
-
-	ProcessDialog::showPreview();
 	applytoPreview();
 }
 
@@ -81,55 +73,44 @@ void GaussianFilterDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	enableSiblings(false);
-
 	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
-
-	m_gf.setSigma(m_sigma_le->text().toFloat());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_gf, &GaussianFilter::apply);
-		break;
+		return iwptr->applyToSource(m_gf, &GaussianFilter::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->applyToSource(m_gf, &GaussianFilter::apply);
-		break;
+		return iw16->applyToSource(m_gf, &GaussianFilter::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = imageRecast<float>(iwptr);
-		iw32->applyToSource(m_gf, &GaussianFilter::apply);
-		break;
+		return iw32->applyToSource(m_gf, &GaussianFilter::apply);
 	}
 	}
-
-	enableSiblings(true);
-
-	applytoPreview();
 }
 
-void GaussianFilterDialog::applytoPreview() {
+void GaussianFilterDialog::applyPreview() {
 
 	if (!isPreviewValid())
 		return;
 
 	auto iwptr = previewRecast(m_preview);
 
-	m_gf.setSigma(m_sigma_le->text().toFloat() * iwptr->scaleFactor());
+	GaussianFilter gf(m_sigma_le->value() * iwptr->scaleFactor());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
 		auto iw8 = iwptr;
-		return iw8->updatePreview(m_gf, &GaussianFilter::apply);
+		return iw8->updatePreview(gf, &GaussianFilter::apply);
 	}
 	case ImageType::USHORT: {
 		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(m_gf, &GaussianFilter::apply);
+		return iw16->updatePreview(gf, &GaussianFilter::apply);
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(m_gf, &GaussianFilter::apply);
+		return iw32->updatePreview(gf, &GaussianFilter::apply);
 	}
 	}
 }

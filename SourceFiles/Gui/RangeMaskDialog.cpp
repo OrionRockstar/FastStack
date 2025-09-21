@@ -4,13 +4,16 @@
 
 
 
-RangeSlider::RangeSlider(int min, int max, QWidget* parent) : QSlider(parent) {
+RangeSlider::RangeSlider(int min, int max, QWidget* parent) : Slider(parent) {
 
-	this->setOrientation(Qt::Horizontal);
+	//this->setOrientation(Qt::Horizontal);
 	this->setRange(min, max);
+	this->setMouseTracking(true);
 
 	QPalette p;
 	p.setBrush(QPalette::Button, QColor(129, 129, 129));
+	p.setBrush(QPalette::Highlight, QColor(123, 0, 216));
+	this->setPalette(p);
 
 	initStyleOption(&m_low);
 	m_low.sliderPosition = 0;
@@ -24,6 +27,7 @@ RangeSlider::RangeSlider(int min, int max, QWidget* parent) : QSlider(parent) {
 }
 
 void RangeSlider::resetSlider() {
+
 	m_low.sliderPosition = minimum();
 	m_high.sliderPosition = maximum();
 
@@ -31,6 +35,17 @@ void RangeSlider::resetSlider() {
 	emit sliderMoved_high(m_high.sliderPosition);
 
 	update();
+}
+
+bool RangeSlider::event(QEvent* e) {
+	Slider::event(e);
+
+	if (e->type() == QEvent::Leave) {
+		m_low.state &= ~QStyle::State_MouseOver;
+		m_high.state &= ~QStyle::State_MouseOver;
+	}
+
+	return true;
 }
 
 void RangeSlider::mousePressEvent(QMouseEvent* e) {
@@ -57,8 +72,18 @@ void RangeSlider::mousePressEvent(QMouseEvent* e) {
 
 void RangeSlider::mouseMoveEvent(QMouseEvent* e) {
 
-	if (e->buttons() == Qt::LeftButton) {
+	if (m_low.rect.contains(e->pos()) || m_low_act)
+		m_low.state |= QStyle::State_MouseOver;
+	else
+		m_low.state &= ~QStyle::State_MouseOver;
 
+	if (m_high.rect.contains(e->pos()) || m_high_act)
+		m_high.state |= QStyle::State_MouseOver;
+	else
+		m_high.state &= ~QStyle::State_MouseOver;
+
+	if (e->buttons() == Qt::LeftButton) {
+		int diff = width() - maximum();
 		int x = QStyle::sliderValueFromPosition(minimum(), maximum(), e->x() - m_handle_width / 2, width() - m_handle_width, false);
 
 		if (m_low_act) {
@@ -91,12 +116,9 @@ void RangeSlider::mouseReleaseEvent(QMouseEvent* e) {
 void RangeSlider::paintEvent(QPaintEvent* event) {
 
 	QPainter p(this);
+	p.setRenderHint(QPainter::Antialiasing);
 	QStyleOptionSlider opt;
 	initStyleOption(&opt);
-
-
-	QPalette pal;
-	pal.setBrush(QPalette::Highlight, QColor(123, 0, 216));
 
 	//trackbar
 	opt.subControls = QStyle::SC_SliderGroove;
@@ -108,25 +130,26 @@ void RangeSlider::paintEvent(QPaintEvent* event) {
 
 	opt.subControls = QStyle::SC_SliderHandle;
 
-
 	//low handle
 	opt.sliderPosition = m_low.sliderPosition;
-
-	QRect low = r;
+	opt.state = m_low.state;
 	m_low.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle);
+	QRect low = r;
 	low.setRight(m_low.rect.left());
-	p.fillRect(low, pal.color(QPalette::Highlight));
-	style()->drawComplexControl(QStyle::CC_Slider, &m_low, &p, this);
+	p.fillRect(low, opt.palette.color(QPalette::Highlight));
+	drawHandle(p, opt);
+	//style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
 
 
 	//high handle
 	opt.sliderPosition = m_high.sliderPosition;
-
-	QRect high = r;
+	opt.state = m_high.state;
 	m_high.rect = style()->subControlRect(QStyle::CC_Slider, &opt, QStyle::SC_SliderHandle);
-	high.setLeft(m_high.rect.right());
-	p.fillRect(high, pal.color(QPalette::Highlight));
-	style()->drawComplexControl(QStyle::CC_Slider, &m_high, &p, this);
+	QRect high = r;
+	high.setLeft(m_high.rect.right() - 1);
+	p.fillRect(high, opt.palette.color(QPalette::Highlight));
+	drawHandle(p, opt);
+	//style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
 }
 
 
@@ -136,9 +159,7 @@ void RangeSlider::paintEvent(QPaintEvent* event) {
 
 RangeMaskDialog::RangeMaskDialog(QWidget* parent) : ProcessDialog("RangeMask", QSize(455, 190), FastStack::recast(parent)->workspace()) {
 
-	setTimerInterval(250);
-	setPreviewMethod(this, &RangeMaskDialog::applytoPreview);
-	connectToolbar(this, &RangeMaskDialog::apply, &RangeMaskDialog::showPreview, &RangeMaskDialog::resetDialog);
+	setDefaultTimerInterval(250);
 
 	addRangeSlider();
 	addFuzzinessInputs();
@@ -220,13 +241,12 @@ void RangeMaskDialog::addRangeSlider() {
 
 void RangeMaskDialog::addFuzzinessInputs() {
 
-	m_fuzzy_le = new DoubleLineEdit(new DoubleValidator(0.0, 1.0, 2), drawArea());
-	m_fuzzy_le->setValue(0.0);
+	m_fuzzy_le = new DoubleLineEdit(m_rm.fuzziness(), new DoubleValidator(0.0, 1.0, 2), drawArea());
 	m_fuzzy_le->setFixedWidth(50);
 	m_fuzzy_le->move(110, 75);
 	addLabel(m_fuzzy_le, new QLabel("Fuzziness:", drawArea()));
 
-	m_fuzzy_slider = new Slider(Qt::Horizontal, drawArea());
+	m_fuzzy_slider = new Slider(drawArea());
 	m_fuzzy_slider->setFixedWidth(250);
 	m_fuzzy_slider->setRange(0, 250);
 	m_fuzzy_le->addSlider(m_fuzzy_slider);
@@ -251,13 +271,12 @@ void RangeMaskDialog::addFuzzinessInputs() {
 
 void RangeMaskDialog::addSmoothnessInputs() {
 
-	m_smooth_le = new DoubleLineEdit(new DoubleValidator(0.0, 100.0, 2), drawArea());
-	m_smooth_le->setValue(0.0);
+	m_smooth_le = new DoubleLineEdit(m_rm.smoothness(),new DoubleValidator(0.0, 100.0, 2), drawArea());
 	m_smooth_le->setFixedWidth(50);
 	m_smooth_le->move(110, 110);
 	addLabel(m_smooth_le, new QLabel("Smoothnes:", drawArea()));
 
-	m_smooth_slider = new Slider(Qt::Horizontal, drawArea());
+	m_smooth_slider = new Slider(drawArea());
 	m_smooth_slider->setFixedWidth(250);
 	m_smooth_slider->setRange(0, 250);
 	m_smooth_le->addSlider(m_smooth_slider);
@@ -285,21 +304,15 @@ void RangeMaskDialog::resetDialog() {
 	m_rm = RangeMask();
 	m_range_slider->resetSlider();
 
-	m_fuzzy_le->setValue(m_rm.fuzziness());
+	m_fuzzy_le->reset();
 	m_fuzzy_slider->setSliderPosition(m_rm.fuzziness() * m_fuzzy_slider->maximum());
 
-	m_smooth_le->setValue(m_rm.smoothness());
+	m_smooth_le->reset();
 	m_smooth_slider->setSliderPosition((m_rm.smoothness() * m_fuzzy_slider->maximum()) / 100);
 
 	m_lightness_cb->setChecked(m_rm.lightness());
 	m_screening_cb->setChecked(m_rm.screening());
 	m_invert_cb->setChecked(m_rm.invert());
-}
-
-void RangeMaskDialog::showPreview() {
-
-	ProcessDialog::showPreview();
-	applytoPreview();
 }
 
 void RangeMaskDialog::apply() {
@@ -310,6 +323,8 @@ void RangeMaskDialog::apply() {
 	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
 
 	std::string name = "RangeMask";
+
+	enableSiblings_Subwindows(false);
 
 	int count = 0;
 	for (auto sw : m_workspace->subWindowList()) {
@@ -338,10 +353,10 @@ void RangeMaskDialog::apply() {
 		break;
 	}
 	}
-
+	enableSiblings_Subwindows(true);
 }
 
-void RangeMaskDialog::applytoPreview() {
+void RangeMaskDialog::applyPreview() {
 
 	if (!isPreviewValid())
 		return;

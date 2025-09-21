@@ -12,101 +12,81 @@
 
 StarDetectionGroupBox::StarDetectionGroupBox(StarDetector& star_detector, QWidget* parent, bool title) : m_sd(&star_detector), GroupBox(parent) {
 
-	this->setFixedSize(520, 230);
+	this->setFixedSize(520, 150);
 
 	if (title)
 		setTitle("Star Detection");
 
-	addWaveletInputs();
 	addThresholdInputs();
-	addPeakEdgeRatioInputs();
 	addRoundnessInputs();
-	addMaxStarsInputs();
-}
 
-void StarDetectionGroupBox::addWaveletInputs() {
+	m_max_star_sb = new SpinBox(m_maxstars, 50, 250, this);
+	m_max_star_sb->move(135, 105);
+	addLabel(m_max_star_sb, new QLabel("Max Stars:"));
+	connect(m_max_star_sb, &SpinBox::valueChanged, this, [this](int v) { m_maxstars = v; });
 
-	m_wavelet_layers_sb = new SpinBox(this);
-	m_wavelet_layers_sb->move(185, 25);
-	m_wavelet_layers_sb->setRange(1, 6);
-	m_wavelet_layers_sb->setValue(5);
-	m_wavelet_layers_sb->setFixedWidth(75);
-	m_wavelet_layers_sb->addLabel(new QLabel("Wavelet Layers:   ", this));
+	m_psf_combo = new ComboBox(this);
+	m_psf_combo->move(245, 105);
+	addLabel(m_psf_combo, new QLabel("PSF:"));
+	m_psf_combo->addItem("Gaussian", QVariant::fromValue(PSF::Type::gaussian));
+	m_psf_combo->addItem("Moffat", QVariant::fromValue(PSF::Type::moffat));
+	auto activate = [this]() {
 
-	connect(m_wavelet_layers_sb, &QSpinBox::valueChanged, this, [this](int value) { m_sd->setWaveletLayers(value); });
+		auto psf_t = m_psf_combo->currentData().value<PSF::Type>();
+		m_sd->setPSF(psf_t);
 
-	m_median_blur_cb = new CheckBox("Median Blur", this);
-	m_median_blur_cb->move(335, 25);
-	m_median_blur_cb->setChecked(true);
-	connect(m_median_blur_cb, &::QCheckBox::clicked, this, [this](bool v) {m_sd->applyMedianBlur(v); });
+		if (psf_t == PSF::Type::moffat)
+			m_beta_sb->setEnabled(true);
+		else
+			m_beta_sb->setDisabled(true);
+	};
+	connect(m_psf_combo, &QComboBox::activated, this, activate);
+
+	m_beta_sb = new DoubleSpinBox(m_sd->beta(), 0.0, 10.0, 1, this);
+	m_beta_sb->move(395, 105);
+	addLabel(m_beta_sb, new QLabel("Beta:"));
+	m_beta_sb->setSingleStep(0.1);
+	connect(m_beta_sb, &QDoubleSpinBox::valueChanged, this, [this](double val) { m_sd->setBeta(val); });
+	activate();
 }
 
 void StarDetectionGroupBox::addThresholdInputs() {
+
 	QString txt = "Sets K value of star threshold defined as median + K * standard deviation.";
 
-	m_sigmaK_le = new DoubleLineEdit(m_sd->sigmaK(), new DoubleValidator(0.0, 10.0, 2), this);
-	m_sigmaK_le->move(185, 65);
-	m_sigmaK_le->addLabel(new QLabel("Star Signal Threshold:   ", this));
-	m_sigmaK_le->setToolTip(txt);
+	m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sd->sigmaK(), new DoubleValidator(0.1, 10.0, 2), this, 20.0);
+	m_sigmaK_input->move(185, 25);
+	m_sigmaK_input->setToolTip(txt);
+	m_sigmaK_input->setSliderWidth(205);
 
-	m_sigmaK_slider = new Slider(Qt::Horizontal, this);
-	m_sigmaK_slider->setFixedWidth(205);
-	m_sigmaK_slider->setRange(0, 200);
-	m_sigmaK_slider->setValue(20);
-	m_sigmaK_le->addSlider(m_sigmaK_slider);
-	m_sigmaK_slider->setToolTip(txt);
-
-	auto action = [this](int) {
-		double value = m_sigmaK_slider->sliderPosition() / 20.0;
-		m_sigmaK_le->setValue(value);
+	auto func = [this]() {
+		double value = m_sigmaK_input->value();
 		m_sd->setSigmaK(value);
 	};
 
-	auto edited = [this]() {
-		double value = m_sigmaK_le->value();
-		m_sigmaK_slider->setValue(value * 20);
-		m_sd->setSigmaK(value);
-	};
-
-	connect(m_sigmaK_slider, &QSlider::actionTriggered, this, action);
-	connect(m_sigmaK_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void StarDetectionGroupBox::addPeakEdgeRatioInputs() {
-
-	m_peak_edge_le = new DoubleLineEdit(m_sd->peakEdge(), new DoubleValidator(0.0, 1.0, 2), this);
-	m_peak_edge_le->move(185, 105);
-	m_peak_edge_le->addLabel(new QLabel("Peak-Edge Ratio:   ", this));
-
-	m_peak_edge_slider = new Slider(Qt::Horizontal, this);
-	m_peak_edge_slider->setFixedWidth(205);
-	m_peak_edge_slider->setRange(0, 100);
-	m_peak_edge_slider->setValue(m_sd->peakEdge() * 100);
-	m_peak_edge_le->addSlider(m_peak_edge_slider);
-
-	auto action = [this](int) {
-		double value = m_peak_edge_slider->sliderPosition() / 100.0;
-		m_peak_edge_le->setValue(value);
-		m_sd->setPeakEdge(value);
-	};
-
-	auto edited = [this]() {
-		double value = m_peak_edge_le->value();
-		m_peak_edge_slider->setValue(value * 100);
-		m_sd->setPeakEdge(value);
-	};
-
-	connect(m_peak_edge_slider, &QSlider::actionTriggered, this, action);
-	connect(m_peak_edge_le, &QLineEdit::editingFinished, this, edited);
+	connect(m_sigmaK_input, &InputBase::actionTriggered, this, func);
+	connect(m_sigmaK_input, &InputBase::editingFinished, this, func);
 }
 
 void StarDetectionGroupBox::addRoundnessInputs() {
 
-	m_roundness_le = new DoubleLineEdit(m_sd->roundness(), new DoubleValidator(0.0, 1.0, 2), this);
-	m_roundness_le->move(185, 145);
+	m_roundness_input = new DoubleInput("Roundness:   ", m_sd->roundness(), new DoubleValidator(0.05, 1.0, 2), this, 100.0);
+	m_roundness_input->move(185, 65);
+	m_roundness_input->setSliderWidth(205);
+
+	auto func = [this]() {
+		double value = m_roundness_input->value();
+		m_sd->setRoundness(value);
+	};
+
+	connect(m_roundness_input, &InputBase::actionTriggered, this, func);
+	connect(m_roundness_input, &InputBase::editingFinished, this, func);
+
+	/*m_roundness_le = new DoubleLineEdit(m_sd->roundness(), new DoubleValidator(0.0, 1.0, 2), this);
+	m_roundness_le->move(185, 65);
 	m_roundness_le->addLabel(new QLabel("Roundness threshold:   ", this));
 
-	m_roundness_slider = new Slider(Qt::Horizontal, this);
+	m_roundness_slider = new Slider(this);
 	m_roundness_slider->setFixedWidth(205);
 	m_roundness_slider->setRange(0, 100);
 	m_roundness_slider->setValue(m_sd->roundness() * 100);
@@ -125,46 +105,17 @@ void StarDetectionGroupBox::addRoundnessInputs() {
 	};
 
 	connect(m_roundness_slider, &QSlider::actionTriggered, this, action);
-	connect(m_roundness_le, &QLineEdit::editingFinished, this, edited);
-}
-
-void StarDetectionGroupBox::addMaxStarsInputs() {
-
-	m_max_stars_le = new IntLineEdit(m_maxstars, new IntValidator(50, 250), this);
-	m_max_stars_le->move(185, 185);
-	m_max_stars_le->addLabel(new QLabel("Stars:   ", this));
-
-	m_max_stars_slider = new Slider(Qt::Horizontal, this);
-	m_max_stars_slider->setFixedWidth(205);
-	m_max_stars_slider->setRange(50, 250);
-	m_max_stars_slider->setValue(m_maxstars);
-	m_max_stars_le->addSlider(m_max_stars_slider);
-
-	auto action = [this](int) {
-		double value = m_max_stars_slider->sliderPosition();
-		m_max_stars_le->setValue(value);
-		m_maxstars = value;
-	};
-
-	connect(m_max_stars_slider, &QSlider::actionTriggered, this, action);
+	connect(m_roundness_le, &QLineEdit::editingFinished, this, edited);*/
 }
 
 void StarDetectionGroupBox::reset() {
 
-	m_wavelet_layers_sb->setValue(m_sd->waveletLayers());
-	m_median_blur_cb->setChecked(m_sd->medianBlur());
+	m_sigmaK_input->reset();
+	m_roundness_input->reset();
 
-	m_sigmaK_le->setValue(m_sd->sigmaK());
-	m_sigmaK_le->editingFinished();
-
-	m_peak_edge_le->setValue(m_sd->peakEdge());
-	m_peak_edge_le->editingFinished();
-
-	m_roundness_le->setValue(m_sd->roundness());
-	m_roundness_le->editingFinished();
-
-	m_max_stars_le->setValue(200);
-	m_max_stars_le->editingFinished();
+	m_max_star_sb->setValue(200);
+	m_psf_combo->setCurrentIndex(0);
+	m_beta_sb->setValue(m_sd->beta());
 }
 
 
@@ -376,7 +327,7 @@ void ImageStackingDialog::IntegrationGroupBox::addSigmaInputs() {
 	m_sigma_low_le->setFixedWidth(width);
 	m_sigma_low_le->addLabel(new QLabel("Sigma Low:   ", this));
 
-	m_sigma_low_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_low_slider = new Slider(this);
 	m_sigma_low_slider->setFixedWidth(205);
 	m_sigma_low_slider->setRange(0, 100);
 	m_sigma_low_slider->setValue(m_is->sigmaLow() * 10);
@@ -403,7 +354,7 @@ void ImageStackingDialog::IntegrationGroupBox::addSigmaInputs() {
 	m_sigma_high_le->setFixedWidth(width);
 	m_sigma_high_le->addLabel(new QLabel("Sigma High:   ", this));
 
-	m_sigma_high_slider = new Slider(Qt::Horizontal, this);
+	m_sigma_high_slider = new Slider(this);
 	m_sigma_high_slider->setFixedWidth(205);
 	m_sigma_high_slider->setRange(0, 100);
 	m_sigma_high_slider->setValue(m_is->sigmaHigh() * 10);
@@ -434,8 +385,6 @@ void ImageStackingDialog::IntegrationGroupBox::reset() {
 
 
 ImageStackingDialog::ImageStackingDialog(QWidget* parent): ProcessDialog("ImageStacking", QSize(540,500), FastStack::recast(parent)->workspace(), false, false) {
-
-	connectToolbar(this, &ImageStackingDialog::apply, &ImageStackingDialog::showPreview, &ImageStackingDialog::resetDialog);
 
 	m_toolbox = new QToolBox(drawArea());
 	m_toolbox->setFixedWidth(520);
@@ -547,7 +496,7 @@ void DrizzleIntegrationDialog::FileSelectionGroupBox::addFileSelection() {
 	m_file_list_view = new ListWidget(this);
 	m_file_list_view->move(15, 25);
 	m_file_list_view->resize(365, 270);
-
+	m_file_list_view->setDropIndicatorShown(true);
 
 	m_add_files_pb = new PushButton("Add Light Files", this);
 	m_add_files_pb->move(390, 25);
@@ -759,8 +708,6 @@ DrizzleIntegrationDialog::DrizzleGroupBox::DrizzleGroupBox(Drizzle& drizzle, QWi
 
 
 DrizzleIntegrationDialog::DrizzleIntegrationDialog(QWidget* parent) : ProcessDialog("Drizzle Integration", QSize(540,500), FastStack::recast(parent)->workspace(), false, false) {
-
-	connectToolbar(this, &DrizzleIntegrationDialog::apply, &DrizzleIntegrationDialog::showPreview, &DrizzleIntegrationDialog::resetDialog);
 
 	m_toolbox = new QToolBox(drawArea());
 	m_toolbox->setFixedWidth(520);

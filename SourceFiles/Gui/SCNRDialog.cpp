@@ -5,10 +5,11 @@
 
 SCNRDialog::SCNRDialog(QWidget* parent) : ProcessDialog("SCNR", { 400,180 }, FastStack::recast(parent)->workspace(), false) {
 
-	connectToolbar(this, &SCNRDialog::apply, &SCNRDialog::showPreview, &SCNRDialog::resetDialog);
+	const int width = 150;
 
 	m_color_combo = new ComboBox(drawArea());
-	m_color_combo->move(200, 20);
+	m_color_combo->move(190, 20);
+	m_color_combo->setFixedWidth(width);
 	addLabel(m_color_combo, new QLabel("Remove Color:", drawArea()));
 	m_color_combo->addItem("Red", QVariant::fromValue(SCNR::Colors::red));
 	m_color_combo->addItem("Green", QVariant::fromValue(SCNR::Colors::green));
@@ -17,11 +18,13 @@ SCNRDialog::SCNRDialog(QWidget* parent) : ProcessDialog("SCNR", { 400,180 }, Fas
 	connect(m_color_combo, &QComboBox::activated, this, [this](int index) { m_scnr.setRemoveColor(m_color_combo->itemData(index).value<SCNR::Colors>()); });
 
 	m_protection_combo = new ComboBox(drawArea());
-	m_protection_combo->move(200, 60);
+	m_protection_combo->move(190, 60);
+	m_protection_combo->setFixedWidth(width);
 	addLabel(m_protection_combo, new QLabel("Protection Method:", drawArea()));
 	m_protection_combo->addItem("Maximum Mask", QVariant::fromValue(SCNR::Method::maximum_mask));
 	m_protection_combo->addItem("Additive Mask", QVariant::fromValue(SCNR::Method::additive_mask));
 	m_protection_combo->addItem("Average Neutral", QVariant::fromValue(SCNR::Method::average_neutral));
+	m_protection_combo->addItem("Minimum Neutral", QVariant::fromValue(SCNR::Method::minimum_neutral));
 	m_protection_combo->addItem("Maximum Neutral", QVariant::fromValue(SCNR::Method::maximum_neutral));
 	m_protection_combo->setCurrentIndex((int)m_scnr.protectionMethod());
 	connect(m_protection_combo, &QComboBox::activated, this, [this](int index) { m_scnr.setProtectionMethod(m_protection_combo->itemData(index).value<SCNR::Method>()); });
@@ -41,7 +44,7 @@ void SCNRDialog::addAmountInputs() {
 	m_amount_le->move(85, 100);
 	addLabel(m_amount_le, new QLabel("Amount:", drawArea()));
 
-	m_amount_slider = new Slider(Qt::Horizontal, drawArea());
+	m_amount_slider = new Slider(drawArea());
 	m_amount_slider->setRange(0, 100);
 	m_amount_slider->setValue(100);
 	m_amount_slider->setFixedWidth(200);

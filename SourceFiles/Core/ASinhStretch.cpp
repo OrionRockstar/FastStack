@@ -102,12 +102,12 @@ void ASinhStretch::applyRGB(Image<T>& img) {
 		for (int x = 0; x < img.cols(); ++x) {
 			auto color = img.color<float>(x,y);
 
-			float I = rescale(color_space[0] * color.red() + color_space[1] * color.green() + color_space[2] * color.blue());
+			float I = rescale(color_space[0] * color.red + color_space[1] * color.green + color_space[2] * color.blue);
 			float k = (I != 0) ? asinh(beta * I) / (I * asinhb) : beta / asinhb;
 
-			color.setRed(math::clip(rescale(color.red()) * k));
-			color.setGreen(math::clip(rescale(color.green()) * k));
-			color.setBlue(math::clip(rescale(color.blue()) * k));
+			color.red = math::clip(rescale(color.red) * k);
+			color.green = math::clip(rescale(color.green) * k);
+			color.blue = math::clip(rescale(color.blue) * k);
 
 			img.setColor<>(x, y, color);
 		}

@@ -1,38 +1,50 @@
 #pragma once
 #include "ProcessDialog.h"
 #include "HistogramTransformation.h"
-#include "Statistics.h"
+#include "HistogramView.h"
 
 
 
 class HistogramSlider : public QSlider {
 	Q_OBJECT
 
+public:
+	enum class Tone: uint8_t {
+		shadow,
+		midtone,
+		highlight
+	};
+
 private:
+	struct SliderHandle {
+		QStyleOptionSlider option;
+		bool active = false;
+	};
+
+	struct Handles {
+		std::array<SliderHandle, 3> data;
+
+		SliderHandle& operator[](Tone tone) {
+			return data[size_t(tone)];
+		}
+	};
+
 	const int m_handle_width = 6;// style()->pixelMetric(QStyle::PM_SliderLength) - 12;
 	const int m_handle_height = 14;
 
-	QStyleOptionSlider m_trackbar;
+	const int m_view_width = 400;
+	Handles m_handles;
 
-	QStyleOptionSlider m_shadow;
-	bool m_shadow_act = false;
-
-	QStyleOptionSlider m_midtone;
-	bool m_midtone_act = false;
-
-	QStyleOptionSlider m_highlight;
-	bool m_highlight_act = false;
-
-	int max_val = 400;
 	double m_med = .5;
 
 	QColor m_brush = Qt::white;
 
+	int computeMidtone();
+
 public:
-	HistogramSlider(Qt::Orientation orientation, QWidget* parent);
+	HistogramSlider(QWidget* parent);
 
 signals:
-
 	void sliderMoved_shadow(int pos);
 
 	void sliderMoved_midtone(int pos);
@@ -40,34 +52,43 @@ signals:
 	void sliderMoved_highlight(int pos);
 
 public:
+	int sliderPosition(Tone tone) {
 
-	void setMedian(float median);
+		return m_handles[tone].option.sliderValue;
+	}
 
-	int sliderPosition_shadow()const;
+	void setSliderPosition(Tone tone, int value) {
 
-	void setSliderPosition_Shadow(int pos);
+		switch (tone) {
+		case Tone::shadow:
+			return setSliderPosition_shadow(value);
+		case Tone::midtone:
+			return setSliderPosition_midtone(value);
+		case Tone::highlight:
+			return setSliderPosition_highlight(value);
+		}
+	}
 
-	int sliderPosition_midtone()const;
-
-	void setSliderPosition_Midtone(int pos);
-
-	int sliderPosition_highlight()const;
-
-	void setSliderPosition_Highlight(int pos);
-
-	void resetSliderPositions();
+	void resetSlider();
 
 	void setHandleColor(QColor brush) { m_brush = brush; }
+
 private:
+	void setSliderPosition_shadow(int value);
+
+	void setSliderPosition_midtone(int value);
+
+	void setSliderPosition_highlight(int value);
+
 	void mousePressEvent(QMouseEvent* event);
 
 	void mouseMoveEvent(QMouseEvent* event);
 
+	void mouseReleaseEvent(QMouseEvent* e);
+
 	void paintEvent(QPaintEvent* event);
 
-	void drawHandle(const QRect& rect, const QStyleOptionSlider& opt, QPainter& p);
-
-	void AddStyleSheet();
+	void drawHandle(QStyleOptionSlider& opt, QPainter& p);
 };
 
 
@@ -77,20 +98,27 @@ private:
 class HistogramTransformationView : public HistogramView {
 
 	HistogramTransformation* m_ht = nullptr;
+
+	bool m_mtf_visible = true;
 	QGraphicsPathItem* m_mtf_curve = nullptr;
+	QGraphicsLineItem* m_midtone_dash = nullptr;
+	QGraphicsLineItem* m_highlight_dash = nullptr;
 
 public:
 	HistogramTransformationView(HistogramTransformation& ht, const QSize& size, QWidget* parent = nullptr);
 
-	QGraphicsPathItem* mtfCurve()const { return m_mtf_curve; }
-
-	void drawScene();
-
+private:
 	void clearScene(bool draw_grid = true)override;
 
-	void resetScene();
+public:
+	void clearHistogram();
+
+	void drawHistogram();
+
+	void setMTFVisible(bool visible);
 
 	void drawMTFCurve();
+
 private:
 	void wheelEvent(QWheelEvent* e) {}
 };
@@ -103,13 +131,17 @@ class HistogramTransformationDialog : public ProcessDialog {
 
 	Q_OBJECT
 
+private:
 	HistogramTransformation m_ht;
 	HistogramTransformationView* m_htv = nullptr;
+	HistogramVector m_current_histogram;
+	HistogramView* m_hv = nullptr;
 
 	ColorComponent m_current_comp = ColorComponent::rgb_k;
 	const std::array<QColor, 4> m_colors = { Qt::red,Qt::green,Qt::blue,Qt::white };
 
 	HistogramSlider* m_histogram_slider = nullptr;
+	using Tone = HistogramSlider::Tone;
 
 	CheckablePushButton* m_mtf_curve_pb = nullptr;
 
@@ -126,24 +158,26 @@ public:
 	HistogramTransformationDialog(QWidget* parent = nullptr);
 
 private:
-	void onWindowOpen();
+	void onImageWindowCreated()override;
 
-	void onWindowClose();
+	void onImageWindowClosed()override;
 
 private:
+	int toPos(float val) {
+		return val * m_histogram_slider->maximum();
+	}
+
+	float toValue(int pos) {
+		return pos / float(m_histogram_slider->maximum());
+	}
+
 	void onClick(int id);
 
-	void onActivation_imageSelection(int index);
+	void onImageSelection();
 
-	void onActivation_resolution(int index);
+	void onResolutionSelection();
 
-	void sliderMoved_shadow(int pos);
-
-	void sliderMoved_midtone(int pos);
-
-	void sliderMoved_highlight(int pos);
-
-	void editingFinished_smh();
+	void onChange();
 
 	void addHistogramSlider();
 
@@ -159,10 +193,11 @@ private:
 
 	void resetDialog();
 
-	void showPreview();
+	void apply() override;
 
-	void apply();
+	void applyPreview() override;
 
-	void applytoPreview();
+	//works
+	//void atpTest()override { std::cout << "HistogramTransformation\n"; }
 };
 
