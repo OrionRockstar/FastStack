@@ -4,7 +4,7 @@
 
 using ASSD = ASinhStretchDialog;
 
-ASSD::ASinhStretchDialog(QWidget* parent) : ProcessDialog("ASinhStretch", QSize(500, 155), FastStack::recast(parent)->workspace()) {
+ASSD::ASinhStretchDialog(Workspace* parent) : ProcessDialog("ASinhStretch", QSize(500, 155), parent) {
 
 	setDefaultTimerInterval(250);
 	connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_bp_comp->setEnabled(false); });

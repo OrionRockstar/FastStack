@@ -3,13 +3,13 @@
 #include "Drizzle.h"
 
 ImageStacking::PixelRows::PixelRows(int num_imgs, int width, ImageStacking& is) : m_width(width), m_num_imgs(num_imgs), m_is(&is) {
-    m_size = num_imgs * m_width;
+    m_size = num_imgs * width;
     m_pixels = std::vector<float>(m_size);
 }
 
 void ImageStacking::PixelRows::fill(const ImagePoint& start_point) {
 
-#pragma omp parallel for num_threads(m_max_threads)
+//#pragma omp parallel for num_threads(m_max_threads)
     for (int i = 0; i < m_is->m_imgfile_vector.size(); ++i) {
         //get rid of file type?
         switch (m_is->m_imgfile_vector[i]->type()) {
@@ -347,7 +347,6 @@ Status ImageStacking::stackImages(const FileVector& paths, Image32& output) {
         m_imgfile_vector.clear();
         return { false, "Frames must be of same dimensions." };
     }
-
     
     computeScaleEstimators();
     openFiles();
@@ -407,11 +406,11 @@ void ImageStackingWeightMap::PixelRows_t::fillPixelStack(Pixelstack_t& pixelstac
     if (pixelstack.size() != pixelstack.capacity())
         pixelstack.resize(pixelstack.capacity());
 
-    std::vector<float> ps(pixelstack.size());
+    Pixelstack ps(pixelstack.size());
 
     PixelRows::fillPixelStack(ps, x, ch);
 
-    for (int i = 0; i < pixelstack.size(); ++i) {
+    for (int i = 0; i < ps.size(); ++i) {
         pixelstack[i].value = ps[i];
         pixelstack[i].img_num = i;
     }
@@ -444,7 +443,7 @@ float ImageStackingWeightMap::standardDeviation(const Pixelstack_t& pixelstack) 
         var += d * d;
     }
 
-    return (float)sqrt(var / pixelstack.size());
+    return sqrtf(var / pixelstack.size());
 }
 
 float ImageStackingWeightMap::median(Pixelstack_t& pixelstack) {
@@ -601,6 +600,7 @@ void ImageStackingWeightMap::writeWeightMaps(std::filesystem::path parent_direct
     m_weight_maps.clear();
 }
 
+//not really correct rejecting too many pixels?!
 Status ImageStackingWeightMap::stackImages(const FileVector& paths, Image32& output, std::filesystem::path parent_directory) {
 
     if (paths.size() < 2)
@@ -624,7 +624,6 @@ Status ImageStackingWeightMap::stackImages(const FileVector& paths, Image32& out
     PixelRows_t pixel_rows(m_imgfile_vector.size(), output.cols(), *this);
 
     m_weight_maps.resize(m_file_paths.size());
-
     for (auto& wm : m_weight_maps)
         wm = Image8(output.rows(), output.cols(), output.channels());
 

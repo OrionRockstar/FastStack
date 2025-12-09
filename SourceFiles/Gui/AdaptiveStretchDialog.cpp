@@ -4,7 +4,7 @@
 
 using ASD = AdaptiveStretchDialog;
 
-ASD::AdaptiveStretchDialog(QWidget* parent) : ProcessDialog("AdaptiveStretch", QSize(650, 135), FastStack::recast(parent)->workspace()) {
+ASD::AdaptiveStretchDialog(Workspace* parent) : ProcessDialog("AdaptiveStretch", QSize(650, 135), parent) {
 
 	setDefaultTimerInterval(500);
 

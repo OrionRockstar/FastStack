@@ -19,7 +19,7 @@ class FastStack : public QMainWindow {
     FastStackToolBar* m_toolbar;
 
 public:
-    FastStack(QWidget* parent = Q_NULLPTR);
+    FastStack(QWidget* parent = nullptr);
 
     Workspace* workspace()const { return m_workspace; }
 

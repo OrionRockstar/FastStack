@@ -14,7 +14,7 @@ class GaussianFilterDialog : public ProcessDialog {
 	QLabel* m_ks_label;
 
 public:
-	GaussianFilterDialog(QWidget* parent = nullptr);
+	GaussianFilterDialog(Workspace* parent = nullptr);
 
 private:
 	void addSigmaInputs();

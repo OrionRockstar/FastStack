@@ -16,17 +16,16 @@
 
 
 //image transformation menu
-#include "HistogramTransformationDialog.h"
 #include "AdaptiveStretchDialog.h"
-
 #include "ASinhStretchDialog.h"
 #include "AutoHistogramDialog.h"
-
+#include "BinerizeDialog.h"
 #include "ColorSaturationDialog.h"
 #include "CurvesTransformationDialog.h"
-#include "LocalHistogramEqualizationDialog.h"
-#include "BinerizeDialog.h"
 #include "ExponentialTransformationDialog.h"
+#include "HistogramTransformationDialog.h"
+#include "LocalHistogramEqualizationDialog.h"
+
 
 //
 #include "WaveletLayersDialog.h"
@@ -48,22 +47,42 @@
 #include "MediaPlayerDialog.h"
 
 
+class FastStack;
+class Workspace;
 
-class BackgroundExtractionMenu : public QMenu {
+class Menu : public QMenu {
+    Q_OBJECT
+
+protected:
+    Workspace* m_workspace = nullptr;
+
+public:
+    Menu(Workspace* workspace, QWidget* parent) : m_workspace(workspace), QMenu(parent) {}
+};
+
+
+
+
+
+class BackgroundExtractionMenu : public Menu {
 
     std::unique_ptr<AutomaticBackgroundExtractionDialog> m_abed;
 public:
-    BackgroundExtractionMenu(QWidget* parent);
+    BackgroundExtractionMenu(Workspace* workspace, QWidget* parent = nullptr);
 private:
     void autoBackgroundExtractionSelection();
 };
 
-class ColorMenu : public QMenu {
+
+
+
+
+class ColorMenu : public Menu {
     std::unique_ptr<ChannelCombinationDialog> m_ccd;
     std::unique_ptr<LRGBCombinationDialog> m_lrgbd;
 
 public:
-    ColorMenu(QWidget* parent);
+    ColorMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void channelCombinationSelection();
@@ -73,32 +92,39 @@ private:
     void rgbGrayscaleConverstionSelection();
 };
 
-class ImageGeometryMenu : public QMenu {
+
+
+
+
+class ImageGeometryMenu : public Menu {
 
     std::unique_ptr<RotationDialog> m_rd;
     std::unique_ptr<FastRotationDialog> m_frd;
     //HomographyTransformationDialog* m_htd = nullptr;
     std::unique_ptr<IntegerResampleDialog> m_irs;
     std::unique_ptr<CropDialog> m_cd;
+    std::unique_ptr<ResizeDialog> m_rsd;
 
 public:
-    ImageGeometryMenu(QWidget* parent);
+    ImageGeometryMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
-    void rotationSelection();
+    void cropSelection();
 
     void fastRotationSelection();
 
     void integerResampleSelection();
 
-    void cropSelection();
+    void resizeSelection();
+
+    void rotationSelection();
 };
 
 
 
 
 
-class ImageStackingMenu : public QMenu {
+class ImageStackingMenu : public Menu {
 
     std::unique_ptr<CalibrationCombinationDialog> m_ccd;
     std::unique_ptr<DrizzleIntegrationDialog> m_did;
@@ -106,7 +132,7 @@ class ImageStackingMenu : public QMenu {
     std::unique_ptr<StarAlignmentDialog> m_sad;
 
 public:
-    ImageStackingMenu(QWidget* parent);
+    ImageStackingMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void calibrationCombinationSelection();
@@ -122,7 +148,7 @@ private:
 
 
 
-class ImageTransformationsMenu : public QMenu {
+class ImageTransformationsMenu : public Menu {
 
     std::unique_ptr<AdaptiveStretchDialog> m_asd;
     std::unique_ptr<ASinhStretchDialog> m_ashd;
@@ -135,7 +161,7 @@ class ImageTransformationsMenu : public QMenu {
     std::unique_ptr<LocalHistogramEqualizationDialog> m_lhed;
 
 public:
-    ImageTransformationsMenu(QWidget* parent);
+    ImageTransformationsMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void adaptiveStretchSelection();
@@ -161,11 +187,11 @@ private:
 
 
 
-class MaskMenu : public QMenu {
+class MaskMenu : public Menu {
     std::unique_ptr<RangeMaskDialog> m_rmd;
     std::unique_ptr<StarMaskDialog> m_smd;
 public:
-    MaskMenu(QWidget* parent);
+    MaskMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void rangeMaskSelection();
@@ -189,14 +215,14 @@ private:
 
 
 
-class MorphologyMenu : public QMenu {
+class MorphologyMenu : public Menu {
     std::unique_ptr<MorphologicalTransformationDialog> m_mtd;
     std::unique_ptr<BilateralFilterDialog> m_bfd;
     std::unique_ptr<GaussianFilterDialog> m_gfd;
     std::unique_ptr<EdgeDetectionDialog> m_edd;
 
 public:
-    MorphologyMenu(QWidget* parent);
+    MorphologyMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void MorphologicalTransformationsSelection();
@@ -212,12 +238,12 @@ private:
 
 
 
-class NoiseReductionMenu : public QMenu {
+class NoiseReductionMenu : public Menu {
 
     std::unique_ptr<SCNRDialog> m_scnrd;
 
 public:
-    NoiseReductionMenu(QWidget* parent);
+    NoiseReductionMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void scnrSelection();
@@ -227,50 +253,34 @@ private:
 
 
 
-class WaveletTransformationMenu : public QMenu {
+class WaveletTransformationMenu : public Menu {
     Q_OBJECT
 
     std::unique_ptr<WaveletLayersDialog> m_wld = nullptr;
 
 public:
-    WaveletTransformationMenu(QWidget* parent);
+    WaveletTransformationMenu(Workspace* workspace, QWidget* parent = nullptr);
 
 private:
     void waveletLayersSelection();
 };
 
-class ProcessMenu : public QMenu {
-
-    QMenu* m_color = nullptr;
-    QMenu* m_image_trans = nullptr;
-    BackgroundExtractionMenu* m_abg_extraction = nullptr;
-    ImageGeometryMenu* m_image_geometry = nullptr;
-    ImageStackingMenu* m_image_stacking = nullptr;
-    WaveletTransformationMenu* m_wavlet_trans = nullptr;
-    MaskMenu* m_mask = nullptr;
-    MorphologyMenu* m_morphology = nullptr;
-    NoiseReductionMenu* m_noise_reduction_menu = nullptr;
-    MediaMenu* m_media_menu = nullptr;
+class ProcessMenu : public Menu {
 
 public:
 
-    ProcessMenu(QWidget* parent) : QMenu(parent) {
-        this->setTitle("Process");
-        createProcessMenu();
-    }
-
-private:
-    void createProcessMenu();
+    ProcessMenu(Workspace* wokrspace, QWidget* parent);
 };
 
 class MenuBar: public QMenuBar {
     Q_OBJECT
     //Ui::MenuBarClass ui;
 public:
-    MenuBar(QWidget* parent);
+    MenuBar(FastStack* parent);
 	~MenuBar() {}
 
-    QMainWindow* m_parent;
+    Workspace* m_workspace = nullptr;
+    //QMainWindow* m_parent;
 
 	QMenu* filemenu;// = addMenu(tr("&File"));
 	QAction* open;

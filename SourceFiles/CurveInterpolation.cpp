@@ -309,7 +309,6 @@ QGraphicsItem* CurveItem::addItem(qreal x, qreal y) {
 		}
 	}
 
-
 	new_item->setOpacity(1.0);
 
 	//m_input_pts.append(itemCenter(new_item));

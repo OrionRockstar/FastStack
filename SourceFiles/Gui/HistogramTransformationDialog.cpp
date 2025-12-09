@@ -278,7 +278,7 @@ void HTV::drawMTFCurve() {
 
 using HTD = HistogramTransformationDialog;
 
-HTD::HistogramTransformationDialog(QWidget* parent) : ProcessDialog("HistogramTransformation", QSize(422, 600), FastStack::recast(parent)->workspace()) {
+HTD::HistogramTransformationDialog(Workspace* parent) : ProcessDialog("HistogramTransformation", QSize(422, 600), parent) {
 
 	setDefaultTimerInterval(150);
 
@@ -315,10 +315,10 @@ void HTD::onImageWindowClosed() {
 		m_current_histogram.clear();
 		m_htv->clearHistogram();
 		m_hv->clearHistogram();
+		m_image_sel->setCurrentIndex(0);
 	}
 
 	m_image_sel->removeItem(index);
-	m_image_sel->setCurrentIndex(0);
 }
 
 void HTD::onClick(int id) {
@@ -537,7 +537,7 @@ void HTD::addLineEdits() {
 
 void HTD::addImageSelectionCombo() {
 
-	m_image_sel = new ComboBox(drawArea());
+	m_image_sel = new ImageComboBox(drawArea());
 	m_image_sel->addItem("No Image Selected");
 	m_image_sel->move(200, 520);
 	m_image_sel->setFixedWidth(200);

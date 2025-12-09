@@ -29,7 +29,7 @@ class AutomaticBackgroundExtractionDialog : public ProcessDialog {
 
 public:
 
-    AutomaticBackgroundExtractionDialog(QWidget* parent = nullptr);
+    AutomaticBackgroundExtractionDialog(Workspace* parent = nullptr);
 
 private:
 

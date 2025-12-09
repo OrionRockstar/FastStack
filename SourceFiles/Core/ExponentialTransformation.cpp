@@ -14,9 +14,10 @@ void ET::apply(Image<T>& img) {
         m_gf.apply(mask);
     }
 
-    Threads().run([&, this](uint32_t start, uint32_t end) {
-        auto id = std::this_thread::get_id();
-        std::hash<std::thread::id> hasher;
+    Threads(2).run([&, this](uint32_t start, uint32_t end) {
+        //auto id = std::this_thread::get_id();
+        //std::hash<std::thread::id> hasher;
+
         for (int y = start; y < end; ++y) {
             for (int x = 0; x < img.cols(); ++x) {
 
@@ -27,6 +28,7 @@ void ET::apply(Image<T>& img) {
                     else
                         L = ColorSpace::CIEL(img.color<double>(x, y));
                 }
+                double L1 = 1 - L;
 
                 for (int ch = 0; ch < img.channels(); ++ch) {
 
@@ -40,7 +42,7 @@ void ET::apply(Image<T>& img) {
 
                     switch (method()) {
                     case Method::power_inverted_pixels:
-                        pix = Pixel<T>::toType(pow(pixel, pix));
+                        pix = pow(pixel, pix);
                         break;
 
                     case Method::screen_mask_invert:
@@ -48,7 +50,10 @@ void ET::apply(Image<T>& img) {
                         break;
                     }
 
-                    img(x, y, ch) = (lightnessMask()) ? pixel * L + pix * (1 - L) : pix;
+                    if (lightnessMask())
+                        pix = pixel * L + pix * (1 - L);
+
+                    img(x, y, ch) = Pixel<T>::toType(pix);
                 }
             }
         }

@@ -68,7 +68,7 @@ class StarAlignmentDialog : public ProcessDialog {
 
 	StarDetectionGroupBox* m_sd_gb = nullptr;
 public:
-	StarAlignmentDialog(QWidget* parent);
+	StarAlignmentDialog(Workspace* parent);
 
 private:
 	void addImages();

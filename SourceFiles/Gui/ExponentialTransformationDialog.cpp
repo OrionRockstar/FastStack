@@ -5,7 +5,7 @@
 using ET = ExponentialTransformation;
 using ETD = ExponentialTransformationDialog;
 
-ETD::ExponentialTransformationDialog(QWidget* parent) : ProcessDialog("ExponentialTransformation", {395,175}, FastStack::recast(parent)->workspace()) {
+ETD::ExponentialTransformationDialog(Workspace* parent) : ProcessDialog("ExponentialTransformation", {395,175}, parent) {
 	
 	setDefaultTimerInterval(250);
 

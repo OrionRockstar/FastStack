@@ -149,7 +149,7 @@ void LHE::apply(Image<T>& img) {
 	std::atomic_uint32_t psum = 0;
 	m_ps->emitText("CLAHE...");
 
-	QEventThreads().run([&, this](uint32_t start, uint32_t end, uint32_t num) {
+	Threads().run([&](uint32_t start, uint32_t end, uint32_t num) {
 
 		KernelHistogram k_hist(histogramResolution(), kernelRadius(), isCircular());
 		float original_amount = 1.0 - amount();
@@ -159,7 +159,7 @@ void LHE::apply(Image<T>& img) {
 		for (int y = start; y < end; ++y) {
 
 			for (int x = 0; x < img.cols(); ++x) {
-				float pixel = Pixel<float>::toType(img(x, y));
+				float pixel = img.pixel<float>(x, y);// Pixel<float>::toType(img(x, y));
 
 				if (x == 0)
 					k_hist.populate(img, y);

@@ -11,7 +11,10 @@ class CurveTransform {
 private:
 	std::array<Curve, 10> m_comp_curves;
 
-	Curve& rCurve(ColorComponent comp) { return m_comp_curves[int(comp)]; }
+	Curve& curve(ColorComponent comp) { return m_comp_curves[int(comp)]; }
+	const Curve& ccurve(ColorComponent comp)const { return m_comp_curves[int(comp)]; }
+
+	//const Curve& rCurve(ColorComponent comp)const { return m_comp_curves[int(comp)]; }
 
 public:
 
@@ -25,7 +28,7 @@ public:
 
 	void computeCoefficients(ColorComponent comp);
 
-	void interpolateValues(ColorComponent comp, std::vector<double>& values);
+	void interpolateValues(ColorComponent comp, std::vector<double>& values)const;
 
 	template<typename T>
 	void apply(Image<T>& img);

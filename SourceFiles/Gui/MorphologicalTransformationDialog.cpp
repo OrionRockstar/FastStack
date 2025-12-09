@@ -72,7 +72,7 @@ void MorphologicalKernelScene::mousePressEvent(QGraphicsSceneMouseEvent* event) 
 using MT = MorphologicalTransformation;
 using MTD = MorphologicalTransformationDialog;
 
-MTD::MorphologicalTransformationDialog(QWidget* parent) : ProcessDialog("MorphologicalTransformation", QSize(310, 460), FastStack::recast(parent)->workspace(), false) {
+MTD::MorphologicalTransformationDialog(Workspace* parent) : ProcessDialog("MorphologicalTransformation", QSize(310, 460), parent, false) {
 
 	addKernelScene();
 	addKernelSizeCombo();

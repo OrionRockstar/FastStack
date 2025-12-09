@@ -4,7 +4,7 @@
 #include "FastStack.h"
 
 
-GaussianFilterDialog::GaussianFilterDialog(QWidget* parent) : ProcessDialog("GaussianFilter", QSize(405, 85), FastStack::recast(parent)->workspace()) {
+GaussianFilterDialog::GaussianFilterDialog(Workspace* parent) : ProcessDialog("GaussianFilter", QSize(405, 85), parent) {
 
 	setDefaultTimerInterval(250);
 
@@ -99,6 +99,7 @@ void GaussianFilterDialog::applyPreview() {
 
 	GaussianFilter gf(m_sigma_le->value() * iwptr->scaleFactor());
 
+	//causes scale factor to change
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
 		auto iw8 = iwptr;

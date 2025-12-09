@@ -17,6 +17,9 @@
 #include <iostream>
 #include "omp.h"
 
+#include"FastStack.h"
+
+
 #include "Matrix.h"
 //#include "tiffio.h"
 //#include "cfitsio/fitsio.h"

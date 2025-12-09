@@ -132,8 +132,8 @@ public:
 class Resize {
 
 	Interpolator::Type m_type = Interpolator::Type::bicubic_spline;
-	int m_new_rows = 1'000;
-	int m_new_cols = 1'000;
+	int m_new_rows = 1;
+	int m_new_cols = 1;
 
 public:
 	int newRows()const { return m_new_rows; }

@@ -11,7 +11,7 @@ class WaveletLayersDialog : public ProcessDialog {
 	CheckBox* m_residual_cb = nullptr;
 
 public:
-	WaveletLayersDialog(QWidget* parent);
+	WaveletLayersDialog(Workspace* parent);
 
 private:
 	void resetDialog();

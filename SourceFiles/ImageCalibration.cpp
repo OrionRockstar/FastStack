@@ -220,7 +220,7 @@ void CCD::IntegrationGroupBox::reset() {
 }
 
 
-CCD::CalibrationCombinationDialog(QWidget* parent) :ProcessDialog("Calibration Combination", QSize(540, 400), FastStack::recast(parent)->workspace(), parent, false) {
+CCD::CalibrationCombinationDialog(Workspace* parent) :ProcessDialog("Calibration Combination", QSize(540, 400), parent, false) {
 
 	m_toolbox = new QToolBox(this);
 	m_toolbox->setFixedWidth(520);

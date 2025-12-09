@@ -61,8 +61,21 @@ Image<T>::Image(Image&& other)noexcept {
 	m_data = std::move(other.m_data);
 }
 
+template<typename T>
+Image<T> Image<T>::createGrayscaleImage()const {
 
+	Image<T> gray(rows(), cols());
 
+	if (m_channels == 3) {
+#pragma omp parallel for num_threads(2)
+		for (int el = 0; el < pxCount(); ++el)
+			gray[el] = Pixel<T>::toType(ColorSpace::CIEL(this->color<double>(el)));
+	}
+	else
+		memcpy(&gray[0], &m_data[0], pxCount() * sizeof(T));
+
+	return gray;
+}
 
 
 template<typename T>
@@ -289,7 +302,7 @@ float Image<T>::computeStdDev(int ch, float mean, bool clip)const {
 	double d, var = 0;
 
 	for (T pixel : image_channel(*this, ch)) {
-		d = pixel - mean;
+		d = double(pixel) - mean;
 		var += d * d;
 	}
 

@@ -16,16 +16,16 @@ class LRGBCombinationDialog : public ProcessDialog {
 
 	QPalette m_pal;
 	CheckBox* m_lum_cb;
-	ComboBox* m_lum_combo;
+	ImageComboBox* m_lum_combo;
 
 	CheckBox* m_red_cb;
-	ComboBox* m_red_combo;
+	ImageComboBox* m_red_combo;
 
 	CheckBox* m_green_cb;
-	ComboBox* m_green_combo;
+	ImageComboBox* m_green_combo;
 
 	CheckBox* m_blue_cb;
-	ComboBox* m_blue_combo;
+	ImageComboBox* m_blue_combo;
 
 	////
 

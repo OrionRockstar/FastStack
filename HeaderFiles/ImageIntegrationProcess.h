@@ -126,8 +126,6 @@ class ImageIntegrationProcess {
 	ImageStacking m_is;
 
 	std::vector<ImageStackingFiles> m_paths;
-	FileVector m_light_paths;
-	FileVector m_alignment_paths;
 
 	ImageCalibrator m_ic;
 
@@ -135,7 +133,6 @@ class ImageIntegrationProcess {
 
 	bool isLightsSameSize();
 
-	//void readFile(Image32& output)
 public:
 	uint16_t maxStars()const { return m_maxstars; }
 
@@ -159,10 +156,6 @@ public:
 			}
 		}
 	}
-
-	void setLightPaths(const PathVector& light_paths) { m_light_paths = light_paths; }
-
-	void setAlignmentPaths(const PathVector& alignment_paths) { m_alignment_paths = alignment_paths; }
 
 	bool generateWeightMaps()const { return m_generate_weight_maps; }
 

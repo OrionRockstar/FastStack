@@ -2,55 +2,7 @@
 #include "Image.h"
 #include "Interpolator.h"
 #include "Maths.h"
-#include "ImageFile.h"
-
-//#include "ImageStacking.h"
 #include "ImageCalibration.h"
-
-
-class WeightMapImage : public ImageFile {
-#pragma pack(push, 1)
-	struct Header {
-		const char signature[3] = { 'W','M','I' };
-		uint32_t file_size = 0; //bytes
-		const uint16_t data_offset = 30;
-		uint32_t rows = 0;
-		uint32_t cols = 0;
-		uint16_t channels = 0;
-		uint32_t pixels_per_channel = 0;
-		uint32_t total_pixels = 0;
-		const int16_t bitdepth = 8;
-		uint8_t compression = 1;
-	};
-#pragma pack(pop)
-
-	struct RLE {
-		uint8_t count = 0;
-		uint8_t value = 0;
-	};
-
-	bool m_compression = true;
-
-	void writeHeader(const Image8& src, bool compression = true);
-
-public:
-
-	WeightMapImage() : ImageFile(Type::WMI) {}
-	//bool isWeightMapImage();
-
-	void open(std::filesystem::path path)override;
-
-	void create(std::filesystem::path path)override;
-
-	void read(Image8& dst);
-
-	void write(const Image8& src, bool compression = true);
-
-};
-
-
-
-
 
 class Drizzle {
 

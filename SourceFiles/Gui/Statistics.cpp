@@ -2,8 +2,280 @@
 #include "Statistics.h"
 #include "FastStack.h"
 #include "Maths.h"
-#include "ImageGeometry.h"
 #include "RGBColorSpace.h"
+
+PSFTable::PSFTable(QWidget* parent) : QTableWidget(0, m_columns, parent) {
+
+	this->setStyleSheet("QTableWidget::item { border-bottom: 1px solid rgba(69,0,169,169); }");
+
+	this->setShowGrid(false);
+	this->setSelectionBehavior(QAbstractItemView::SelectRows);
+	this->setSelectionMode(QAbstractItemView::SingleSelection);
+	this->setFocusPolicy(Qt::NoFocus);
+	this->horizontalHeader()->setHighlightSections(false);
+	this->setEditTriggers(QAbstractItemView::EditTrigger::NoEditTriggers);
+
+	this->setHorizontalHeaderLabels({ "B","A","xc","yc","\u03C3x","\u03C3y","FWHMx","FWHMy","Flux","Mag.","r","theta","RMSE" });
+	for (int c = 0; c < m_columns; ++c)
+		this->setColumnWidth(c, 75);
+
+	this->setVerticalScrollBar(new ScrollBar(this));
+	this->setHorizontalScrollBar(new ScrollBar(this));
+	this->setHorizontalScrollMode(QAbstractItemView::ScrollMode::ScrollPerPixel);
+	this->verticalHeader()->setVisible(false);
+
+	connect(this, &QTableWidget::cellActivated, this, [this](int row, int col) {
+		if (rowCount() == 0)
+			emit psfSelected(nullptr);
+		emit psfSelected(selectedItems()[0]->data(Qt::UserRole).value<const PSF*>()); });
+}
+
+void PSFTable::selectPSF(const PSF* psf) {
+
+	for (int row = 0; row < rowCount(); ++row)
+		if (item(row, 0)->data(Qt::UserRole).value<const PSF*>() == psf)
+			return selectRow(row);
+}
+
+void PSFTable::addRow(const PSF& psf) {
+
+	int row = this->rowCount();
+	this->insertRow(row);
+	this->setRowHeight(row, 30);
+
+	setItem(row, 0, new QTableWidgetItem(QString::number(psf.B, 'f')));
+	item(row, 0)->setData(Qt::UserRole, QVariant::fromValue(&psf));
+	setItem(row, 1, new QTableWidgetItem(QString::number(psf.A, 'f')));
+	setItem(row, 2, new QTableWidgetItem(QString::number(psf.xc, 'f', 2)));
+	setItem(row, 3, new QTableWidgetItem(QString::number(psf.yc, 'f', 2)));
+	setItem(row, 4, new QTableWidgetItem(QString::number(psf.sx, 'f', 2)));
+	setItem(row, 5, new QTableWidgetItem(QString::number(psf.sy, 'f', 2)));
+	setItem(row, 6, new QTableWidgetItem(QString::number(psf.fwhmx, 'f', 2) + "px"));
+	setItem(row, 7, new QTableWidgetItem(QString::number(psf.fwhmy, 'f', 2) + "px"));
+	setItem(row, 8, new QTableWidgetItem(QString::number(psf.flux)));
+	setItem(row, 9, new QTableWidgetItem(QString::number(psf.magnitude, 'f', 2)));
+	setItem(row, 10, new QTableWidgetItem(QString::number(psf.roundness, 'f')));
+	setItem(row, 11, new QTableWidgetItem(QString::number(math::radiansToDegrees(psf.theta), 'f', 2)));
+	setItem(row, 12, new QTableWidgetItem(QString::number(psf.rmse,'f')));
+
+	for (int i = 0; i < m_columns; ++i)
+		this->item(row, i)->setTextAlignment(Qt::AlignCenter);
+}
+
+bool PSFTable::event(QEvent* e) {
+
+	if (e->type() == QEvent::ContextMenu)
+		sortItems(1, Qt::DescendingOrder);
+
+	return QTableWidget::event(e);
+}
+
+void PSFTable::mousePressEvent(QMouseEvent* e) {
+
+	if (e->buttons() == Qt::LeftButton)
+		QTableWidget::mousePressEvent(e);
+}
+
+void PSFTable::mouseReleaseEvent(QMouseEvent* e) {
+
+	if (e->button() == Qt::LeftButton) {
+		const int row = rowAt(e->pos().y());
+		if (row != -1)
+			emit cellActivated(row, 0);
+	}
+}
+
+
+
+
+
+PSFUtilityDialog::PSFUtilityDialog(QWidget* parent) : Dialog(parent) {
+
+	this->setTitle("PSF Utilities");
+	this->resizeDialog(630, 570);
+	this->setFocus();
+
+
+	m_psf_table = new PSFTable(drawArea());
+	m_psf_table->setGeometry(15, 15, 600, 400);
+	connect(m_psf_table, &PSFTable::psfSelected, [this](const PSF* psf) { emit psfSelected(psf); });
+
+	addStarDetctionInputs();
+	addButtons();
+
+	this->show();
+}
+
+template<typename T>
+PSFUtilityDialog::PSFUtilityDialog(const Image<T>& img, const QString& name, QWidget* parent) : Dialog(parent) {
+
+	m_img = reinterpret_cast<const Image8*>(&img);
+	this->setTitle(name + " PSF Utilities");
+	this->resizeDialog(630, 600);
+	this->setFocus();
+
+	m_stars_detected = new QLabel("Stars Detected: ", drawArea());
+	m_stars_detected->move(105, 15);
+	//m_stars_detected->setHidden(true);
+
+	m_average_FWHM = new QLabel("Average FWHM: ", drawArea());
+	m_average_FWHM->move(405, 16);
+
+	m_psf_table = new PSFTable(drawArea());
+	m_psf_table->setGeometry(15, 45, 600, 400);
+	connect(m_psf_table, &PSFTable::psfSelected, [this](const PSF* psf) { emit psfSelected(psf); });
+
+	addStarDetctionInputs();
+	addButtons();
+
+
+	this->show();
+}
+template PSFUtilityDialog::PSFUtilityDialog(const Image8& img, const QString& name, QWidget* parent);
+template PSFUtilityDialog::PSFUtilityDialog(const Image16& img, const QString& name, QWidget* parent);
+template PSFUtilityDialog::PSFUtilityDialog(const Image32& img, const QString& name, QWidget* parent);
+
+void PSFUtilityDialog::selectPSF(const PSF* psf) {
+
+	m_psf_table->selectPSF(psf);
+}
+
+void PSFUtilityDialog::addStarDetctionInputs() {
+
+	QString txt = "Sets K value of star threshold, defined as median + K * avg deviation.";
+
+	m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sd.K(), new DoubleValidator(0.1, 5.0, 2), drawArea(), 20);
+	m_sigmaK_input->move(225, 460);
+	m_sigmaK_input->setSliderWidth(200);
+	m_sigmaK_input->setToolTip(txt);
+
+	auto funca = [this]() { m_sd.setK(m_sigmaK_input->valuef()); };
+	connect(m_sigmaK_input, &InputBase::actionTriggered, this, funca);
+	connect(m_sigmaK_input, &InputBase::editingFinished, this, funca);
+
+
+
+	m_roundness_input = new DoubleInput("Roundness threshold:   ", m_sd.roundness(), new DoubleValidator(0.1, 1.0, 2), drawArea(), 100);
+	m_roundness_input->move(225, 505);
+	m_roundness_input->setSliderWidth(200);
+
+	auto funcb = [this]() { m_sd.setRoundness(m_roundness_input->valuef()); };
+	connect(m_roundness_input, &InputBase::actionTriggered, this, funcb);
+	connect(m_roundness_input, &InputBase::editingFinished, this, funcb);
+
+
+
+	m_psf_combo = new ComboBox(drawArea());
+	m_psf_combo->move(200, 550);
+	addLabel(m_psf_combo, new QLabel("PSF:"));
+	m_psf_combo->addItem("Gaussian", QVariant::fromValue(PSF::Type::gaussian));
+	m_psf_combo->addItem("Moffat", QVariant::fromValue(PSF::Type::moffat));
+
+	m_beta_sb = new DoubleSpinBox(m_sd.beta(), 0.0, 10.0, 1, drawArea());
+	m_beta_sb->move(385, 550);
+	addLabel(m_beta_sb, new QLabel("Beta:"));
+	m_beta_sb->setSingleStep(0.1);
+
+	auto activate = [this]() {
+
+		auto psf_t = m_psf_combo->currentData().value<PSF::Type>();
+		m_sd.setPSF(psf_t);
+
+		if (psf_t == PSF::Type::moffat)
+			m_beta_sb->setEnabled(true);
+		else
+			m_beta_sb->setDisabled(true);
+	};
+
+	connect(m_psf_combo, &QComboBox::activated, this, activate);
+	activate();
+	connect(m_beta_sb, &QDoubleSpinBox::valueChanged, this, [this](double val) { m_sd.setBeta(val); });
+}
+
+void PSFUtilityDialog::addButtons() {
+
+	const int bs = 40;
+
+	m_run_psf_pb = new PushButton(QIcon("./Icons//star-icon2.png"), "", drawArea());
+	m_run_psf_pb->setIconSize({30,30});
+	m_run_psf_pb->setGeometry(15, 545, bs, bs);
+
+	connect(m_run_psf_pb, &PushButton::released, this, &PSFUtilityDialog::runPSFDetection);
+
+	m_clear_pb = new PushButton("Clear", drawArea());
+	m_clear_pb->setGeometry(520, 545, bs, bs);
+
+	connect(m_clear_pb, &PushButton::released, this, [this]() {
+		m_psf_vector = PSFVector();
+		m_psf_table->setRowCount(0);
+		m_psf_table->setSortingEnabled(false);
+		m_stars_detected->setText(m_stars_detected->text().remove(QRegularExpression("[0-9]*")));
+		m_average_FWHM->setText(m_average_FWHM->text().remove(QRegularExpression("[0-9]*\\.[0-9]*")));
+		emit psfCleared(); });
+
+	m_reset_pb = new PushButton("Reset", drawArea());
+	m_reset_pb->setGeometry(575, 545, bs, bs);
+	
+	connect(m_reset_pb, &PushButton::released, this, [this]() {
+		m_sd = StarDetector();
+		m_sigmaK_input->reset();
+		m_roundness_input->reset();
+		m_psf_combo->setCurrentIndex(int(m_sd.psf()));
+		m_beta_sb->setValue(m_sd.beta());
+		m_beta_sb->setEnabled(false); });
+}
+
+void PSFUtilityDialog::runPSFDetection() {
+
+	if (m_img == nullptr)
+		return;
+
+	if (m_psf_vector.size() != 0)
+		return;
+
+	switch (m_img->type()) {
+	case ImageType::UBYTE:
+		m_psf_vector = m_sd.DAOFIND_PSF(*m_img);
+		break;
+	case ImageType::USHORT:
+		m_psf_vector = m_sd.DAOFIND_PSF(*reinterpret_cast<const Image<uint16_t>*>(m_img));
+		break;
+	case ImageType::FLOAT:
+		m_psf_vector = m_sd.DAOFIND_PSF(*reinterpret_cast<const Image<float>*>(m_img));
+		break;
+	}
+
+	double avgx = 0;
+	double avgy = 0;
+
+	for (const PSF& psf : m_psf_vector) {
+		m_psf_table->addRow(psf);
+		avgx += psf.fwhmx;
+		avgy += psf.fwhmy;
+	}
+
+	avgx /= m_psf_vector.size();
+	avgy /= m_psf_vector.size();
+
+	m_stars_detected->setText(m_stars_detected->text() + QString::number(m_psf_vector.size()));
+	m_stars_detected->adjustSize();
+
+	m_average_FWHM->setText(m_average_FWHM->text() + QString::number((avgx + avgy) / 2.0, 'f', 2));
+	m_average_FWHM->adjustSize();
+
+	m_psf_table->setSortingEnabled(true);
+	m_psf_table->sortItems(1, Qt::DescendingOrder);
+	emit onDetection(&m_psf_vector);
+}
+
+void PSFUtilityDialog::closeEvent(QCloseEvent* e) {
+
+	emit psfCleared();
+	Dialog::closeEvent(e);
+}
+
+
+
 
 
 template<typename T>

@@ -1,6 +1,14 @@
 #pragma once
 #include "Image.h"
 
+class DigitalClock : public QLCDNumber {
+	Q_OBJECT
+
+public:
+	DigitalClock(QWidget* parent = nullptr);
+
+	void displayTime();
+};
 
 enum class RectBorder {
 	None = 0,
@@ -112,6 +120,7 @@ private:
 
 	void mouseReleaseEvent(QMouseEvent* e);
 
+protected:
 	virtual void paintEvent(QPaintEvent* e) override;
 };
 
@@ -135,8 +144,6 @@ class DialogTitleBar : public QWidget {
 	Q_OBJECT
 
 private:
-	QPalette m_default_pal;
-	QPalette m_opaque_pal;
 	double m_opacity = 1.0;
 
 	static const int m_titlebar_height = 28;
@@ -255,7 +262,7 @@ protected:
 
 	void paintEvent(QPaintEvent* e);
 
-	bool eventFilter(QObject* obj, QEvent* e);
+	virtual bool eventFilter(QObject* obj, QEvent* e);
 };
 
 
@@ -298,7 +305,7 @@ static void addLabel(const QWidget* widget, QLabel* label, int spaces = 3) {
 class CheckablePushButton : public PushButton {
 
 protected:
-	QColor m_hover_color = Qt::blue;
+	QColor m_hover_color = QColor(89,89,89);//Qt::blue;
 
 public:
 	CheckablePushButton(const QString& text, QWidget* parent = nullptr);
@@ -307,9 +314,10 @@ public:
 
 	void setMouseHoverColor(const QColor& color = Qt::blue) { m_hover_color = color; }
 
-private:
 	void paintEvent(QPaintEvent* event) override;
 };
+
+
 
 class FlatCheckablePushButton : public CheckablePushButton {
 
@@ -452,6 +460,8 @@ class Slider : public QSlider {
 public:
 	Slider(QWidget* parent = nullptr, Qt::Orientation orientation = Qt::Horizontal);
 
+	int value()const { return sliderPosition(); }
+
 	bool isMouseOverHandle();
 
 protected:
@@ -494,6 +504,8 @@ public:
 	virtual void onEdited(std::function<void()> func = nullptr) = 0;
 
 	int sliderValue()const { return m_slider->value(); }
+
+	int sliderPosition()const { return m_slider->sliderPosition(); }
 
 	void setSliderValue(int value) { m_slider->setValue(value); }
 
@@ -650,6 +662,12 @@ public:
 	ComboBox(QWidget* parent = nullptr);
 
 	void addLabel(QLabel* label)const;
+};
+
+class ImageComboBox : public ComboBox {
+
+public:
+	ImageComboBox(QWidget* parent = nullptr) : ComboBox(parent) {}
 
 	void addImage(const QString& name, const Image8* img);
 
@@ -661,6 +679,8 @@ public:
 
 	int findImage(const Image8* img);
 };
+
+
 
 
 class InterpolationComboBox : public ComboBox {
@@ -686,6 +706,7 @@ public:
 
 
 class DoubleSpinBox : public QDoubleSpinBox {
+	Q_OBJECT
 
 public:
 	DoubleSpinBox(QWidget* parent = nullptr);
@@ -693,6 +714,15 @@ public:
 	DoubleSpinBox(double value, double min, double max, int precision, QWidget* parent = nullptr);
 
 	void addLabel(QLabel* label)const;
+
+signals:
+	void step(int steps);
+
+private:
+	void stepBy(int steps) {
+		QDoubleSpinBox::stepBy(steps);
+		emit step(steps);
+	}
 };
 
 

@@ -5,7 +5,7 @@
 #include"ImageWindow.h"
 
 
-RotationDialog::RotationDialog(QWidget* parent) :ProcessDialog("ImageRotation", QSize(275, 175), FastStack::recast(parent)->workspace(), false) {
+RotationDialog::RotationDialog(Workspace* parent) :ProcessDialog("ImageRotation", QSize(275, 175), parent, false) {
 
 	QLabel* label = new QLabel("Rotation Angle(\u00B0):", drawArea());
 	label->move(10, 40);
@@ -95,7 +95,7 @@ void RotationDialog::apply() {
 
 
 
-FastRotationDialog::FastRotationDialog(QWidget* parent) :ProcessDialog("FastRotation", QSize(250, 130), FastStack::recast(parent)->workspace(), false) {
+FastRotationDialog::FastRotationDialog(Workspace* parent) :ProcessDialog("FastRotation", QSize(250, 130), parent, false) {
 
 	using enum FastRotation::Type;
 
@@ -162,7 +162,7 @@ void FastRotationDialog::apply() {
 
 
 
-IntegerResampleDialog::IntegerResampleDialog(QWidget* parent) :ProcessDialog("IntegerResample", QSize(210, 155), FastStack::recast(parent)->workspace(), false) {
+IntegerResampleDialog::IntegerResampleDialog(Workspace* parent) :ProcessDialog("IntegerResample", QSize(210, 155), parent, false) {
 
 	m_type_bg = new QButtonGroup(this);
 	RadioButton* rb = new RadioButton("Downsample", drawArea());
@@ -426,7 +426,7 @@ void NonCropArea::paintEvent(QPaintEvent* e) {
 
 
 template<typename T>
-CropPreview<T>::CropPreview(QWidget* image_window) : PreviewWindow<T>(imageRecast<T>(image_window), true) {
+CropPreview<T>::CropPreview(ImageWindow<T>* image_window) : PreviewWindow<T>(imageRecast<T>(image_window), true) {
 
 	this->resizeSource();
 	QRect rect = QRect(20, 20, this->m_image_label->width() - 40, this->m_image_label->height() - 40);
@@ -455,92 +455,141 @@ template class CropPreview<float>;
 
 
 
-CropDialog::CropDialog(QWidget* parent) : ProcessDialog("Crop Image", QSize(220, 60), FastStack::recast(parent)->workspace(), false, false) {
+
+
+void ImageWindowComboBox::addImageWindow(ImageWindow8* iw) {
+
+	if (iw)
+		this->addItem(iw->name(), QVariant::fromValue(iw));
+}
+
+ImageWindow8* ImageWindowComboBox::currentImageWindow() {
+	return currentData().value<ImageWindow8*>();
+}
+
+ImageWindow8* ImageWindowComboBox::imageWindowAt(int index) {
+	return itemData(index).value<ImageWindow8*>();
+}
+
+int ImageWindowComboBox::findImageWindow(ImageWindow8* iw) {
+
+	for (int i = 0; i < count(); ++i)
+		if (iw == imageWindowAt(i))
+			return i;
+
+	return -1;
+}
+
+
+
+
+
+CropDialog::CropDialog(Workspace* parent) : ProcessDialog("Crop Image", QSize(220, 60), parent, false, false) {
 	
-	m_image_sel = new ComboBox(drawArea());
-	m_image_sel->addItem("No Image Selected");
-	m_image_sel->setFixedWidth(200);
+	m_image_sel = new ImageWindowComboBox(drawArea());
 	m_image_sel->move(10, 15);
 
 	for (auto sw : m_workspace->subWindowList())
-		m_image_sel->addItem(imageRecast(sw->widget())->name());
+		m_image_sel->addImageWindow(imageRecast(sw->widget()));
 
 	connect(m_image_sel, &QComboBox::activated, this, &CropDialog::onActivation_imageSelection); // show preview on activation
 
 	show();
 }
 
-void CropDialog::closeEvent(QCloseEvent* e) {
-
-	if (m_preview)
-		m_preview->close();
-
-	ProcessDialog::closeEvent(e);
-}
-
 void CropDialog::onImageWindowCreated() {
-	//QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
-	m_image_sel->addImage(imageRecast<>(m_workspace->subWindowList().last()->widget()));
+
+	m_image_sel->addImageWindow(imageRecast(m_workspace->subWindowList().last()->widget()));
 }
 
 void CropDialog::onImageWindowClosed() {
 
-	//QString str = imageRecast<>(m_workspace->currentSubWindow()->widget())->name();
-	int index = m_image_sel->findImage(&imageRecast<>(m_workspace->currentSubWindow()->widget())->source());//m_image_sel->findText(str);
+	int index = m_image_sel->findImageWindow(imageRecast(m_workspace->currentSubWindow()->widget()));
+	if (index == m_image_sel->currentIndex())
+		m_image_sel->setCurrentIndex(0);
 	m_image_sel->removeItem(index);
-	m_image_sel->setCurrentIndex(0);
 }
 
 void CropDialog::onActivation_imageSelection(int index) {
 	
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iwptr = imageRecast<>(sw->widget());
-
 		if (iwptr->previewExists()) {
 			if (index != 0 && iwptr->preview()->processType() == name())
 				return;
-			else
-				m_preview->close();
+			else 
+				iwptr->preview()->close();
 		}
 	}
 
+	auto iwptr = m_image_sel->currentImageWindow();
 
-	//needed???
-	auto cp = [this]<typename T>(ImageWindow<T>* iwb) {
-		connect(iwb, &ImageWindowBase::windowUpdated, this, [this]() {  previewRecast<T>(m_preview)->updatePreview(); });
-	};
+	showPreviewWindow(iwptr);
+	/*if (iwptr == nullptr)
+		return;
 
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iwptr = imageRecast<>(sw->widget());
-
-		if (m_image_sel->currentText() == iwptr->name()) {
-
-			switch (iwptr->type()) {
-			case ImageType::UBYTE: {
-				iwptr->showPreview(new CropPreview<uint8_t>(iwptr));
-				cp(iwptr);
-				break;
-			}
-			case ImageType::USHORT: {
-				auto iw16 = imageRecast<uint16_t>(iwptr);
-				iw16->showPreview(new CropPreview<uint16_t>(iw16));
-				cp(iw16);
-				break;
-			}
-			case ImageType::FLOAT: {
-				auto iw32 = imageRecast<float>(iwptr);
-				iw32->showPreview(new CropPreview<float>(iw32));
-				cp(iw32);
-				break;
-			}
-			}
-			connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { m_image_sel->setCurrentIndex(0); });
-
-			m_preview = iwptr->preview();
-			iwptr->preview()->setTitle(iwptr->name() + " Crop Window");
-			iwptr->preview()->setProcessType(name());
-		}
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		iwptr->showPreview(new CropPreview<uint8_t>(iwptr));
+		break;
 	}
+	case ImageType::USHORT: {
+		auto iw16 = imageRecast<uint16_t>(iwptr);
+		iw16->showPreview(new CropPreview<uint16_t>(iw16));
+		break;
+	}
+	case ImageType::FLOAT: {
+		auto iw32 = imageRecast<float>(iwptr);
+		iw32->showPreview(new CropPreview<float>(iw32));
+		break;
+	}
+	}
+
+	emit previewAdded();
+
+	//updates preview after apply
+	connect(iwptr, &ImageWindowBase::windowUpdated, this, &CropDialog::applytoPreview);
+	connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { 
+		m_preview = nullptr; emit previewRemoved(); m_image_sel->setCurrentIndex(0); });
+
+	m_preview = iwptr->preview();
+	m_preview->setTitle(iwptr->name() + " Crop Window");
+	m_preview->setProcessType(name());*/
+}
+
+void CropDialog::showPreviewWindow(ImageWindow8* iw) {
+
+	if (iw == nullptr)
+		return;
+
+	switch (iw->type()) {
+	case ImageType::UBYTE: {
+		iw->showPreview(new CropPreview<uint8_t>(iw));
+		break;
+	}
+	case ImageType::USHORT: {
+		auto iw16 = imageRecast<uint16_t>(iw);
+		iw16->showPreview(new CropPreview<uint16_t>(iw16));
+		break;
+	}
+	case ImageType::FLOAT: {
+		auto iw32 = imageRecast<float>(iw);
+		iw32->showPreview(new CropPreview<float>(iw32));
+		break;
+	}
+	}
+
+	m_preview = iw->preview();
+	emit previewAdded();
+
+	//updates preview after apply
+	connect(iw, &ImageWindowBase::windowUpdated, this, &CropDialog::applytoPreview);
+	connect(iw->preview(), &PreviewWindowBase::windowClosed, this, [this]() {
+		m_preview = nullptr; emit previewRemoved(); m_image_sel->setCurrentIndex(0); });
+
+	m_preview = iw->preview();
+	m_preview->setTitle(iw->name() + " Crop Window");
+	m_preview->setProcessType(name());
 }
 
 void CropDialog::resetDialog() {
@@ -559,68 +608,365 @@ void CropDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iwptr = reinterpret_cast<ImageWindow8*>(sw->widget());
-		if (m_image_sel->currentText() == iwptr->name()) {
+	auto iwptr = m_image_sel->currentImageWindow();
 
-			switch (iwptr->type()) {
-			case ImageType::UBYTE: {
-				auto iw8 = reinterpret_cast<ImageWindow8*>(iwptr);
-				m_crop.setRegion(reinterpret_cast<CropPreview<uint8_t>*>(iw8->preview())->cropRect());
-				iw8->applyToSource_Geometry(m_crop, &Crop::apply);
-				break;
-			}
-			case ImageType::USHORT: {
-				auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-				m_crop.setRegion(reinterpret_cast<CropPreview<uint16_t>*>(iw16->preview())->cropRect());
-			    iw16->applyToSource_Geometry(m_crop, &Crop::apply);
-				break;
-			}
-			case ImageType::FLOAT: {
-				auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-				m_crop.setRegion(reinterpret_cast<CropPreview<float>*>(iw32->preview())->cropRect());
-				iw32->applyToSource_Geometry(m_crop, &Crop::apply);
-				break;
-			}
-			}
-		}
+	if (iwptr == nullptr)
+		return;
+
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: {
+		m_crop.setRegion(dynamic_cast<CropPreview<uint8_t>*>(iwptr->preview())->cropRect());
+		iwptr->applyToSource_Geometry(m_crop, &Crop::apply);
+		break;
+	}
+	case ImageType::USHORT: {
+		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
+		m_crop.setRegion(dynamic_cast<CropPreview<uint16_t>*>(iw16->preview())->cropRect());
+		iw16->applyToSource_Geometry(m_crop, &Crop::apply);
+		break;
+	}
+	case ImageType::FLOAT: {
+		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
+		m_crop.setRegion(dynamic_cast<CropPreview<float>*>(iw32->preview())->cropRect());
+		iw32->applyToSource_Geometry(m_crop, &Crop::apply);
+		break;
+	}
 	}
 
 	if (m_preview)
 		m_preview->close();
 }
 
+void CropDialog::applyPreview() {
+
+	if (!isPreviewValid())
+		return;
+
+	PreviewWindow8* iwptr = previewRecast(m_preview);
+
+	switch (iwptr->type()) {
+	case ImageType::UBYTE: 
+		return iwptr->updatePreview();
+	
+	case ImageType::USHORT: 
+		return previewRecast<uint16_t>(iwptr)->updatePreview();
+	
+	case ImageType::FLOAT: 
+		return previewRecast<float>(iwptr)->updatePreview();
+	}
+}
 
 
-ResizeDialog::ResizeDialog(QWidget* parent) :ProcessDialog("Resize Image", QSize(280, 115), FastStack::recast(parent)->workspace(), false) {
 
-	m_row_le = new IntLineEdit(1'000, new IntValidator(1, 100'000), drawArea());
-	m_row_le->setFixedWidth(70);
-	m_row_le->move(200, 10);
-	addLabel(m_row_le, new QLabel("Height:", drawArea()));
-	connect(m_row_le, &QLineEdit::editingFinished, this, [this]() {m_rs.setNewRows(m_row_le->text().toInt()); });
 
-	m_col_le = new IntLineEdit(1'000, new IntValidator(1, 100'000), drawArea());
-	m_col_le->setFixedWidth(70);
-	m_col_le->move(60, 10);
-	addLabel(m_col_le, new QLabel("Width:", drawArea()));
-	connect(m_col_le, &QLineEdit::editingFinished, this, [this]() {m_rs.setNewCols(m_col_le->text().toInt()); });
+
+LinkButton::LinkButton(QWidget* parent) : PushButton("",parent) {
+
+	this->resize(30, 30);
+	this->setCheckable(true);
+	this->setAutoDefault(false);
+	this->setFlat(true);
+	this->setChecked(true);
+}
+
+void LinkButton::paintEvent(QPaintEvent* e) {
+
+	QPainter p(this);
+	QPen pen;
+	pen.setWidth(3);
+	pen.setColor(QColor(169, 169, 169));
+	p.setPen(pen);
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setRenderHint(QPainter::Antialiasing);
+
+	//p.drawRoundedRect(width() / 3, height() / 3 - 2, width() / 3, height() / 3 + 4, 2, 2);
+	p.drawRoundedRect(10, 8, 10, 14, 2, 2);
+	p.drawLine(15, 6, 15, 10);
+	p.drawLine(15, 20, 15, 24);
+
+	if (isDown())
+		p.drawRect(this->rect());
+
+	if (!isChecked())
+		p.fillRect(8, 13, 14, 4, QColor(39, 39, 39));//palette().brush(QPalette::Button));
+}
+
+
+
+
+
+ResizeDialog::ResizeDialog(Workspace* parent) : ProcessDialog("Resize Image", QSize(320, 225), parent, false, false) {
+
+	m_image_sel = new ImageWindowComboBox(drawArea());
+	m_image_sel->move(40, 15);
+	m_image_sel->resize(240, m_image_sel->height());
+
+	for (auto sw : m_workspace->subWindowList())
+		m_image_sel->addImageWindow(imageRecast(sw->widget()));
+
+	connect(m_image_sel, &QComboBox::currentIndexChanged, this, &ResizeDialog::imageSelection); // show preview on activation
+
+	m_new_size_label = new QLabel("New Size: ", drawArea());
+	m_new_size_label->move(90, 145);
+	m_new_size_label->hide();
+
+	m_link_pb = new LinkButton(drawArea());
+	m_link_pb->move(180, 80);
+	m_link_pb->setToolTip("maintain aspect ratio");
+	connect(m_link_pb, &QPushButton::clicked, this, [this]() { m_aspect_ratio = float(n_size.width()) / n_size.height(); });
+
+	addWidthInput();
+	addHeightInput();
+	addUnitCombo();
 
 	m_interpolation_combo = new InterpolationComboBox(drawArea());
-	m_interpolation_combo->move(110, 50);
+	m_interpolation_combo->move(130, 180);
 	addLabel(m_interpolation_combo, new QLabel("Interpolation:", drawArea()));
-
 	connect(m_interpolation_combo, &QComboBox::activated, this, [this](int index) { m_rs.setInterpolation(Interpolator::Type(index)); });
 
 	show();
 }
 
+void ResizeDialog::setPrecision(int prec) {
+	m_width_sb->setDecimals(prec);
+	m_height_sb->setDecimals(prec);
+}
+
+void ResizeDialog::updateLabel() {
+
+	QString txt = m_new_size_label->text();
+	txt.truncate(txt.indexOf(':') + 2);
+
+	if (m_image_sel->currentIndex() != 0)
+		txt += QString::number(n_size.width()) + " x " + QString::number(n_size.height());
+
+	m_new_size_label->setText(txt);
+	m_new_size_label->adjustSize();
+}
+
+void ResizeDialog::addWidthInput() {
+
+	m_width_sb = new DoubleSpinBox(1, 0, 100'000, 0, drawArea());
+	m_width_sb->setFixedWidth(100);
+	m_width_sb->move(80, 60);
+	m_width_sb->setDisabled(true);
+	addLabel(m_width_sb, new QLabel("Width:", drawArea()));
+
+	auto func = [this]() {
+
+		auto iwptr = m_image_sel->currentImageWindow();
+
+		if (iwptr == nullptr)
+			return;
+
+		auto& img = iwptr->source();
+
+		double v = m_width_sb->value();
+		int w = 0;
+
+		switch (m_unit_combo->currentData().value<Unit>()) {
+		case Unit::pixel:
+			w = v;
+			break;
+		case Unit::percent:
+			w = v * img.cols() / 100;
+			break;
+		//case Unit::inches:
+			//w = v
+		default:
+			w = v;
+		}
+		//pnly needed on pixel and percent
+		n_size.setWidth(w);
+		if (m_link_pb->isChecked()) {
+			int h =	w / m_aspect_ratio + 0.5;
+
+		switch (m_unit_combo->currentData().value<Unit>()) {
+			case Unit::pixel:
+				m_height_sb->setValue(h);
+				break;
+			case Unit::percent:
+				m_height_sb->setValue(h * 100 / img.rows());
+				break;
+			default:
+				m_height_sb->setValue(h);
+			}
+			n_size.setHeight(h);
+		}
+
+		updateLabel();
+	};
+
+	connect(m_width_sb, &DoubleSpinBox::editingFinished, this, func);
+	connect(m_width_sb, &DoubleSpinBox::step, this, func);
+}
+
+void ResizeDialog::addHeightInput() {
+
+	m_height_sb = new DoubleSpinBox(1, 0, 100'000, 0, drawArea());
+	m_height_sb->setFixedWidth(100);
+	m_height_sb->move(80, 100);
+	m_height_sb->setDisabled(true);
+	addLabel(m_height_sb, new QLabel("Height:", drawArea()));
+
+
+	auto func = [this]() {
+
+		auto iwptr = m_image_sel->currentImageWindow();
+
+		if (iwptr == nullptr)
+			return;
+
+		auto& img = iwptr->source();
+
+		int v = m_height_sb->value();
+		int h = 0;
+
+		switch (m_unit_combo->currentData().value<Unit>()) {
+		case Unit::pixel:
+			h = v;
+			break;
+		case Unit::percent:
+			h = v * img.rows() / 100;
+			break;
+		default:
+			h = v;
+		}
+
+		n_size.setHeight(h);
+
+		if (m_link_pb->isChecked()) {
+			int w = m_aspect_ratio * h + 0.5;
+			switch (m_unit_combo->currentData().value<Unit>()) {
+			case Unit::pixel:
+				m_width_sb->setValue(w);
+				break;
+			case Unit::percent:
+				m_width_sb->setValue(w * 100 / img.cols());
+				break;
+			default:
+				m_width_sb->setValue(w);
+			}
+			n_size.setWidth(w);
+		}
+
+		updateLabel();
+	};
+	connect(m_height_sb, &QDoubleSpinBox::editingFinished, this, func);
+	connect(m_height_sb, &DoubleSpinBox::step, this, func);
+}
+
+void ResizeDialog::addUnitCombo() {
+
+	m_unit_combo = new ComboBox(drawArea());
+	m_unit_combo->move(215, 80);
+	m_unit_combo->resize(90, m_unit_combo->height());
+	m_unit_combo->addItem("pixels", QVariant::fromValue(Unit::pixel));
+	m_unit_combo->addItem("percent", QVariant::fromValue(Unit::percent));
+	connect(m_unit_combo, &QComboBox::currentIndexChanged, this, &ResizeDialog::unitSelection);
+
+	auto func = [this](int index) {
+		switch (m_unit_combo->itemData(index).value<Unit>()) {
+		case Unit::pixel:
+			return setPrecision(0);
+		case Unit::percent:
+			return setPrecision(2);
+		default:
+			return setPrecision(0);
+		}
+	};
+	connect(m_unit_combo, &QComboBox::currentIndexChanged, this, func);
+}
+
+QSize ResizeDialog::getNewSize() {
+
+	auto iwptr = m_image_sel->currentImageWindow();
+
+	if (iwptr == nullptr)
+		return QSize();
+
+	auto& img = iwptr->source();
+
+	int w = m_width_sb->value();
+	int h = m_height_sb->value();
+
+	switch (m_unit_combo->currentData().value<Unit>()) {
+	case Unit::pixel:
+		return QSize(w, h);
+	case Unit::percent:
+		return QSize(w * img.cols() / 100, h * img.rows() / 100);
+	default:
+		return QSize();
+	}
+}
+
+void ResizeDialog::onImageWindowCreated() {
+
+	m_image_sel->addImageWindow(imageRecast(m_workspace->subWindowList().last()->widget()));
+}
+
+void ResizeDialog::onImageWindowClosed() {
+
+	int index = m_image_sel->findImageWindow(imageRecast(m_workspace->currentSubWindow()->widget()));
+
+	if (index == m_image_sel->currentIndex())
+		m_image_sel->setCurrentIndex(0);
+
+	m_image_sel->removeItem(index);
+}
+
+void ResizeDialog::imageSelection(int index) {
+
+	auto iwptr = m_image_sel->currentImageWindow();
+
+	if (iwptr) {
+		Image8& img = iwptr->source();
+		n_size = QSize(img.cols(), img.rows());
+		unitSelection(m_unit_combo->currentIndex());
+		m_aspect_ratio = float(img.cols()) / img.rows();
+		m_height_sb->setEnabled(true);
+		m_width_sb->setEnabled(true);
+		m_new_size_label->show();
+	}
+	else {
+		m_height_sb->setValue(1.0);
+		m_width_sb->setValue(1.0);
+		m_height_sb->setDisabled(true);
+		m_width_sb->setDisabled(true);
+		n_size = QSize();
+		m_new_size_label->hide();
+	}
+	updateLabel();
+}
+
+void ResizeDialog::unitSelection(int index) {
+
+	auto iwptr = m_image_sel->currentImageWindow();
+
+	if (iwptr == nullptr)
+		return;
+
+	auto& img = iwptr->source();
+
+	switch (m_unit_combo->itemData(index).value<Unit>()) {
+	case Unit::pixel:
+		m_width_sb->setValue(n_size.width());
+		m_height_sb->setValue(n_size.height());
+		break;
+	case Unit::percent:
+		m_width_sb->setValue(n_size.width() * 100 / img.cols());
+		m_height_sb->setValue(n_size.height() * 100 / img.rows());
+		break;
+
+	//case Unit::inches:
+		//m_width_sb->setValue(n_size.width() / 72); //72 is resolution in px/in
+	}
+}
+
 void ResizeDialog::resetDialog() {
+
 	m_rs = Resize();
-
-	m_row_le->setValue(m_rs.newRows());
-	m_col_le->setValue(m_rs.newCols());
-
+	imageSelection(m_image_sel->currentIndex());
 	m_interpolation_combo->reset();
 }
 
@@ -629,7 +975,11 @@ void ResizeDialog::apply() {
 	if (m_workspace->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = m_image_sel->currentImageWindow();
+	if (iwptr == nullptr)
+		return;
+
+	m_rs.setNewSize(n_size.height(), n_size.width());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -646,7 +996,30 @@ void ResizeDialog::apply() {
 		iw32->applyToSource_Geometry(m_rs, &Resize::apply);
 		break;
 	}
-	}		
+	}
+
+	n_size = getNewSize();
+	updateLabel();
+}
+
+void ResizeDialog::paintEvent(QPaintEvent* e) {
+
+	ProcessDialog::paintEvent(e);
+
+	QPainter p(this);
+	p.translate(0, titlebar()->height());
+	QPen pen;
+	pen.setWidth(2);
+	pen.setColor(QColor(169,169,169));
+	pen.setJoinStyle(Qt::RoundJoin);
+	p.setPen(pen);
+	std::array<QPoint,3> l = { QPoint(190,75),{198,75},{198,80} };
+	p.drawLine(l[0], l[1]);
+	p.drawLine(l[1], l[2]);
+
+	l = { QPoint(190,115),{198,115},{198,110} };
+	p.drawLine(l[0], l[1]);
+	p.drawLine(l[1], l[2]);	
 }
 
 

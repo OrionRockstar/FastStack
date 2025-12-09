@@ -70,25 +70,29 @@ void drawFilledCircle(Image<T>& img, int xc, int yc, int radius) {
     }
 }
 
-
-
 template<typename T>
 Image<T> StarMask::generateStarMask(const Image<T>& src) {
 
 	StarVector sv = m_sd.DAOFIND(src);
     Image<T> mask(src.rows(), src.cols());
 
-    //x2/a2 + y2/b2 = 1
-    for (auto star : sv) {
-        int xc = star.xc;
-        int yc = star.yc;
-        int r = math::max(star.radius_x, star.radius_y);//star.avgRadius();
-        
-        //drawCircle(mask, xc, yc, r);
-        for (int j = yc - r; j <= yc + r; ++j)
-            for (int i = xc - r; i <= xc + r; ++i)
-                if (mask.isInBounds(i, j) && math::distancef( star.xc, star.yc, i, j) <= r)
-                    mask(i, j) = (m_real_value) ? src(i, j) : Pixel<T>::max();
+    for (const Star& star : sv) {
+        float ct = cos(star.theta);
+        float st = sin(star.theta);
+        int rx2 = star.radius_x * star.radius_x;
+        int ry2 = star.radius_y * star.radius_y;
+
+        //mask(star.xc, star.yc) = Pixel<T>::max();
+        for (int y = star.yc - star.radius_y; y <= int(star.yc + star.radius_y); ++y) {
+            for (int x = star.xc - star.radius_x; x <= int(star.xc + star.radius_x); ++x) {
+                if (mask.isInBounds(x, y)) {
+                    double X = (x - star.xc) * ct + (y - star.yc) * st;
+                    double Y = -(x - star.xc) * st + (y - star.yc) * ct;
+                    if (((X * X) / rx2) + ((Y * Y) / ry2) <= 1.0)
+                        mask(x, y) = (m_real_value) ? src(x, y) : Pixel<T>::max();
+                }
+            }
+        }
     }
 
     GaussianFilter(m_stddev).apply(mask);

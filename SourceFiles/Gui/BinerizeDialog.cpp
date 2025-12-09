@@ -4,7 +4,7 @@
 #include "ImageWindow.h"
 
 
-BinerizeDialog::BinerizeDialog(QWidget* parent) : ProcessDialog("Binerize", QSize(500, 175), FastStack::recast(parent)->workspace()) {
+BinerizeDialog::BinerizeDialog(Workspace* parent) : ProcessDialog("Binerize", QSize(500, 175), parent) {
 
 	setDefaultTimerInterval(150);
 

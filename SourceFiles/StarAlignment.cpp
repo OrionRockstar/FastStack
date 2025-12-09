@@ -150,7 +150,7 @@ ImageSelectionDialog::ImageSelectionDialog(QMdiArea& workspace, QWidget* parent)
 
 
 
-StarAlignmentDialog::StarAlignmentDialog(QWidget* parent) : ProcessDialog("StarAlignment", QSize(540, 465), FastStack::recast(parent)->workspace(), false, false) {
+StarAlignmentDialog::StarAlignmentDialog(Workspace* parent) : ProcessDialog("StarAlignment", QSize(540, 465), parent, false, false) {
 
 	m_img_list = new ListWidget(drawArea());
 	m_img_list->resize(365, m_img_list->sizeHint().height());

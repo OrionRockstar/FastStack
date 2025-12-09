@@ -129,7 +129,7 @@ class CalibrationCombinationDialog : public ProcessDialog {
 	IntegrationGroupBox* m_integration_gb = nullptr;
 
 public:
-	CalibrationCombinationDialog(QWidget* parent = nullptr);
+	CalibrationCombinationDialog(Workspace* parent = nullptr);
 
 private:
 

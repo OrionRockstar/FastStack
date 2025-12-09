@@ -149,14 +149,15 @@ class Song {
 	QString m_artist;
 
 public:
-	Song(const std::filesystem::path& file_path) : m_path(file_path) {
+	Song(const std::filesystem::path& file_path) {
 
-		TagLib::FileRef file(m_path.c_str());
+		TagLib::FileRef file(file_path.c_str());
 		auto tag = file.tag();
-		
-		if (tag == nullptr)
+
+		if (tag == nullptr || tag->isEmpty())
 			return;
 
+		m_path = file_path;
 		m_track_num = QString::number(tag->track());
 		m_title = tag->title().toCString(true);
 		m_album = tag->album().toCString(true);
@@ -164,14 +165,15 @@ public:
 		m_duration = timePointFromSeconds(file.audioProperties()->lengthInSeconds());
 	}
 
-	Song(const QString& file_path) : m_path(file_path.toStdString()) {
-
-		TagLib::FileRef file(m_path.c_str());
+	Song(const QString& file_path) {
+		
+		TagLib::FileRef file(file_path.toStdString().c_str());
 		auto tag = file.tag();
 
-		if (tag == nullptr)
+		if (tag == nullptr || tag->isEmpty())
 			return;
 
+		m_path = file_path.toStdString();
 		m_track_num = QString::number(tag->track());
 		m_title = tag->title().toCString(true);
 		m_album = tag->album().toCString(true);
@@ -180,6 +182,8 @@ public:
 	}
 
 	Song() = default;
+
+	bool isValid()const { return m_path.empty(); }
 
 	std::filesystem::path path()const { return m_path; }
 
@@ -222,7 +226,7 @@ public:
 
 private:
 	void drawPrimitive(QStyle::PrimitiveElement element, const QStyleOption* opt, QPainter* p, const QWidget* widget) const override {
-
+		
 		if (element == QStyle::PE_IndicatorItemViewItemDrop) {
 			p->setPen(QPen(QColor(0,255,255), 1));
 			if (!opt->rect.isNull()) 
@@ -261,7 +265,7 @@ signals:
 	void rowDoubleClicked(int row);
 
 public:
-	bool isAudioFile(const QString& file) {
+	static bool isAudioFile(const QString& file) {
 
 		auto ext = QFileInfo(file).suffix();
 		if (ext == "mp3" || ext == "wav" || ext == "flac")
@@ -270,7 +274,7 @@ public:
 		return false;
 	}
 
-	bool isAudioFile(const std::filesystem::path& file) {
+	static bool isAudioFile(const std::filesystem::path& file) {
 
 		auto ext = file.extension();
 		if (ext == ".mp3" || ext == ".wav" || ext == ".flac")
@@ -300,7 +304,6 @@ public:
 	}
 
 	bool nextSong() {
-
 		if (m_current_row + 1 >= this->rowCount()) {
 			if (!empty())
 				item(m_current_row, 0)->setIcon(QIcon());
@@ -311,14 +314,18 @@ public:
 	}
 
 	void onPlay() {
-		item(m_current_row, 0)->setIcon(m_sound_icon);
+		if (item(m_current_row, 0))
+			item(m_current_row, 0)->setIcon(m_sound_icon);
 	}
 
 	void onPause() {
-		item(m_current_row, 0)->setIcon(m_no_sound_icon);
+		if (item(m_current_row, 0))
+			item(m_current_row, 0)->setIcon(m_no_sound_icon);
 	}
 
 private:
+	static bool mimeHasAudio(const QMimeData* mime);
+
 	void moveRow(int row, int new_row);
 
 	void showContextMenu(const QPoint& pos);
@@ -334,6 +341,8 @@ private:
 	void mousePressEvent(QMouseEvent* e);
 
 	void mouseDoubleClickEvent(QMouseEvent* e);
+
+	//QStringList mimeTypes() const { return { m_format, "application/x-qt-windows-mime" }; }
 };
 
 
@@ -361,6 +370,32 @@ private:
 
 
 
+class MediaPlayer : public sf::Music {
+
+	QTimer m_timer;
+	float m_volume = 100.0;
+	float m_delta = 0.0;
+	QMetaObject::Connection m_connection;
+
+public:
+	void setVolume(float volume) {
+		sf::Music::setVolume(m_volume = volume);
+	}
+
+	void playFadeIn(uint32_t duration_ms = 2'000);
+
+	void pauseFadeOut(uint32_t duration_ms = 2'000);
+
+private:
+	void fadeIn();
+
+	void fadeOut();
+};
+
+
+
+
+
 
 class MediaPlayerDialog : public Dialog {
 	Q_OBJECT
@@ -380,7 +415,7 @@ private:
 	Song* m_current_song = nullptr;
 	QLabel* m_current_song_label = nullptr;
 
-	sf::Music m_music_player;
+	MediaPlayer m_music_player;
 public:
 	MediaPlayerDialog(QWidget* widget = nullptr);
 
@@ -391,6 +426,8 @@ private:
 
 	void addMediaButtons();
 
-	void onPlay_Pause(bool play);
+	void onPlay();
+
+	void onPause();
 };
 

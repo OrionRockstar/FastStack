@@ -4,8 +4,85 @@
 #include "CustomWidgets.h"
 #include <QtDataVisualization/Q3DSurface>
 #include <QtDataVisualization/Q3DScatter>
-#include <QtDataVisualization/QSurfaceDataProxy>
 #include "HistogramView.h"
+#include "StarDetector.h"
+
+class PSFTable : public QTableWidget {
+	Q_OBJECT
+private:
+	static const int m_columns = 13;
+
+public:
+	PSFTable(QWidget* parent = nullptr);
+
+signals:
+	void psfSelected(const PSF* psf);
+
+public:
+	void selectPSF(const PSF* psf);
+
+	void addRow(const PSF& psf);
+
+	bool event(QEvent* e);
+
+	void mousePressEvent(QMouseEvent* e);
+
+	void mouseReleaseEvent(QMouseEvent* e);
+};
+
+
+
+
+
+class PSFUtilityDialog : public Dialog {
+	Q_OBJECT
+
+private:
+	StarDetector m_sd;
+	const Image8* m_img;
+
+	QLabel* m_stars_detected = nullptr;
+	QLabel* m_average_FWHM = nullptr;
+
+	PSFVector m_psf_vector;
+	PSFTable* m_psf_table = nullptr;
+	const int columns = 13;
+
+	DoubleInput* m_sigmaK_input = nullptr;
+	DoubleInput* m_roundness_input = nullptr;
+	ComboBox* m_psf_combo = nullptr;
+	DoubleSpinBox* m_beta_sb = nullptr;
+
+	PushButton* m_run_psf_pb = nullptr;
+	PushButton* m_clear_pb = nullptr; //clears psf_list/table
+	PushButton* m_reset_pb = nullptr; //resets star_detector and respective controls
+
+public:
+	PSFUtilityDialog(QWidget* parent = nullptr);
+
+	template<typename T>
+	PSFUtilityDialog(const Image<T>& img, const QString& name, QWidget* parent = nullptr);
+
+signals:
+	void onDetection(PSFVector* psf_detector);
+
+	void psfSelected(const PSF* psf);
+
+	void psfCleared();
+
+public:
+	void selectPSF(const PSF* psf);
+
+private:
+	void addStarDetctionInputs();
+
+	void addButtons();
+
+	void runPSFDetection();
+
+	void closeEvent(QCloseEvent* e);
+};
+
 
 
 struct Statistics {

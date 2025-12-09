@@ -7,8 +7,6 @@ class AdaptiveStretchDialog : public ProcessDialog {
 	Q_OBJECT
 
 private:
-	//const QString m_name = "AdaptiveStretch";
-
 	AdaptiveStretch m_as;
 
 	DoubleLineEdit* m_noise_le;
@@ -28,7 +26,7 @@ private:
 	//QLineSeries* m_series;
 	//QChart* m_graph;
 public:
-	AdaptiveStretchDialog(QWidget* parent);
+	AdaptiveStretchDialog(Workspace* parent);
 
 private:
 	void addNoiseThresholdInputs();

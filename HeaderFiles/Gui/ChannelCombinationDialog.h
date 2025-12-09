@@ -10,13 +10,13 @@ class ChannelCombinationDialog : public ProcessDialog {
 	QButtonGroup* m_colorspace_bg;
 
 	CheckBox* m_red_cb;
-	ComboBox* m_red_combo;
+	ImageComboBox* m_red_combo;
 
 	CheckBox* m_green_cb;
-	ComboBox* m_green_combo;
+	ImageComboBox* m_green_combo;
 
 	CheckBox* m_blue_cb;
-	ComboBox* m_blue_combo;
+	ImageComboBox* m_blue_combo;
 
 public:
 	ChannelCombinationDialog(QWidget* parent);

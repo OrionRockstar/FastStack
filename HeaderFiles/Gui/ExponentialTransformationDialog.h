@@ -15,7 +15,7 @@ class ExponentialTransformationDialog : public ProcessDialog {
 	CheckBox* m_lightness_cb = nullptr;
 
 public:
-	ExponentialTransformationDialog(QWidget* parent = nullptr);
+	ExponentialTransformationDialog(Workspace* parent = nullptr);
 
 private:
 	void addMethodInput();

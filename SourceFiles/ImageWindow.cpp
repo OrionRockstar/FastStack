@@ -4,77 +4,84 @@
 #include "FastStackToolBar.h"
 #include "ImageGeometryDialogs.h"
 #include "ImageWindowMenu.h"
-
-
-
-void GLImageLabel::initializeGL() {
-}
-
-void GLImageLabel::paintGL() {
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    //QPainter p(this);
-
-    //p.setOpacity(m_opacity);
-
-    //if (m_image != nullptr)
-        //p.drawImage(QPoint(0, 0), *m_image);
-
-    //if (m_mask_visible && m_mask != nullptr)
-        //p.drawImage(QPoint(0, 0), *m_mask);
-        // 
-    m_texture->bind();
-
-    glBegin(GL_QUADS);
-    glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
-    glTexCoord2f(1.0f, 0.0f); glVertex2f(1.0f, -1.0f);
-    glTexCoord2f(1.0f, 1.0f); glVertex2f(1.0f, 1.0f);
-    glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, 1.0f);
-    glEnd();
-
-    m_texture->release();
-    //p.drawPixmap(mapFromGlobal(QCursor::pos()), m_cross_cursor);
-    //QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
-    //f->glClear(GL_COLOR_BUFFER_BIT);
-    //f->dr
-}
+#include "ProcessDialog.h"
 
 
 ImageLabel::ImageLabel(const QImage& img, QWidget* parent) : m_image(&img), QLabel(parent) {
 
-    
     this->setAttribute(Qt::WA_Hover);
-    installEventFilter(this);
-    this->resetCursor();
-
-    //m_ca = new CursorArea(this);
-    //this->setCursor(Qt::BlankCursor);
-    //this->setMouseTracking(true)
+    this->setCrossCursor();
 }
 
-void ImageLabel::paintEvent(QPaintEvent* event) {
+void ImageLabel::paintEvent(QPaintEvent* e ) {
 
     QPainter p(this);
     p.setOpacity(m_opacity);
 
     if (m_image != nullptr)
-        p.drawImage(QPoint(0, 0), *m_image);
+        p.drawImage(QPoint(0,0), *m_image);
+}
+
+
+
+
+
+ImageWindowLabel::ImageWindowLabel(const QImage& img, const ImageWindowBase* iw, QWidget* parent) : m_iw(iw), ImageLabel(img, parent) {
+
+    installEventFilter(this);
+}
+
+void ImageWindowLabel::paintEvent(QPaintEvent* e) {
+
+    ImageLabel::paintEvent(e);
+
+    QPainter p(this);
+    p.setOpacity(opacity());
 
     if (m_mask_visible && m_mask != nullptr)
         p.drawImage(QPoint(0, 0), *m_mask);
 
-    //p.drawPixmap(mapFromGlobal(QCursor::pos()), m_cros_cur);
+    p.setRenderHint(QPainter::Antialiasing);
+    
+    if (m_iw->psfVector()) {
+        QPointF offset = reinterpret_cast<const ImageWindow8*>(m_iw)->sourceOffset().toQPointF(); 
+        auto f = m_iw->factor();
+        QRect r = rect();
+        r.adjust(-50*f, -50*f, 50*f, 50*f);
+
+        for (const PSF& psf : *m_iw->psfVector()) {
+            float dx = (psf.xc - offset.x()) * f;
+            float dy = (psf.yc - offset.y()) * f;
+
+            if (&psf == m_iw->selectedPSF()) {
+                p.setPen(Qt::green);
+                p.drawLine(QPointF(dx,0), QPointF(dx,height()));
+                p.drawLine(QPointF(0, dy), QPointF(width(), dy));
+            }
+            else {
+                if (psf.saturated)
+                    p.setPen(QColor( 0, 229, 229));
+                else
+                    p.setPen(QColor(229, 0, 229));
+            }
+            if (r.contains(dx, dy)) {
+                p.translate(dx, dy);
+                p.rotate(math::radiansToDegrees(psf.theta));
+                p.drawEllipse(QPointF(0.0f, 0.0f), f * psf.fwhmx, f * psf.fwhmy);
+                p.resetTransform();
+            }
+        }
+    }
 }
 
-bool ImageLabel::eventFilter(QObject* object, QEvent* event) {
+bool ImageWindowLabel::eventFilter(QObject* object, QEvent* event) {
 
     if (event->type() == QEvent::MouseButtonPress)
         if (reinterpret_cast<QMouseEvent*>(event)->buttons() == Qt::LeftButton)
             this->setCursor(m_pan_cursor);
 
     if (event->type() == QEvent::MouseButtonRelease)
-        this->resetCursor();
+        this->setCrossCursor();
 
     return false;
 }
@@ -99,64 +106,9 @@ static QImage::Format qimageFormat(int channels = 3) {
 
 
 
-ImageWindowToolbar::ImageWindowToolbar(int height, QWidget* parent) : QWidget(parent) {
-
-    this->setFixedWidth(m_width);
-    this->setMinimumHeight(m_width * 1);
-    this->resize(m_width, height);
-    this->setAttribute(Qt::WA_NoMousePropagation);
-
-    QPalette pal = QPalette();
-    pal.setColor(QPalette::Window, QColor(39,39,39));
-    pal.setColor(QPalette::ButtonText, Qt::white);
-    this->setPalette(pal);
-
-    m_bg = new QButtonGroup(this);
-    m_bg->setExclusive(false);
-
-    m_bg->addButton(m_reset_pb = new FlatPushButton("R", this));
-    m_reset_pb->setToolTip("Reset display");
-
-    m_bg->addButton(m_hist_pb = new FlatPushButton("H", this));
-    m_hist_pb->setToolTip("Histogram");
-
-    m_bg->addButton(m_stats_pb = new FlatPushButton("S", this));
-    m_stats_pb->setToolTip("Statistics");
-
-    m_bg->addButton(m_img3D_pb = new FlatPushButton("3D", this));
-    m_img3D_pb->setToolTip("3D Image");
-
-    m_bg->addButton(m_stf_pb = new FlatCheckablePushButton("STF", this));
-    m_stf_pb->setToolTip("Screen Transfer Function");
-    m_stf_pb->setFont(QFont("Segoe UI", 8));
-
-    m_bg->addButton(m_zoom_win_pb = new FlatCheckablePushButton("Z", this));
-    m_zoom_win_pb->setToolTip("Zoom Window");
-
-    for (auto pb : m_bg->buttons()) {
-        pb->resize(m_width, m_width);
-        pb->setPalette(pal);
-        pb->move(0, height + (m_bg->id(pb) + 1) * m_width);
-    }
-
-
-    this->show();
-}
-
-void ImageWindowToolbar::resizeEvent(QResizeEvent* e) {
-
-    QWidget::resizeEvent(e);
-
-    for (auto pb : m_bg->buttons()) 
-        pb->move(0, height() + (m_bg->id(pb) + 1) * m_width);
-}
-
-
-
-
-
-
 ImageWindowBase::ImageWindowBase(const QString& name, Workspace* parent) : m_name(name), m_workspace(parent), QWidget(parent) {
+
+    using IWB = ImageWindowBase;
 
     int count = 0;
     for (auto sw : m_workspace->subWindowList()) {
@@ -168,8 +120,31 @@ ImageWindowBase::ImageWindowBase(const QString& name, Workspace* parent) : m_nam
     m_name = name + ((count != 0) ? QString::number(count) : "");
 
     m_sw_parent = m_workspace->addImageSubWindow(new ImageSubWindow(this));
+
+    m_toolbar = new ImageWindowToolbar(this);
+    m_sa = new IWScrollArea(this);
+    m_sa->setHorizontalScrollBar(m_sbX = new ScrollBar());
+    m_sa->setVerticalScrollBar(m_sbY = new ScrollBar());
+    m_image_label = new ImageWindowLabel(m_display, this, m_sa);
+    m_image_label->installEventFilter(this);
+
+
+    m_toolbar->connectToolbar(this, &IWB::resetWindowSize, &IWB::openHistogramDialog, 
+        &IWB::openStatisticsDialog, &IWB::openImage3DDialog, &IWB::enableSTF, &IWB::enableZoomWindowMode, &IWB::openPSFDialog);
+
+    auto setOpacity = [this](float opacity) {
+        m_image_label->setOpacity(opacity);
+        m_sa->setOpacity(opacity);
+        m_toolbar->setOpacity(opacity);
+        m_sbY->setOpacity(opacity);
+        m_sbX->setOpacity(opacity);
+        update();
+    };
+    connect(m_sw_parent, &ImageSubWindow::actionTriggered, this, std::bind(setOpacity, 0.55));
+    connect(m_sw_parent, &ImageSubWindow::actionFinished, this, std::bind(setOpacity, 1.0));
+
     auto ftb = reinterpret_cast<FastStack*>(m_workspace->parentWidget())->toolbar();
-    connect(this, &ImageWindowBase::pixelValue, ftb->pixelValueLabel(), &PixelValueLabel::displayText);
+    connect(this, &IWB::pixelValue, ftb->pixelValueLabel(), &PixelValueLabel::displayText);
     setAcceptDrops(true);
     this->setAttribute(Qt::WA_DeleteOnClose);
 }
@@ -194,6 +169,13 @@ int ImageWindowBase::computeBinFactor(const QSize& img_size, bool to_workspace)c
     return factor;
 }
 
+void ImageWindowBase::setZoomWindowColor(const QColor& color) {
+
+    m_zwc = color;
+    if (m_zoom_window)
+        m_zoom_window->setPenColor(m_zwc);
+}
+
 void ImageWindowBase::closeEvent(QCloseEvent* e) {
 
     emit windowClosed();
@@ -213,6 +195,12 @@ void ImageWindowBase::dropEvent(QDropEvent* e) {
     ptr->setActiveSubWindow(m_sw_parent);
     reinterpret_cast<ProcessDialog*>(e->source())->processDropped();
     e->acceptProposedAction();
+}
+
+void ImageWindowBase::resiseEvent(QResizeEvent* e) {
+
+    m_toolbar->setHeight(height());
+    m_sa->setGeometry(m_toolbar->width(), 0, width() - m_toolbar->width(), height());
 }
 
 void ImageWindowBase::wheelEvent(QWheelEvent* e) {
@@ -254,6 +242,104 @@ void ImageWindowBase::wheelEvent(QWheelEvent* e) {
         this->setWindowTitle("1:" + str + " " + m_name);
 }
 
+void ImageWindowBase::enableZoomWindowMode(bool enable) {
+
+    m_enable_zoom_win = m_draw_zoom_win = enable;
+
+    if (m_draw_zoom_win)
+        m_image_label->setCursor(m_pencil_cursor);
+
+    else {
+        m_image_label->setCrossCursor();
+        if (m_zoom_window)
+            m_zoom_window->close();
+    }
+}
+
+void ImageWindowBase::onZoomWindowClose() {
+
+    m_zoom_window.release();
+
+    m_draw_zoom_win = m_enable_zoom_win;
+
+    if (m_draw_zoom_win)
+        m_image_label->setCursor(m_pencil_cursor);
+
+    emit zoomWindowClosed();
+}
+
+
+
+
+ImageWindowToolbar::ImageWindowToolbar(QWidget* parent) : QWidget(parent) {
+
+    this->setFixedWidth(m_width);
+    this->setMinimumHeight(m_width * 1);
+    this->resize(m_width, m_width);
+    this->setAttribute(Qt::WA_NoMousePropagation);
+
+    QPalette pal = QPalette();
+    pal.setColor(QPalette::Window, QColor(39, 39, 39));
+    pal.setColor(QPalette::ButtonText, Qt::white);
+    this->setPalette(pal);
+
+    m_bg = new QButtonGroup(this);
+    m_bg->setExclusive(false);
+
+    m_bg->addButton(m_reset_pb = new FlatPushButton("R", this));
+    m_reset_pb->setToolTip("Reset display");
+
+    m_bg->addButton(m_hist_pb = new FlatPushButton("H", this));
+    m_hist_pb->setToolTip("Histogram");
+
+    m_bg->addButton(m_stats_pb = new FlatPushButton("S", this));
+    m_stats_pb->setToolTip("Statistics");
+
+    m_bg->addButton(m_img3D_pb = new FlatPushButton("3D", this));
+    m_img3D_pb->setToolTip("3D Image");
+
+    m_bg->addButton(m_stf_pb = new FlatCheckablePushButton("STF", this));
+    m_stf_pb->setToolTip("Screen Transfer Function");
+    m_stf_pb->setFont(QFont("Segoe UI", 8));
+
+    m_bg->addButton(m_zoom_win_pb = new FlatCheckablePushButton("Z", this));
+    m_zoom_win_pb->setToolTip("Zoom Window");
+
+    m_bg->addButton(m_psf_pb = new FlatPushButton("PSF", this));
+    m_psf_pb->setToolTip("Point-Spread-Function");
+
+    for (auto pb : m_bg->buttons()) {
+        pb->resize(m_width, m_width);
+        pb->setPalette(pal);
+        pb->move(0, height() + (m_bg->id(pb) + 1) * m_width);
+    }
+
+    this->show();
+}
+
+void ImageWindowToolbar::resizeEvent(QResizeEvent* e) {
+
+    QWidget::resizeEvent(e);
+
+    for (auto pb : m_bg->buttons())
+        pb->move(0, height() + (m_bg->id(pb) + 1) * m_width);
+}
+
+void ImageWindowToolbar::connectToolbar(const QObject* receiver, void (IWB::* reset)(), void (IWB::* histogram)(),
+    void (IWB::* stats)(), void (IWB::* _3dimg)(), void (IWB::* stf)(bool),
+    void (IWB::* zoom_win)(bool), void (IWB::* psf)()) {
+
+    connect(m_reset_pb, &QPushButton::released, receiver, reset);
+    connect(m_hist_pb, &QPushButton::released, receiver, histogram);
+    connect(m_stats_pb, &QPushButton::released, receiver, stats);
+    connect(m_img3D_pb, &QPushButton::released, receiver, _3dimg);
+    connect(m_stf_pb, &QPushButton::toggled, receiver, stf);
+    connect(m_zoom_win_pb, &QPushButton::toggled, receiver, zoom_win);
+    connect(m_psf_pb, &PushButton::released, receiver, psf);
+}
+
+
+
 
 
 template<typename T>
@@ -272,30 +358,23 @@ ImageWindow<T>::ImageWindow(Image<T>&& img, QString name, Workspace* parent) : m
     m_dchannels = m_source.channels();
     m_display = QImage(cols(), rows(), qimageFormat(channels()));
 
-    m_toolbar = new ImageWindowToolbar(rows(), this);
-    using IWT = ImageWindow<T>;
-    m_toolbar->connectToolbar(this, &IWT::resetWindowSize, & IWT::openHistogramDialog, & IWT::openStatisticsDialog, & IWT::openImage3DDialog, & IWT::enableSTF, & IWT::enableZoomWindowMode);
+    auto actionX = [this](int action) {
+        m_offset.x = m_sbX->sliderPosition() / factor();
+        displayImage();
+        if (m_zoom_window)
+            m_zoom_window->moveBy(0, 0);
+    };
+    connect(m_sbX, &QScrollBar::actionTriggered, this, actionX);
 
-    m_sa = new IWScrollArea(this);
-    m_sa->setGeometry(m_toolbar->width(), 0, cols(), rows());
-    instantiateScrollBars();
-
-    m_image_label = new ImageLabel(m_display, m_sa);
-    m_image_label->setGeometry(0, 0, cols(), rows());
-    m_image_label->installEventFilter(this);
+    auto actionY = [this](int action) {
+        m_offset.y = m_sbY->sliderPosition() / factor();
+        displayImage();
+        if (m_zoom_window)
+            m_zoom_window->moveBy(0, 0);
+    };
+    connect(m_sbY, &QScrollBar::actionTriggered, this, actionY);
 
     m_sw_parent->resizeToFit(cols() + m_toolbar->width(), rows());
-
-    auto setOpacity = [this](float opacity) {
-        m_image_label->setOpacity(opacity);
-        m_sa->setOpacity(opacity);
-        m_toolbar->setOpacity(opacity);
-        m_sbY->setOpacity(opacity);
-        m_sbX->setOpacity(opacity);
-        update();
-    };
-    connect(m_sw_parent, &ImageSubWindow::actionTriggered, this, std::bind(setOpacity, 0.55));
-    connect(m_sw_parent, &ImageSubWindow::actionFinished, this, std::bind(setOpacity, 1.0));
 
     emit windowCreated();
 
@@ -306,13 +385,17 @@ ImageWindow<T>::ImageWindow(Image<T>&& img, QString name, Workspace* parent) : m
 template<typename T>
 void ImageWindow<T>::setMask(const ImageWindow<uint8_t>* mask) {
 
+    if (mask == nullptr)
+        return;
+
     if (mask->channels() > channels())
+        return;
+
+    if (!m_source.isSameSize(mask->source()))
         return;
 
     m_mask = mask;
     connect(m_mask, &ImageWindowBase::windowClosed, this, &ImageWindow<T>::removeMask);
-    //remove mask if mask is updated via geometry(just check if dims match)
-
     m_mask_display = QImage(cols(), rows(), QImage::Format_ARGB32);
     m_image_label->setMask(&m_mask_display);
 
@@ -329,7 +412,6 @@ void ImageWindow<T>::removeMask() {
     m_mask_display = QImage();
     m_image_label->removeMask();
     m_image_label->draw();
-
     if (previewExists())
         preview()->updatePreview(false);   
 }
@@ -338,7 +420,6 @@ template<typename T>
 void ImageWindow<T>::enableMask(bool enable) { 
 
     m_mask_enabled = enable; 
-
     if (previewExists())
         preview()->updatePreview(false);
 }
@@ -348,7 +429,6 @@ void ImageWindow<T>::invertMask(bool invert) {
 
     m_invert_mask = invert;
     displayImage();
-
     if(previewExists())
         preview()->updatePreview(false);
 }
@@ -359,15 +439,6 @@ void ImageWindow<T>::showMask(bool show) {
     m_show_mask = show;
     m_image_label->setMaskVisible(show);
     displayImage();
-}
-
-template<typename T>
-void ImageWindow<T>::setZoomWindowColor(const QColor& color) {
-    
-    m_zwc = color;
-
-    if (m_zoom_window)
-        m_zoom_window->setPenColor(m_zwc);
 }
 
 template<typename T>
@@ -389,7 +460,7 @@ void ImageWindow<T>::convertToGrayscale() {
     if (channels() != 3)
         return;
 
-    m_source.RGBtoGray();
+    m_source.toGrayscale();
     m_dchannels = m_source.channels();
 
     m_display = QImage(cols(), rows(), QImage::Format::Format_Grayscale8);
@@ -403,32 +474,6 @@ void ImageWindow<T>::convertToGrayscale() {
     updateHistogramDialog();
     //emit im
 }
-
-template<typename T>
-void ImageWindow<T>::resetWindowSize() {
-
-    int factor = computeBinFactor(QSize(m_source.cols(), m_source.rows()), true);
-    m_factor_poll = (factor == 1) ? factor : -factor;
-    m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
-    m_drows = m_source.rows() * m_factor;
-    m_dcols = m_source.cols() * m_factor;
-
-    m_offset = { 0,0 };
-    m_sw_parent->resizeToFit(cols() + m_toolbar->width(), rows());
-
-    zoom(0, 0);
-
-    if (m_zoom_window)
-        m_zoom_window->scaleWindow();
-
-    QString str = QString::number(abs(m_factor_poll));
-
-    if (m_factor > 1)
-        this->setWindowTitle(str + ":1" + " " + m_name);
-    else
-        this->setWindowTitle("1:" + str + " " + m_name);
-}
-
 
 template<typename T>
 bool ImageWindow<T>::eventFilter(QObject* object, QEvent* event) {
@@ -446,12 +491,30 @@ bool ImageWindow<T>::eventFilter(QObject* object, QEvent* event) {
     return false;
 }
 
+
 template<typename T>
 void ImageWindow<T>::mousePressEvent(QMouseEvent* event) {
 
     if (event->buttons() == Qt::LeftButton) {
-       QPoint p = m_image_label->mapFrom(this, event->pos());
-       m_mousePos = p;
+        QPoint p = m_image_label->mapFrom(this, event->pos());
+        m_mousePos = p;
+        if (m_image_label->rect().contains(p)) {
+            if (m_psf_vector) {
+                QPoint pt = p / factor();
+                for (const PSF& psf : *m_psf_vector) {
+                    if (psf.xc - psf.fwhmx - m_offset.x < pt.x()) {
+                        if (pt.x() < psf.xc + psf.fwhmx - m_offset.x) {
+                            if (psf.yc - psf.fwhmy - m_offset.y < pt.y()) {
+                                if (pt.y() < psf.yc + psf.fwhmy - m_offset.y) {
+                                    emit psfSelected(m_selected_psf = &psf);
+                                    m_image_label->update();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if (m_draw_zoom_win && m_image_label->rect().contains(p)) {
             m_image_label->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -499,15 +562,13 @@ void ImageWindow<T>::mouseReleaseEvent(QMouseEvent* event) {
         connect(m_zoom_window.get(), &ZoomWindow::windowClosed, this, &ImageWindow<T>::onZoomWindowClose);
 
         emit zoomWindowCreated();
-        emit m_zoom_window->windowMoved();
     }
 }
 
 template<typename T>
 void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
 
-    m_toolbar->resize(m_toolbar->width(), height());
-    m_sa->setGeometry(m_toolbar->width(), 0, width() - m_toolbar->width(), height());
+    ImageWindowBase::resiseEvent(event);
 
     double dx = (width() - event->oldSize().width()) / factor();
     if (dx > 0) {
@@ -528,9 +589,6 @@ void ImageWindow<T>::resizeEvent(QResizeEvent* event) {
         else
             m_drows -= dy;
     }
-
-    if(m_zoom_window)
-        m_zoom_window->moveBy(0,0);
 
     showScrollBars();
     resizeImageLabel();
@@ -554,68 +612,34 @@ void ImageWindow<T>::wheelEvent(QWheelEvent* event) {
 }
 
 template<typename T>
-void ImageWindow<T>::instantiateScrollBars() {
-
-    m_sbX = new ScrollBar(m_sa);
-    m_sa->setHorizontalScrollBar(m_sbX);
-
-    auto actionX = [this](int action) {
-        m_offset.x = m_sbX->sliderPosition() / factor();
-        displayImage();
-        if (m_zoom_window)
-            m_zoom_window->moveBy(0,0);
-    };
-    connect(m_sbX, &QScrollBar::actionTriggered, this, actionX);
-
-    m_sbY = new ScrollBar(m_sa);
-    m_sa->setVerticalScrollBar(m_sbY);
-
-    auto actionY = [this](int action) {
-        m_offset.y = m_sbY->sliderPosition() / factor();
-        displayImage();
-        if (m_zoom_window)
-            m_zoom_window->moveBy(0,0);
-    };
-    connect(m_sbY, &QScrollBar::actionTriggered, this, actionY);
-}
-
-template<typename T>
-void ImageWindow<T>::showHorizontalScrollBar() {
-
-    double page_step = (cols() / factor()) * oldFactor();
-
-    m_sbX->setRange(0, m_source.cols() * factor() - page_step);
-    m_sbX->setValue(m_offset.x * factor());
-    m_sbX->setPageStep(page_step);
-
-    m_sa->showHorizontalScrollBar();
-}
-
-template<typename T>
-void ImageWindow<T>::showVerticalScrollBar() {
-
-    double page_step = (rows() / factor()) * oldFactor();
-
-    m_sbY->setRange(0, m_source.rows() * factor() - page_step);
-    m_sbY->setValue(m_offset.y * factor());
-    m_sbY->setPageStep(page_step);
-
-    m_sa->showVerticalScrollBar();
-}
-
-template<typename T>
 void ImageWindow<T>::showScrollBars() {
+
+    auto showHSB = [this]() {
+        double page_step = (cols() / factor()) * oldFactor();
+        m_sbX->setRange(0, m_source.cols() * factor() - page_step);
+        m_sbX->setValue(m_offset.x * factor());
+        m_sbX->setPageStep(page_step);
+        m_sa->showHorizontalScrollBar();
+    };
+
+    auto showVSB = [this]() {
+        double page_step = (rows() / factor()) * oldFactor();
+        m_sbY->setRange(0, m_source.rows() * factor() - page_step);
+        m_sbY->setValue(m_offset.y * factor());
+        m_sbY->setPageStep(page_step);
+        m_sa->showVerticalScrollBar();
+    };
 
     int w = m_source.cols() * factor();
     int h = m_source.rows() * factor();
 
     if ((width() - m_toolbar->width()) < w)
-        showHorizontalScrollBar();
+        showHSB();
     else
         m_sa->hideHorizontalScrollBar();
 
     if (height() < h)
-        showVerticalScrollBar();
+        showVSB();
     else
         m_sa->hideVerticalScrollBar();
 
@@ -627,30 +651,30 @@ void ImageWindow<T>::showScrollBars() {
     if (m_sa->isVerticalScrollBarOn() && m_sa->isHorizontalScrollBarOff()) {
         if (vps.width() > cols()) {
             m_drows += m_sbY->thickness();
-            showVerticalScrollBar();
+            showVSB();
             m_sa->hideHorizontalScrollBar();
         }
         else {
             m_drows = m_sa->height() - m_sbX->thickness();
-            showHorizontalScrollBar();
+            showHSB();
         }
     }
 
     else if (m_sa->isHorizontalScrollBarOn() && m_sa->isVerticalScrollBarOff()) {
         if (vps.height() > rows()) {
             m_dcols += m_sbX->thickness();
-            showHorizontalScrollBar();
+            showHSB();
             m_sa->hideVerticalScrollBar();
         }
         else {
             m_dcols = m_sa->width() - m_sbY->thickness();
-            showVerticalScrollBar();
+            showVSB();
         }
     }
 
     else if (m_sa->isVerticalScrollBarOn() && m_sa->isHorizontalScrollBarOn()) {
-        showHorizontalScrollBar();
-        showVerticalScrollBar();
+        showHSB();
+        showVSB();
     }
 
     else {
@@ -662,8 +686,8 @@ void ImageWindow<T>::showScrollBars() {
     (m_sa->isHorizontalScrollBarOn()) ? clipOffsetX() : m_offset.x = 0.0;
     (m_sa->isVerticalScrollBarOn()) ? clipOffsetY() : m_offset.y = 0.0;
 
-    m_drows = math::clip<uint32_t>(rows(), 0, factor() * (m_source.rows() - m_offset.y));
-    m_dcols = math::clip<uint32_t>(cols(), 0, factor() * (m_source.cols() - m_offset.x));
+    m_drows = math::clip(rows(), 0, int(factor() * (m_source.rows() - m_offset.y)));
+    m_dcols = math::clip(cols(), 0, int(factor() * (m_source.cols() - m_offset.x)));
 
 }
 
@@ -943,6 +967,46 @@ void ImageWindow<T>::upsampleToWindow_RGB(int factor) {
 }
 
 
+template<typename T>
+void ImageWindow<T>::resetWindowSize() {
+
+    int factor = computeBinFactor(QSize(m_source.cols(), m_source.rows()), true);
+    m_factor_poll = (factor == 1) ? factor : -factor;
+    m_old_factor = m_factor = 1.0 / abs(m_factor_poll);
+    m_drows = m_source.rows() * m_factor;
+    m_dcols = m_source.cols() * m_factor;
+
+    m_offset = { 0,0 };
+    m_sw_parent->resizeToFit(cols() + m_toolbar->width(), rows());
+
+    zoom(0, 0);
+
+    if (m_zoom_window)
+        m_zoom_window->scaleWindow();
+
+    QString str = QString::number(abs(m_factor_poll));
+
+    if (m_factor > 1)
+        this->setWindowTitle(str + ":1" + " " + m_name);
+    else
+        this->setWindowTitle("1:" + str + " " + m_name);
+}
+
+template<typename T>
+void ImageWindow<T>::openHistogramDialog() {
+
+    if (m_hist_dialog == nullptr) {
+        m_hist_dialog = std::make_unique<HistogramDialog>(name(), m_source, m_workspace);
+        connect(m_hist_dialog.get(), &HistogramDialog::windowClosed, this, [this]() { m_hist_dialog.reset(); });
+    }
+}
+
+template<typename T>
+void ImageWindow<T>::updateHistogramDialog() {
+
+    if (m_hist_dialog != nullptr)
+        m_hist_dialog->histogramView()->drawHistogramView(m_source, Histogram::Resolution::_16bit);
+}
 
 template<typename T>
 void ImageWindow<T>::openStatisticsDialog() {
@@ -982,25 +1046,8 @@ void ImageWindow<T>::updateStatisticsDialog() {
 
         auto& sv = (m_stats_dialog->isChecked()) ? m_sv_clipped : m_sv;
         sv = Statistics::computeStatistics(m_source, m_stats_dialog->isChecked());
-
         m_stats_dialog->updateStats(sv);
     }
-}
-
-template<typename T>
-void ImageWindow<T>::openHistogramDialog() {
-
-    if (m_hist_dialog == nullptr) {
-        m_hist_dialog = std::make_unique<HistogramDialog>(name(), m_source, m_workspace);
-        connect(m_hist_dialog.get(), &HistogramDialog::windowClosed, this, [this]() { m_hist_dialog.reset(); });
-    }
-}
-
-template<typename T>
-void ImageWindow<T>::updateHistogramDialog() {
-
-    if (m_hist_dialog != nullptr) 
-        m_hist_dialog->histogramView()->drawHistogramView(m_source, Histogram::Resolution::_16bit); 
 }
 
 template<typename T>
@@ -1034,35 +1081,23 @@ void ImageWindow<T>::enableSTF(bool enable) {
 }
 
 template<typename T>
-void ImageWindow<T>::enableZoomWindowMode(bool enable) {
+void ImageWindow<T>::openPSFDialog() {
 
-    m_enable_zoom_win = m_draw_zoom_win = enable;
-
-    if (m_draw_zoom_win)
-        m_image_label->setCursor(m_pencil_cursor);
-
-    else {
-        m_image_label->resetCursor();
-        if (m_zoom_window)
-            m_zoom_window->close();
+    if (m_psf_dialog == nullptr) {
+        m_psf_dialog = std::make_unique<PSFUtilityDialog>(m_source, m_name, m_workspace);
+        connect(this, &ImageWindowBase::psfSelected, m_psf_dialog.get(), &PSFUtilityDialog::selectPSF);
+        connect(m_psf_dialog.get(), &PSFUtilityDialog::psfSelected, this, [this](const PSF* psf) { m_selected_psf = psf; m_image_label->update(); });
+        connect(m_psf_dialog.get(), &PSFUtilityDialog::onDetection, this, [this](PSFVector* psf_vector) {
+            m_psf_vector = psf_vector;
+            m_image_label->update();
+            });
+        connect(m_psf_dialog.get(), &PSFUtilityDialog::psfCleared, this, [this]() {
+            m_psf_vector = nullptr;
+            m_selected_psf = nullptr;
+            m_image_label->update();
+            });
+        connect(m_psf_dialog.get(), &PSFUtilityDialog::windowClosed, this, [this]() { m_psf_dialog.reset(); });
     }
-}
-
-template<typename T>
-void ImageWindow<T>::onZoomWindowClose() {
-
-    m_zoom_window.release();
-
-    m_draw_zoom_win = m_enable_zoom_win;
-
-    if (m_draw_zoom_win)
-        m_image_label->setCursor(m_pencil_cursor);
-
-    if (preview())
-        if (preview()->processType() == "")
-            preview()->updatePreview();
-
-    emit zoomWindowClosed();
 }
 
 template class ImageWindow<uint8_t>;
@@ -1153,6 +1188,11 @@ void ZoomWindow::moveBy(int dx, int dy) {
     int y = (m_img_rect.y() - p.y) * m_iw->factor() + dx;
 
     this->move(x,y);
+}
+
+void ZoomWindow::connectZoomWindow2(const ProcessDialog* receiver, void(ProcessDialog::* func)()) {
+    disconnect(m_connection);
+    m_connection = connect(this, &ZoomWindow::windowMoved, receiver, func);
 }
 
 void ZoomWindow::computeImageRect() {
@@ -1335,28 +1375,6 @@ void ZoomWindow::paintEvent(QPaintEvent* e) {
 
 
 
-
-PreviewImageLabel::PreviewImageLabel(const QImage& img, QWidget* parent) : m_image(&img), QLabel(parent) {
-
-    this->setAttribute(Qt::WA_Hover);
-    installEventFilter(this);
-    //this->setMouseTracking(true);
-    this->setCursor(m_cross_cursor);
-}
-
-void PreviewImageLabel::paintEvent(QPaintEvent* event) {
-
-    QPainter p(this);
-    p.setOpacity(m_opacity);
-
-    if (m_image != nullptr)
-        p.drawImage(QPoint(0, 0), *m_image);
-}
-
-
-
-
-
 PreviewWindowBase::PreviewWindowBase(Workspace* workspace, bool ignore_zoom_window) : m_ingore_zoom_window(ignore_zoom_window), QWidget(workspace) {
 
     auto s = screen()->availableSize();
@@ -1390,7 +1408,7 @@ PreviewWindowBase::PreviewWindowBase(Workspace* workspace, bool ignore_zoom_wind
     m_draw_area->setCursor(Qt::ArrowCursor);
     drawArea()->setGeometry(m_border_width, DialogTitleBar::titleBarHeight(), width() - m_border_width, height() - DialogTitleBar::titleBarHeight());
 
-    m_image_label = new PreviewImageLabel(m_display, drawArea());
+    m_image_label = new ImageLabel(m_display, drawArea());
 
     m_timer = new QTimer(this);
     m_timer->setSingleShot(true);
@@ -1501,6 +1519,8 @@ void PreviewWindowBase::resizeEvent(QResizeEvent* e) {
 
 
 
+
+
 template<typename T>
 PreviewWindow<T>::PreviewWindow(ImageWindow<T>* iw, bool ignore_zoomwindow)  : m_image_window(iw), PreviewWindowBase(iw->workspace(), ignore_zoomwindow){
 
@@ -1510,7 +1530,6 @@ PreviewWindow<T>::PreviewWindow(ImageWindow<T>* iw, bool ignore_zoomwindow)  : m
 template<typename T>
 void PreviewWindow<T>::resizeSource() {
 
-    //null
     const Image<T>& src = m_image_window->source();
 
     QSize size = QSize(src.cols(), src.rows());

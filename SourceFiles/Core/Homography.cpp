@@ -84,11 +84,11 @@ Matrix Homography::computeHomography(const StarPairVector& spv) {
     int tvgtotal = int(spv.size());
     int maxmatch = 0;
 
-    double tol = 2.0;
+    float tol = 2.0;
 
     srand(time(NULL));
 
-    for (int iter = 0; iter < 250; iter++) {
+    for (int iter = 0; iter < 500; iter++) {
         int match = 0;
         inliers.clear();
 
@@ -106,11 +106,11 @@ Matrix Homography::computeHomography(const StarPairVector& spv) {
         if (match > maxmatch) {
             maxmatch = match;
             final_inliers = inliers;
-            if (maxmatch >= .98 * tvgtotal) break;
+            if (maxmatch >= 0.98 * tvgtotal) break;
         }
     }
 
-    //std::cout << maxmatch<<" "<<spv.size() << "\n";
+    //std::cout << maxmatch << " " << spv.size() << "\n";
     if (maxmatch < .25 * tvgtotal) {
         homography.fill(std::numeric_limits<double>::quiet_NaN());
         return homography;

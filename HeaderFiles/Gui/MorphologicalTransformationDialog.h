@@ -42,7 +42,7 @@ class MorphologicalTransformationDialog : public ProcessDialog {
 	ComboBox* m_kerenl_size_cb;
 
 public:
-	MorphologicalTransformationDialog(QWidget* parent = nullptr);
+	MorphologicalTransformationDialog(Workspace* parent = nullptr);
 
 private slots:
 	void setMask_true();

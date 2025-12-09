@@ -92,7 +92,7 @@ template<typename T>
 Image32 ABE::createBackgroundModel(const Image<T>& src)const {
 
     Image32 background(src.rows(), src.cols(), src.channels());
-    int number_of_samples = ((src.rows() / distance()) - 1) * ((src.cols() / distance()) - 1);
+    int number_of_samples = (src.rows() / distance()) * (src.cols() / distance());
 
     for (uint32_t ch = 0; ch < src.channels(); ++ch) {
 
@@ -172,7 +172,7 @@ template void ABE::apply(Image16&);
 template void ABE::apply(Image32&);
 
 template<typename T>
-void ABE::applyTo(const Image<T>& src, Image<T>& dst, float scale_factor, const QPointF& p) {
+void ABE::applyTo(const Image<T>& src, Image<T>& dst, float scale_factor) {
 
     Image32 background = createBackgroundModel(src);
 
@@ -196,17 +196,20 @@ void ABE::applyTo(const Image<T>& src, Image<T>& dst, float scale_factor, const 
 
     auto _s = 1 / scale_factor;
 
+    if (dst.cols() != uint32_t(src.cols() * scale_factor) || dst.rows() != uint32_t(src.rows() * scale_factor) || dst.channels() != src.channels())
+        dst = Image<T>(src.rows() * scale_factor, src.cols() * scale_factor, src.channels());
+
     for (int ch = 0; ch < dst.channels(); ++ch) {
         for (int y = 0; y < dst.rows(); ++y) {
             int y_s = y * _s + 0.5;
             for (int x = 0; x < dst.cols(); ++x) {
                 int x_s = x * _s + 0.5;
 
-                dst(x, y, ch) = Pixel<T>::toType(n_copy(x_s, y_s, ch));
+                dst(x, y, ch) = Pixel<T>::toType(n_copy.at(x_s, y_s, ch));
             }
         }
     }
 }
-template void ABE::applyTo(const Image8&, Image8&, float, const QPointF&);
-template void ABE::applyTo(const Image16&, Image16&, float, const QPointF&);
-template void ABE::applyTo(const Image32&, Image32&, float, const QPointF&);
+template void ABE::applyTo(const Image8&, Image8&, float);
+template void ABE::applyTo(const Image16&, Image16&, float);
+template void ABE::applyTo(const Image32&, Image32&, float);

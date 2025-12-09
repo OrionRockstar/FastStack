@@ -157,7 +157,7 @@ void RangeSlider::paintEvent(QPaintEvent* event) {
 
 
 
-RangeMaskDialog::RangeMaskDialog(QWidget* parent) : ProcessDialog("RangeMask", QSize(455, 190), FastStack::recast(parent)->workspace()) {
+RangeMaskDialog::RangeMaskDialog(Workspace* parent) : ProcessDialog("RangeMask", QSize(455, 190), parent) {
 
 	setDefaultTimerInterval(250);
 

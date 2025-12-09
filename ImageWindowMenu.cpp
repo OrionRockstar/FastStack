@@ -130,6 +130,7 @@ void ImageWindowMenu::enableMask(bool enable) {
 void ImageWindowMenu::setMaskColor(const QColor& color) {
 
     ImageWindow8* iw = imageRecast(m_image_window);
+
     switch (iw->type()) {
     case ImageType::UBYTE:
         return iw->setMaskColor(color);

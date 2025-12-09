@@ -2,150 +2,219 @@
 #include "StarDetector.h"
 #include "Maths.h"
 #include "RGBColorSpace.h"
-#include "MorphologicalTransformation.h"
-#include "FITS.h"
-#include "Histogram.h"
+#include "GaussianFilter.h"
 
+template<typename T>
+T localMean(const Image<T>& img, const Star& star, bool circular, int im, int om) {
 
-StarVector StarDetector::combineStarVectors(std::vector<StarVector>& svv) {
+    float xc = star.xc;
+    float yc = star.yc;
 
-    std::array<float, 6> mr = { 1,1,0.5,0.25,0.125,0.0625 };
-    StarVector starvector;
-    starvector.reserve(2500);
+    double mean = 0;
+    int c = 0;
 
-    for (auto& s : svv[0])
-        starvector.emplace_back(s);
+    if (circular) {
 
-    for (int el = 1; el < svv.size(); ++el) {
-        for (int i = 0; i < svv[el].size(); ++i) {
-            bool new_star = true;
-            for (auto& s : starvector) {
-                //bug!! stars at larger scales not added dur to "radaii" overlapping other stars
-                //same star on different scales!?!?
-                if (math::distance(svv[el][i].xc, svv[el][i].yc, s.xc, s.yc) <= s.avgRadius()) {
-                    //s.radius = math::min<int>(s.radius,svv[el][i].radius * mr[el] + 0.5);
-                    new_star = false;
-                    break;
+        int r = star.avgRadius();
+        int r_inner = im * r;
+        int r_outer = om * r;
+
+        for (int y = yc - r_outer; y <= int(yc + r_outer); ++y) {
+            for (int x = xc - r_outer; x <= int(xc + r_outer); ++x) {
+                if (img.isInBounds(x, y)) {
+                    float dist = math::distancef(x, y, star.xc, star.yc);
+                    if (r_inner <= dist && dist <= r_outer) {
+                        mean += img(x, y);
+                        c++;
+                    }
                 }
             }
-            if (new_star)
-                starvector.emplace_back(svv[el][i]);
         }
     }
 
-    svv.clear();
-    svv.shrink_to_fit();
+    else {
 
-    return starvector;
+        int rix = im * star.radius_x;
+        int riy = im * star.radius_y;
+        int rox = om * star.radius_x;
+        int roy = om * star.radius_y;
+
+        int ilx = 2 * rix + 1;
+        int ily = 2 * riy + 1;
+
+        QRect rect(xc - rix, yc - riy, ilx, ily);
+
+        for (int y = yc - roy; y <= int(yc + roy); ++y) {
+            for (int x = xc - rox; x <= int(xc + rox); ++x) {
+                if (!rect.contains({ x,y }) && img.isInBounds(x, y)) {
+                    mean += img(x, y);
+                    c++;
+                }
+            }
+        }
+    }
+
+    return mean / c;
 }
 
+template<typename T>
+std::vector<T> localBackground(const Image<T>& img, const Star& star, bool circular, int im, int om = 3) {
+
+    float xc = star.xc;
+    float yc = star.yc;
+
+    std::vector<T> local_background;
+
+    if (circular) {
+
+        int rad = math::max(star.radius_x, star.radius_y);//star.avgRadius();
+        int r_inner = im * rad;
+        int r_outer = om * rad;
+
+        local_background.reserve((std::_Pi * r_outer * r_outer) - (std::_Pi * r_inner * r_inner));
+        for (int y = yc - r_outer; y <= int(yc + r_outer); ++y) {
+            for (int x = xc - r_outer; x <= int(xc + r_outer); ++x) {
+                if (img.isInBounds(x, y)) {
+                    float dist = math::distancef(x, y, star.xc, star.yc);
+                    if (r_inner <= dist && dist <= r_outer)
+                        local_background.emplace_back(img(x, y));
+                }
+            }
+        }
+    }
+
+    else {
+
+        int rad = star.avgRadius(); //math::max(star.radius_x, star.radius_y);//star.avgRadius();
+
+        int rix = im * rad;
+        int riy = im * rad;
+        int rox = om * rad;
+        int roy = om * rad;
+
+        int ilx = 2 * rix + 1;
+        int ily = 2 * riy + 1;
+
+        local_background.reserve(((2 * rox + 1) * (2 * roy + 1)) - (ilx * ily));
+        QRect rect(xc - rix, yc - riy, ilx, ily);
+
+        for (int y = yc - roy; y <= int(yc + roy); ++y) {
+            for (int x = xc - rox; x <= int(xc + rox); ++x) {
+                if (!rect.contains({ x,y }) && img.isInBounds(x, y)) {
+                    local_background.emplace_back(img(x, y));
+                }
+            }
+        }
+    }
+    
+    local_background.shrink_to_fit();
+    return local_background;
+}
 
 template<typename T>
-T localBackground(const Image<T>& img, const Star& star, int im = 3, int om = 5) {
+T starMean(const Image<T>& img, const Star& star) {
 
     int xc = star.xc;
     int yc = star.yc;
-    int rad = star.avgRadius();//(star.radius_x + star.radius_y) / 2.0;
-    int r_inner = im * rad;//orig 1.5 or 2
-    int r_outer = om * rad;//orig 3 or 4
+    int rx = star.radius_x;
+    int ry = star.radius_y;
 
-    std::vector<T> local_background;
-    local_background.reserve((std::_Pi * r_outer * r_outer) - (std::_Pi * r_inner * r_inner));
+    double sum = 0;
+    int c = 0;
 
-    for (int y = yc - r_outer; y <= yc + r_outer; ++y) {
-        for (int x = xc - r_outer; x <= xc + r_outer; ++x) {
+    for (int y = yc - ry; y <= int(yc + ry); ++y) {
+        for (int x = xc - rx; x <= int(xc + rx); ++x) {
             if (img.isInBounds(x, y)) {
-                float dist = math::distancef(x, y, star.xc, star.yc);
-                if (r_inner < dist && dist < r_outer)
-                    local_background.emplace_back(img(x, y));
+                sum += img(x, y);
+                c++;
             }
         }
     }
 
-    local_background.shrink_to_fit();
-   return math::median(local_background);
+    return sum / c;
 }
 
 template<typename T>
-bool StarDetector::centerGravityFit(const Image<T>& img, const Star& star, PSF& psf, T b, T t) {
+T starStdDev(const Image<T>& img, const Star& star) {
 
-    int pix_count = 0;
+    int xc = star.xc;
+    int yc = star.yc;
+    int rx = star.radius_x;
+    int ry = star.radius_y;
 
-    double intensity_x = 0,
-        intensity_y = 0,
-        intensity2 = 0,
-        flux = 0;
+    double sum = 0;
+    int c = 0;
 
-    double sx = 0, sy = 0;
-
-    for (double y = star.yc - star.radius_y; y <= star.yc + star.radius_y; ++y) {
-        for (double x = star.xc - star.radius_x; x <= star.xc + star.radius_x; ++x) {
-
+    for (int y = yc - ry; y <= int(yc + ry); ++y) {
+        for (int x = xc - rx; x <= int(xc + rx); ++x) {
             if (img.isInBounds(x, y)) {
-                if (img(x, y) > t) {
-                    float pixel = Pixel<float>::toType(T(img(x, y) - b));
-                    double i2 = pixel * pixel;
-                    intensity_x += i2 * x;
-                    intensity_y += i2 * y;
-                    intensity2 += i2;
-                    flux += pixel;
-                    pix_count++;
-                }
-            }
-            else return false;
-        }
-    }
-
-    if (pix_count < 5)
-        return false;
-
-    float xc = intensity_x / intensity2;
-    float yc = intensity_y / intensity2;
-
-
-    for (double y = star.yc - star.radius_y; y <= star.yc + star.radius_y; ++y) {
-        for (double x = star.xc - star.radius_x; x <= star.xc + star.radius_x; ++x) {
-
-            if (img(x, y) > t) {
-                float pixel = Pixel<float>::toType(T(img(x, y) - b));
-                sx += (y - yc) * (y - yc) * pixel;
-                sy += (x - xc) * (x - xc) * pixel;
+                sum += img(x, y);
+                c++;
             }
         }
     }
 
-    psf = PSF(Pixel<float>::toType(img(xc, yc)), xc, yc, sqrt(sx), sqrt(sy), flux, b);
+    float mean = Pixel<float>::toType(T(sum / c));
 
-    if (psf.roundness <= m_roundness)
-        return false;
+    double d, var = 0;
+    for (int y = yc - ry; y <= int(yc + ry); ++y) {
+        for (int x = xc - rx; x <= int(xc + rx); ++x) {
+            if (img.isInBounds(x, y)) {
+                d = img.pixel<float>(x, y) - mean;
+                var += d * d;
+            }
+        }
+    }
 
-    return true;
+    return Pixel<T>::toType(sqrt(var / c));
 }
 
-template<typename T>
-bool StarDetector::gaussianFit(const Image<T>& img, const Star& star, PSF& psf, T b) {
 
-    float logA = logf(Pixel<float>::toType(img(star.xc, star.yc)));
-    int size = (2 * star.radius_x + 1) * (2 * star.radius_y + 1);
+
+template<typename T>
+bool StarDetector::gaussianFit(const Image<T>& orig, const Image<T>& conv, const Star& star, PSF& psf, T b, T t) {
+
+    float logA = logf(Pixel<float>::toType(conv(star.xc, star.yc)));
+    int rx = star.radius_x;
+    int ry = star.radius_y;
+    int lx = (2 * rx + 1);
+    int ly = (2 * ry + 1);
+    int size = lx * ly;
 
     Matrix points(size, 6);
     Matrix d_lum(size);
 
     int pix_count = 0;
 
-    for (double y = star.yc - star.radius_y, row = 0; y <= star.yc + star.radius_y; ++y) {
+    for (int j = 0, row = 0; j < ly; ++j) {
+        double y = star.yc - ry + j;
         double y2 = y * y;
-        for (double x = star.xc - star.radius_x; x <= star.xc + star.radius_x; ++x) {
-            if (img.isInBounds(x, y)) {
-                if (img(x, y) > b) {
-                    points.setRow(row, { 1.0, x, y, x * y ,x * x, y2 });
-                    d_lum[row++] = logA - logf(Pixel<float>::toType(T(img(x, y) - b)));
+        for (int i = 0; i < lx; ++i) {
+            double x = star.xc - rx + i;
+            if (conv.isInBounds(x, y)) {
+                if (conv(x, y) > t) {
+                    points.setRow(row, { 1.0, x, y, x * y, x * x, y2 });
+                    d_lum[row++] = logA - logf(Pixel<float>::toType(T(conv(x, y) - b)));
                     pix_count++;
                 }
             }
             else return false;
         }
     }
+
+    /*for (double y = star.yc - ry, row = 0; y <= star.yc + ry; ++y) {
+        double y2 = y * y;
+        for (double x = star.xc - rx; x <= star.xc + rx; ++x) {
+            if (conv.isInBounds(x, y)) {
+                if (conv(x, y) > t) {
+                    points.setRow(row, { 1.0, x, y, x * y, x * x, y2 });
+                    d_lum[row++] = logA - logf(Pixel<float>::toType(T(conv(x, y) - b)));
+                    pix_count++;
+                }
+            }
+            else return false;
+        }
+    }*/
 
     if (pix_count < 6)
         return false;
@@ -162,48 +231,57 @@ bool StarDetector::gaussianFit(const Image<T>& img, const Star& star, PSF& psf, 
     if (c[4] < e || c[5] < e)
         return false;
 
-    psf = PSF(std::array<double, 6>({ c[0],c[1],c[2],c[3],c[4],c[5] }), img, b);
+    psf = PSF({ c[0],c[1],c[2],c[3],c[4],c[5] }, orig, b);
 
-    if (std::isnan(psf.sx) || std::isnan(psf.sy))
-        return false;
-
-    if (std::isinf(psf.A) || !img.isInBounds(psf.xc, psf.yc))
-        return false;
-
-    if (Pixel<float>::toType(img(psf.xc, psf.yc)) < 1.65 * psf.B)
-        return false;
-
-    if (psf.roundness <= m_roundness)
-        return false;
-
-    return true;
+    return psf.isValid();
 }
 
 template<typename T>
-bool StarDetector::moffatFit(const Image<T>& img, const Star& star, PSF& psf, T b) {
+bool StarDetector::moffatFit(const Image<T>& orig, const Image<T>& conv, const Star& star, PSF& psf, T b, T t) {
 
-    const float i_beta = 1 / -m_beta;
+    const float i_beta = 1 / m_beta;
 
-    float A = Pixel<float>::toType(img(star.xc, star.yc));
-    int size = (2 * star.radius_x + 1) * (2 * star.radius_y + 1);
+    float A = Pixel<float>::toType(conv(star.xc, star.yc));
+    int rx = star.radius_x;
+    int ry = star.radius_y;
+    int lx = (2 * rx + 1);
+    int ly = (2 * ry + 1);
+    int size = lx * ly;
 
     Matrix points(size, 6);
     Matrix d_lum(size);
 
     int pix_count = 0;
 
-    for (double y = star.yc - star.radius_y, row = 0; y <= star.yc + star.radius_y; ++y) {
-        for (double x = star.xc - star.radius_x; x <= star.xc + star.radius_x; ++x) {
-            if (img.isInBounds(x, y)) {
-                if (img(x, y) > b) {
-                    points.setRow(row, { 1.0, x, y, x * y, x * x, y * y });
-                    d_lum[row++] = pow(Pixel<float>::toType(T(img(x, y) - b)) / A, i_beta) - 1;
+    for (int j = 0, row = 0; j < ly; ++j) {
+        double y = star.yc - ry + j;
+        double y2 = y * y;
+        for (int i = 0; i < lx; ++i) {
+            double x = star.xc - rx + i;
+            if (conv.isInBounds(x, y)) {
+                if (conv(x, y) > t) {
+                    points.setRow(row, { 1.0, x, y, x * y, x * x, y2 });
+                    d_lum[row++] = pow(A / Pixel<float>::toType(T(conv(x, y) - b)), i_beta) - 1;
                     pix_count++;
                 }
             }
             else return false;
         }
     }
+
+    /*for (double y = star.yc - ry, row = 0; y <= star.yc + ry; ++y) {
+        double y2 = y * y;
+        for (double x = star.xc - rx; x <= star.xc + rx; ++x) {
+            if (conv.isInBounds(x, y)) {
+                if (conv(x, y) > t) {
+                    points.setRow(row, { 1.0, x, y, x * y, x * x, y2 });
+                    d_lum[row++] = pow(A / Pixel<float>::toType(T(conv(x, y) - b)), i_beta) - 1;
+                    pix_count++;
+                }
+            }
+            else return false;
+        }
+    }*/
 
     if (pix_count < 6)
         return false;
@@ -220,65 +298,85 @@ bool StarDetector::moffatFit(const Image<T>& img, const Star& star, PSF& psf, T 
     if (c[4] < e || c[5] < e)
         return false;
 
-    psf = PSF(std::array<double, 6>({ c[0],c[1],c[2],c[3],c[4],c[5] }), img, b, PSF::Type::moffat, m_beta);
+    psf = PSF(std::array<double, 6>({ c[0],c[1],c[2],c[3],c[4],c[5] }), orig, b, PSF::Type::moffat, m_beta);
 
-    if (std::isnan(psf.sx) || std::isnan(psf.sy))
-        return false;
-
-    if (std::isinf(psf.A) || !img.isInBounds(psf.xc, psf.yc))
-        return false;
-
-    if (Pixel<float>::toType(img(psf.xc, psf.yc)) < 1.65 * psf.B)
-        return false;
-
-    if (psf.roundness <= m_roundness)
-        return false;
-
-    return true;
+    return psf.isValid();
 }
 
 template<typename T>
-bool StarDetector::psfFit(const Image<T>& img, Star& star, PSF& psf) {
+bool StarDetector::psfFit(const Image<T>& orig, const Image<T>& conv, Star& star, PSF& psf) {
 
-    T b = 0;
-    Star oldstar;
-    double oldRMSE = 0;
+    float old_rmse = 1.0f;
+    float sigma = 0;
 
     for (int i = 0; i < 5; ++i) {
-        //needs to be outside star so first star needs to have sufficent radius
-        if (i == 0 || (abs(int(star.xc) - int(oldstar.xc)) > 1 || abs(int(star.yc) - int(oldstar.yc)) > 1 || abs(star.avgRadius() - oldstar.avgRadius()) > 1))
-            b = localBackground(img, star);
 
-        if (i == 0)
-            star.radius_x = star.radius_y = 2;
+        //orig 1 & 3
+        std::vector<T> bg = localBackground(orig, star, false, 1, 3);
+        if (bg.size() < 13) // int((3^2 * pi - 1^2 * pi) / 2 + 0.5)
+            return false;
+        T b = math::median(bg);
+        T s = 1.4826 * math::mad(bg, b); 
+        T t = Pixel<T>::toType(math::clip(Pixel<float>::toType(b) + Pixel<float>::toType(s)));
 
+        //if (i < 2)
+            //star.radius_x = star.radius_y = 2 + i;
+
+        PSF _psf = psf;
         switch (m_psf_type) {
         case PSF::Type::gaussian:
-            if (!gaussianFit(img, star, psf, b))
+            if (!gaussianFit(orig, conv, star, _psf, b, t))
                 return false;
             break;
         case PSF::Type::moffat:
-            if (!moffatFit(img, star, psf, b))
+            if (!moffatFit(orig, conv, star, _psf, b, t))
                 return false;
             break;
         default:
             return false;
         }
 
-        float RMSE = psf.rmse(img);
-
-        if (std::isnan(RMSE) || std::isinf(RMSE))
+        //lower threshold can lead to by inital centroid guess
+        //unstable fitting filtering
+        float d = (i > 2) ? 1.0 : 2.0;
+        if (i > 1 && (abs(star.xc - _psf.xc) > d || abs(star.yc - _psf.yc) > d))
             return false;
 
-        if (i < 2 || RMSE < oldRMSE) {
-            star = { psf.xc,psf.yc, int(psf.fwhmx), int(psf.fwhmy) };
-            star.luminance = psf.luminance();
+        if (std::isnan(_psf.rmse) || std::isinf(_psf.rmse))
+            return false;
+
+        if (_psf.rmse < old_rmse) {
+            star = Star(psf = _psf);
+            sigma = Pixel<float>::toType(s);
         }
 
-        oldstar = star;
-        oldRMSE = RMSE;
+        if (i > 2 && abs(old_rmse - _psf.rmse) < 0.005)
+            break;
+
+        old_rmse = _psf.rmse;
     }
 
+    if (psf.roundness <= roundness())
+        return false;
+
+    if (math::max(star.radius_x, star.radius_y) > 40)
+        return false;
+    
+    if (psf.rmse > 0.35)
+        return false;
+
+    //filters large, dim regions, such as nebula, that give a false "good fit"
+    int v = (m_psf_type == PSF::Type::gaussian) ? 4 : 6;
+    if (psf.mean() < psf.B + 3 * sigma && star.avgRadius() > v && psf.peak < 0.75 * Pixel<float>::max())
+        return false;
+
+    if (psf.peak < psf.B + sigma || psf.A < psf.B + sigma)
+        return false;
+
+    float s = psf.sharpness();
+    if (!(0.0 <= s && s <= 1.0))
+        return false;
+    
     return true;
 }
 
@@ -315,29 +413,118 @@ PSF computeMeanPSF(const PSFVector& stars) {
 }
 
 template<typename T>
-T localMean(const Image<T>& img, const Star& star, float im = 3, float om = 5) {
+void StarDetector::daofind(const Image<T>& gray, StarVector& star_vector, PSFVector& psf_vector) {
 
-    int xc = star.xc;
-    int yc = star.yc;
-    const int r = math::max(star.radius_x, star.radius_y);
-    const int r_inner = im * r;
-    const int r_outer = om * r;
+    star_vector.reserve(2'000);
+    psf_vector.reserve(2'000);
 
-    double mean = 0;
-    int c = 0;
+    Image<T> conv = Image<T>(gray);
 
-    QRect rect(xc - r_inner, yc - r_inner, 2 * r_inner, 2 * r_inner);
+    T median = gray.computeMedian(0);
+    T sigma = gray.computeStdDev(0);
+    T t = median + m_K * sigma;
 
-    for (int j = yc - r_outer; j <= yc + r_outer; ++j) {
-        for (int i = xc - r_outer; i <= xc + r_outer; ++i) {
-            if (!rect.contains({ i,j }) && img.isInBounds(i, j)) {
-                mean += img(i, j);
-                c++;
+    GaussianFilter gf;
+    gf.setSigma(m_sigma);
+    gf.apply(conv);
+
+    //auto tp = getTimePoint();
+    Threads threads;
+    threads.run([&, t, sigma](int start, int end) {
+
+        float ks = m_K * Pixel<float>::toType(sigma);
+        int sr = 3;//search_radius
+        int star_rad = 3;//7px diameter
+        StarVector sv;
+        sv.reserve(math::max(int(star_vector.capacity() / threads.threadCount()), 200));
+        Point old_max_pos;
+
+        for (int y = start; y < end; ++y) {
+            for (int x = 0; x < conv.cols(); ++x) {
+
+                if (gray(x, y) > t) {
+
+                    T max = t;
+                    Point max_pos(x, y);
+                    Star star(x, y, star_rad);
+
+                    for (int j = y - sr; j <= y + sr; ++j) {
+                        for (int i = x - sr; i <= x + sr; ++i) {
+                            if (gray.isInBounds(i, j)) {
+                                if (gray(i, j) > max) {
+                                    max = conv(i, j);
+                                    max_pos = { i, j };
+                                    star = Star(i, j, star_rad);
+                                }
+                            }
+                            else
+                                goto newstar;
+                        }
+                    }
+
+                    if (max_pos == old_max_pos)
+                        goto newstar;
+
+                    old_max_pos = max_pos;
+
+                    for (const auto& s : sv)
+                        if (math::distancef(s.xc, s.yc, star.xc, star.yc) < s.avgRadius())
+                            goto newstar;
+
+                    //ensures max is suffeciently above local background(incase local background is above threshold)
+                    //may not need //orig smult was 3 & 5
+                    if (Pixel<float>::toType(max) < math::clipf(Pixel<float>::toType(localMean(gray, star,false,2,4)) + ks))
+                        goto newstar;
+
+                    //filters out large, flat regions above t, can rule out sat/large stars 
+                    if (Pixel<float>::toType(starStdDev(gray, star)) < 0.005)
+                        goto newstar;
+
+                    PSF psf;
+                    if (!psfFit(gray, conv, star, psf))
+                        goto newstar;
+
+                    float ar = star.avgRadius();
+                    for (const auto& s : sv)
+                        if (math::distancef(s.xc, s.yc, star.xc, star.yc) < math::max(s.avgRadius(), ar))
+                            goto newstar;
+
+                    sv.emplace_back(star);
+
+                    threads.mutex.lock();
+                    star_vector.emplace_back(star);
+                    psf_vector.emplace_back(psf);
+                    threads.mutex.unlock();
+                }
+                newstar : 0;
+            }
+        }
+        }, conv.rows());
+    //displayTimeDuration(tp);
+
+    auto erase_element = []<typename T>(std::vector<T>&v, size_t pos) {
+        std::swap(v[pos], v[v.size() - 1]);
+        v.pop_back();
+    };
+
+    //removes duplicate stars
+    for (int i = 0; i < star_vector.size(); ++i) {
+        auto& cs = star_vector[i];
+        float csr = cs.avgRadius();
+        for (int j = i + 1; j < star_vector.size(); ++j) {
+            auto& s = star_vector[j];
+            if (math::distancef(cs.xc, cs.yc, s.xc, s.yc) < math::max(s.avgRadius(), csr)) {
+                erase_element(star_vector, j);
+                erase_element(psf_vector, j);
+                break;
             }
         }
     }
 
-    return mean / c;
+    star_vector.shrink_to_fit();
+    psf_vector.shrink_to_fit();
+
+    m_average_psf = computeMeanPSF(psf_vector);
 }
 
 template<typename T>
@@ -346,89 +533,32 @@ StarVector StarDetector::DAOFIND(const Image<T>& img) {
     StarVector star_vector;
     PSFVector psf_vector;
 
-    star_vector.reserve(2'000);
-    psf_vector.reserve(2'000);
+    if (img.channels() == 3)
+        daofind(img.createGrayscaleImage(), star_vector, psf_vector);
+    else
+        daofind(img, star_vector, psf_vector);
 
-    Image<T> gray = Image<T>(img);
-    gray.RGBtoGray();
-
-    //to remove hot pixels
-    MorphologicalTransformation mt(MorphologicalTransformation::Type::median);
-    mt.apply(gray);
-
-    GaussianFilter gf;
-    gf.setSigma(m_sigma);
-    gf.apply(gray);
-
-    T median = gray.computeMedian(0);
-    T t = median + m_K * gray.computeStdDev(0);
-
-    int sr = 4;//search_radius//9px diameter
-    int star_rad = 3;//may need to increase to 4/orig 3
-
-    QPoint old_max_pos;
-
-    for (int y = 0; y < gray.rows(); ++y) {
-
-        for (int x = 0; x < gray.cols(); ++x) {
-
-            if (gray(x, y) > t) {
-
-                T max = t;
-                QPoint max_pos(x, y);
-                Star star(x, y, star_rad);
-
-                for (int j = y - sr; j <= y + sr; ++j) {
-                    for (int i = x - sr; i <= x + sr; ++i) {
-                        if (gray.isInBounds(i, j)) {
-                            if (gray(i, j) > max) {
-                                max = gray(i, j);
-                                max_pos = { i, j };
-                                star = Star(i, j, star_rad);
-                            }
-                        }
-                        else
-                            goto newstar;
-                    }
-                }
-
-                if (max_pos == old_max_pos)
-                    goto newstar;
-
-                old_max_pos = max_pos;
-
-                for (const auto& s : star_vector)
-                    if (math::distancef(s.xc, s.yc, star.xc, star.yc) < s.avgRadius())
-                        goto newstar;
-
-                //ensures max is suffeciently above background, //no apparent benifit to radius being 4 when computing mean             
-                //majority of time spent here
-                if (Pixel<float>::toType(max) < 1.65 * Pixel<float>::toType(localMean(gray, star)))
-                    goto newstar;
-
-                PSF psf;
-                if (!psfFit(img, star, psf))
-                    goto newstar;
-
-                int ar = star.avgRadius();
-                for (const auto& s : star_vector)
-                    if (math::distancef(s.xc, s.yc, star.xc, star.yc) < math::max(s.avgRadius(), ar))
-                        goto newstar;
-
-                //needs to be atomic if multithreaded
-                //no adding while searching through vec
-                star_vector.emplace_back(star);
-                psf_vector.emplace_back(psf);
-            }
-            newstar : 0;
-        }
-    }
-
-    m_average_psf = computeMeanPSF(psf_vector);
     std::sort(star_vector.begin(), star_vector.end(), Star());
-    
     return star_vector;
 }
 template StarVector StarDetector::DAOFIND(const Image8&);
 template StarVector StarDetector::DAOFIND(const Image16&);
 template StarVector StarDetector::DAOFIND(const Image32&);
+
+template<typename T>
+PSFVector StarDetector::DAOFIND_PSF(const Image<T>& img) {
+
+    StarVector star_vector;
+    PSFVector psf_vector;
+
+    if (img.channels() == 3) 
+        daofind(img.createGrayscaleImage(), star_vector, psf_vector);
+    else
+        daofind(img, star_vector, psf_vector);
+
+    std::sort(psf_vector.begin(), psf_vector.end(), PSF());
+    return psf_vector;
+}
+template PSFVector StarDetector::DAOFIND_PSF(const Image8&);
+template PSFVector StarDetector::DAOFIND_PSF(const Image16&);
+template PSFVector StarDetector::DAOFIND_PSF(const Image32&);

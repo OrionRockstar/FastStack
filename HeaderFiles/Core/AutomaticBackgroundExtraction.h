@@ -138,5 +138,5 @@ public:
     void apply(Image<T>&img);
 
     template<typename T>
-    void applyTo(const Image<T>& src, Image<T>& dst, float scale_factor, const QPointF& p);
+    void applyTo(const Image<T>& src, Image<T>& dst, float scale_factor);
 };

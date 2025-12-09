@@ -4,7 +4,7 @@
 #include "ImageWindow.h"
 
 
-BilateralFilterDialog::BilateralFilterDialog(QWidget* parent) : ProcessDialog("BilateralFilter", QSize(470, 145), FastStack::recast(parent)->workspace()) {
+BilateralFilterDialog::BilateralFilterDialog(Workspace* parent) : ProcessDialog("BilateralFilter", QSize(470, 145), parent) {
 
 	setDefaultTimerInterval(750);
 

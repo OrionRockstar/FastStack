@@ -97,7 +97,7 @@ private:
 
 	CurveTypeButtonGroup* m_curve_type_bg;
 public:
-	ColorSaturationDialog(QWidget* parent);
+	ColorSaturationDialog(Workspace* parent);
 
 	void onItemARC();
 

@@ -217,7 +217,7 @@ void ColorGraphicsView::drawBackground(QPainter* painter, const QRectF& rect) {
 
 
 
-ColorSaturationDialog::ColorSaturationDialog(QWidget* parent) : ProcessDialog("Color Saturation", QSize(500, 335), FastStack::recast(parent)->workspace()) {
+ColorSaturationDialog::ColorSaturationDialog(Workspace* parent) : ProcessDialog("Color Saturation", QSize(500, 335), parent) {
 
 	using CSD = ColorSaturationDialog;
 

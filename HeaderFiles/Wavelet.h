@@ -1,19 +1,7 @@
 #pragma once
 #include "Image.h"
 #include "GaussianFilter.h"
-#include "ProcessDialog.h"
-
-/*struct NRLayers {
-	bool layer = false;
-	float threshold = 3;
-	float amount = 1;
-
-	NRLayers(bool l, float t, float a) :layer(l), threshold(t), amount(a) {};
-	NRLayers() = default;
-};
-
-typedef std::vector<NRLayers> NRVector;*/
-
+//#include "ProcessDialog.h"
 
 class Wavelet {
 

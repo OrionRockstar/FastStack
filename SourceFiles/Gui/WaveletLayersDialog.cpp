@@ -4,7 +4,7 @@
 
 
 
-WaveletLayersDialog::WaveletLayersDialog(QWidget* parent) : ProcessDialog("WaveletLayers", QSize(345, 100), FastStack::recast(parent)->workspace(), false, true, false) {
+WaveletLayersDialog::WaveletLayersDialog(Workspace* parent) : ProcessDialog("WaveletLayers", QSize(345, 100), parent, false, true, false) {
 
 	m_layers_sb = new SpinBox(drawArea());
 	m_layers_sb->setRange(1, 6);

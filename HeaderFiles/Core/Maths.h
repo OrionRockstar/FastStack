@@ -3,14 +3,29 @@
 
 namespace math {
 
-    template<typename T = double>
-    inline T clip(T value, T low = 0.0, T high = 1.0) {
+    inline double clip(double value, double low = 0.0, double high = 1.0) {
         if (value > high)
             return high;
         else if (value < low)
             return low;
         return value;
     }
+
+    inline float clipf(float value, float low = 0.0, float high = 1.0) {
+        if (value > high)
+            return high;
+        else if (value < low)
+            return low;
+        return value;
+    }
+
+    /*inline int clip(int value, int low, int high) {
+        if (value > high)
+            return high;
+        else if (value < low)
+            return low;
+        return value;
+    }*/
 
     template<typename T>
     T min(T a, T b) { return (a < b) ? a : b; }
@@ -22,6 +37,14 @@ namespace math {
 
     inline float distancef(float x1, float y1, float x2, float y2) { return sqrtf((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
+    constexpr inline float radiansToDegrees(float rads) { return rads * 180 / std::_Pi; }
+
+    constexpr inline double radiansToDegrees(double rads) { return rads * 180 / std::_Pi; }
+
+    constexpr inline float degreesToRadians(float deg) { return deg * std::_Pi / 180; }
+
+    constexpr inline double degreesToRadians(double deg) { return deg * std::_Pi / 180; }
+
     template<typename T>
     double mean(const std::vector<T>& vector) {
 
@@ -32,15 +55,59 @@ namespace math {
         return sum / vector.size();
     }
 
-    template <typename T>
-    double standardDeviation(const std::vector<T>& vector) {
+    //what if vec value is less than mean and is an unsighed int??!!!
+    //template <typename T>
 
-        double mean = math::mean<T>(vector);
+    inline double standardDeviation(const std::vector<double>& vector) {
+
+        double mean = math::mean(vector);
 
         double d;
         double var = 0;
-        for (T pixel : vector) {
-            d = pixel - mean;
+        for (float v : vector) {
+            d = v - mean;
+            var += d * d;
+        }
+
+        return sqrt(var / vector.size());
+    }
+
+    inline double standardDeviation(const std::vector<float>& vector) {
+
+        double mean = math::mean(vector);
+
+        double d;
+        double var = 0;
+        for (float v : vector) {
+            d = v - mean;
+            var += d * d;
+        }
+
+        return sqrt(var / vector.size());
+    }
+
+    inline double standardDeviation(const std::vector<uint16_t>& vector) {
+
+        int mean = math::mean(vector);
+
+        int d;
+        double var = 0;
+        for (uint16_t v : vector) {
+            d = int(v) - mean;
+            var += d * d;
+        }
+
+        return sqrt(var / vector.size());
+    }
+
+    inline double standardDeviation(const std::vector<uint8_t>& vector) {
+
+        int mean = math::mean(vector);
+
+        int d;
+        double var = 0;
+        for (uint8_t v : vector) {
+            d = int(v) - mean;
             var += d * d;
         }
 
@@ -134,8 +201,7 @@ struct PointBase {
 
     PointBase(T x, T y) : x(x), y(y) {}
 
-    template<typename P>
-    PointBase(const PointBase<P>& point) {
+    PointBase(const PointBase<T>& point) {
         x = point.x;
         y = point.y;
     }
@@ -149,7 +215,8 @@ struct PointBase {
         x = qpoint.x();
         y = qpoint.y();
     }
-    
+   
+public:
     PointBase& operator*=(int factor) {
         x *= factor;
         y *= factor;
@@ -210,6 +277,10 @@ struct PointBase {
         return PointBase(x / divisor, y / divisor);
     }
 
+    friend bool operator==(const PointBase& lhs, const PointBase& rhs) {
+        return (lhs.x == rhs.x && lhs.y == rhs.y);
+    }
+
     friend PointBase operator+(const PointBase& lhs, const PointBase& rhs) {
         return PointBase(lhs.x + rhs.x, lhs.y + rhs.y);
     }
@@ -240,9 +311,14 @@ struct PointBase {
 
     //bool operator()(PointBase& a, PointBase& b) { return (a.x() < b.x()); }
 };
-typedef PointBase<int> Point;
-typedef PointBase<float> PointF;
-typedef PointBase<double> PointD;
+using Point = PointBase<int>;
+template class PointBase<int>;
+
+using PointF = PointBase<float>;
+template class PointBase<float>;
+
+using PointD = PointBase<double>;
+template class PointBase<double>;
 
 template<typename T>
 struct ImagePointBase {
@@ -347,18 +423,27 @@ class Threads {
     uint32_t m_thread_count = std::thread::hardware_concurrency();
 
 public:
-    Threads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
+    std::mutex mutex;
+
+    Threads(uint32_t thread_count) : m_thread_count(thread_count) {}
+
+    Threads() = default;
+
+    uint32_t threadCount()const { return m_thread_count; }
+
+    void setThreadCount(uint32_t thread_count) { m_thread_count = thread_count; }
 
     template<class Func, class... Args>
     static void runThread(Func&& func, Args&&... args) {
 
-        auto thread = std::thread(func, args...);
-        thread.detach();
+        std::thread(func, args...).detach();
+        //auto thread = std::thread(func, args...);
+        //thread.detach();
     }
 
     void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
 
-        if (size == 0)
+        if (size == 0 || m_thread_count == 0)
             return;
 
         uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
@@ -377,7 +462,7 @@ public:
 
     void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size) {
 
-        if (size == 0)
+        if (size == 0 || m_thread_count == 0)
             return;
 
         uint32_t thread_count = math::min<uint32_t>(size, m_thread_count);
@@ -400,18 +485,16 @@ public:
 class QThreads : QObject{
 
     uint32_t m_thread_count = std::thread::hardware_concurrency();
-    //std::mutex m;
 public:
+    QMutex qmutex;
+
     QThreads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
 
     template<class Func, class... Args>
     static void runThread(Func&& func, Args&&... args) {
 
-       // QEventLoop loop;
         auto thread = QThread::create(func, args...);
-        //connect(thread, &QThread::finished, [&]() { loop.quit(); });
         thread->start();
-        //loop.exec();
     }
 
     void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
@@ -480,6 +563,8 @@ class QEventThreads : QObject {
     uint32_t m_thread_count = std::thread::hardware_concurrency();
     //std::mutex m;
 public:
+    QMutex qmutex;
+
     QEventThreads(uint32_t thread_count = std::thread::hardware_concurrency()) : m_thread_count(thread_count) {}
 
     template<class Func, class... Args>

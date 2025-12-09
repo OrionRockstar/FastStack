@@ -150,12 +150,12 @@ private:
 	DoubleLineEdit* m_highlight_le = nullptr;
 
 
-	ComboBox* m_image_sel = nullptr;
+	ImageComboBox* m_image_sel = nullptr;
 	QButtonGroup* m_component_bg = nullptr;
 	ComboBox* m_hist_res_combo = nullptr;
 
 public:
-	HistogramTransformationDialog(QWidget* parent = nullptr);
+	HistogramTransformationDialog(Workspace* parent = nullptr);
 
 private:
 	void onImageWindowCreated()override;

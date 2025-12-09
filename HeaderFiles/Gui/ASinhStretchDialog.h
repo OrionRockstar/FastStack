@@ -23,7 +23,7 @@ class ASinhStretchDialog : public ProcessDialog {
 	PushButton* m_bp_comp = nullptr;
 
 public:
-	ASinhStretchDialog(QWidget* parent = nullptr);
+	ASinhStretchDialog(Workspace* parent = nullptr);
 
 private:
 	void addStretchFactorInputs();

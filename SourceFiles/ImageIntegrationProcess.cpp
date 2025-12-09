@@ -142,7 +142,7 @@ Status ImageIntegrationProcess::integrateImages(Image32& output) {
 	}
 
 	if (m_generate_weight_maps)
-		return ImageStackingWeightMap(m_is).stackImages(temp.filePaths(), output, m_light_paths[0].parent_path());
+		return ImageStackingWeightMap(m_is).stackImages(temp.filePaths(), output, m_paths[0].light.parent_path());
 
 	else
 		return m_is.stackImages(temp.filePaths(), output);

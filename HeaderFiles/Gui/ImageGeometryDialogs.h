@@ -16,7 +16,7 @@ class RotationDialog : public ProcessDialog {
 	InterpolationComboBox* m_interpolate_cb;
 
 public:
-	RotationDialog(QWidget* parent = nullptr);
+	RotationDialog(Workspace* parent);
 
 private:
 	void actionDial(int action);
@@ -50,7 +50,7 @@ class FastRotationDialog : public ProcessDialog {
 	RadioButton* m_vm_rb;
 
 public:
-	FastRotationDialog(QWidget* parent = nullptr);
+	FastRotationDialog(Workspace* parent = nullptr);
 
 private:
 	void resetDialog();
@@ -75,7 +75,7 @@ class IntegerResampleDialog : public ProcessDialog {
 	SpinBox* m_factor_sb;
 
 public:
-	IntegerResampleDialog(QWidget* parent);
+	IntegerResampleDialog(Workspace* parent);
 
 private:
 	void resetDialog();
@@ -84,8 +84,6 @@ private:
 
 	void apply();
 };
-
-
 
 
 
@@ -132,6 +130,9 @@ private:
 };
 
 
+
+
+
 class NonCropArea : public QWidget {
 
 	const CropFrame* m_cf = nullptr;
@@ -144,6 +145,9 @@ private:
 };
 
 
+
+
+
 template<typename T>
 class CropPreview : public PreviewWindow<T> {
 
@@ -151,7 +155,7 @@ class CropPreview : public PreviewWindow<T> {
 	NonCropArea* m_nca = nullptr;
 
 public:
-	CropPreview(QWidget* image_window);
+	CropPreview(ImageWindow<T>* iw);
 
 	QRect cropRect()const;
 
@@ -160,32 +164,65 @@ public:
 
 
 
+
+
+class ImageWindowComboBox : public ComboBox {
+
+public:
+	ImageWindowComboBox(QWidget* parent = nullptr) : ComboBox(parent) {
+		this->addItem("No Image Selected");
+		this->resize(200, height());
+	}
+
+	void addImageWindow(ImageWindow<>* iw);
+
+	ImageWindow8* currentImageWindow();
+
+	ImageWindow8* imageWindowAt(int index);
+
+	int findImageWindow(ImageWindow8* img);
+};
+
+
+
+
+
 class CropDialog : public ProcessDialog {
 
 	int m_previous_index = 0;
-	ComboBox* m_image_sel;
+	ImageWindowComboBox* m_image_sel;
 	Crop m_crop;
 
 public:
-	CropDialog(QWidget* parent);
+	CropDialog(Workspace* parent);
 
 private:
-	void closeEvent(QCloseEvent* e);
-
 	void onImageWindowCreated()override;
 
 	void onImageWindowClosed()override;
 
 	void onActivation_imageSelection(int index);
 
+	void showPreviewWindow(ImageWindow8* iw);
+
 	void resetDialog();
 
-	//void showPreview() {}
-
 	void apply();
+
+	void applyPreview()override;
 };
 
 
+
+
+class LinkButton : public PushButton {
+
+public:
+	LinkButton(QWidget* parent = nullptr);
+
+private:
+	void paintEvent(QPaintEvent* e) override;
+};
 
 
 
@@ -193,22 +230,65 @@ class ResizeDialog : public ProcessDialog {
 
 	Resize m_rs;
 
-	IntLineEdit* m_row_le;
-	IntLineEdit* m_col_le;
+	enum class Unit : uint8_t {
+		pixel,
+		percent,
+		inches,
+		millimeters,
+		centimeters
+	};
 
-	InterpolationComboBox* m_interpolation_combo;
+	//same resolution
+	int px_in = 72;
+	float px_mm = 2.8346;
+	float px_cm = 28.346;
+
+	float m_aspect_ratio = 1.0;
+	LinkButton* m_link_pb = nullptr;
+	DoubleSpinBox* m_width_sb = nullptr;
+	DoubleSpinBox* m_height_sb = nullptr;
+
+	DoubleSpinBox* m_xres_sb = nullptr;
+	DoubleSpinBox* m_yres_sb = nullptr;
+	//IntLineEdit* m_height_le = nullptr;
+	//IntLineEdit* m_width_le = nullptr;
+	ComboBox* m_unit_combo = nullptr;
+	ImageWindowComboBox* m_image_sel = nullptr;
+	InterpolationComboBox* m_interpolation_combo = nullptr;
+	QSize n_size;
+	QLabel* m_new_size_label = nullptr;
 
 public:
-	ResizeDialog(QWidget* parent);
+	ResizeDialog(Workspace* parent);
 
 private:
+	void setPrecision(int prec);
+
+	void updateLabel();
+
+	void addWidthInput();
+
+	void addHeightInput();
+
+	void addUnitCombo();
+
+	QSize getNewSize();
+	
+	void onImageWindowCreated()override;
+
+	void onImageWindowClosed()override;
+
+	void imageSelection(int index);
+
+	void unitSelection(int index);
 
 	void resetDialog();
 
-	void showPreview() {}
-
 	void apply();
+
+	void paintEvent(QPaintEvent* e);
 };
+
 
 
 

@@ -180,7 +180,10 @@ public:
             el = value;
     }
 
-    void setRow(int row, const std::initializer_list<double>& list) {
+    void setRow(int row, std::initializer_list<double> list) {
+
+        if (row >= rows())
+            return;
 
         int size = (list.size() < cols()) ? list.size() : cols();
 

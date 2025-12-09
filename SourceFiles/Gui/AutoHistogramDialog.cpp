@@ -3,7 +3,7 @@
 #include "FastStack.h"
 
 using AHD = AutoHistogramDialog;
-AHD::AutoHistogramDialog(QWidget* parent) : ProcessDialog("AutoHistogram", QSize(710, 435), FastStack::recast(parent)->workspace()) {
+AHD::AutoHistogramDialog(Workspace* parent) : ProcessDialog("AutoHistogram", QSize(710, 435), parent) {
 
     setDefaultTimerInterval(250);
 

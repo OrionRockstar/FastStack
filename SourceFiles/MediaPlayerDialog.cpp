@@ -245,6 +245,7 @@ SongList::SongList(QWidget* parent) : QTableWidget(parent) {
 
 	this->setDragEnabled(true);
 	this->setAcceptDrops(true);
+	//this->setDefaultDropAction(Qt::MoveAction);
 	this->setDragDropMode(QAbstractItemView::DragDrop);
 	this->setDropIndicatorShown(true);
 
@@ -264,7 +265,7 @@ SongList::SongList(QWidget* parent) : QTableWidget(parent) {
 	this->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeMode::Fixed);
 	this->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeMode::Stretch);
 
-
+	//std::cout << mimeTypes()[0].toStdString() << '\n';
 	this->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 	this->verticalHeader()->hide();
 	this->horizontalHeader()->setMinimumSectionSize(25);
@@ -297,6 +298,9 @@ Song* SongList::songAt(int row) {
 }
 
 void SongList::addSong(const Song& song) {
+
+	if (song.isValid())
+		return;
 
 	if (m_current_row == -1)
 		m_current_row = 0;
@@ -344,6 +348,26 @@ void SongList::removeSong(int row) {
 		else
 			m_current_row--;
 	}
+}
+
+bool SongList::mimeHasAudio(const QMimeData* mime) {
+
+	if (mime->hasUrls()) {
+		for (auto url : mime->urls()) {
+			std::filesystem::path path = url.toLocalFile().toStdString();
+			if (path.has_extension()) {
+				if (!isAudioFile(path))
+					return false;
+			}
+			else
+				for (auto fp : std::filesystem::directory_iterator(path))
+					if (!isAudioFile(fp))
+						return false;
+		}
+		return true;
+	}
+
+	return false;
 }
 
 void SongList::moveRow(int row, int new_row) {
@@ -405,15 +429,22 @@ void SongList::showContextMenu(const QPoint& pos) {
 void SongList::dragEnterEvent(QDragEnterEvent* e) {
 
 	QTableWidget::dragEnterEvent(e);
-	
-	if (e->mimeData()->hasUrls())
+
+	if (mimeHasAudio(e->mimeData()))
 		e->acceptProposedAction();
+	//if (e->mimeData()->hasUrls())
+		//e->acceptProposedAction();
 }
 
 void SongList::dragMoveEvent(QDragMoveEvent* e) {
 
+	//auto item = itemAt(e->pos());
 	QTableWidget::dragMoveEvent(e);
+
+	//if (e->mimeData()->hasUrls() || e->mimeData()->hasFormat(m_format))
 	e->acceptProposedAction();
+	//else
+		//e->ignore();
 }
 
 void SongList::dropEvent(QDropEvent* e) {
@@ -437,6 +468,7 @@ void SongList::dropEvent(QDropEvent* e) {
 			std::filesystem::path path = url.toLocalFile().toStdString();
 			if (path.has_extension()) {
 				if (isAudioFile(path))
+					//drop  bewteen songs (and give indication)
 					this->addSong(Song(path));
 			}
 			else
@@ -541,6 +573,50 @@ bool VolumeControl::eventFilter(QObject* obj, QEvent* e) {
 
 
 
+
+
+void MediaPlayer::playFadeIn(uint32_t duration_ms) {
+
+	QObject::disconnect(m_connection);
+	m_timer.stop();
+	m_delta = duration_ms / 100.0f;
+	sf::Music::setVolume(0.0f);
+	this->play();
+	m_connection = QObject::connect(&m_timer, &QTimer::timeout, std::bind(&MediaPlayer::fadeIn, this));
+	m_timer.start(m_delta);
+}
+
+void MediaPlayer::pauseFadeOut(uint32_t duration_ms) {
+
+	QObject::disconnect(m_connection);
+	m_timer.stop();
+	m_delta = duration_ms / 100.0f;
+	m_connection = QObject::connect(&m_timer, &QTimer::timeout, std::bind(&MediaPlayer::fadeOut, this));
+	m_timer.start(m_delta);
+}
+
+void MediaPlayer::fadeIn() {
+
+	sf::Music::setVolume(sf::Music::getVolume() + m_volume / m_delta);
+	if (sf::Music::getVolume() >= m_volume) {
+		m_timer.stop();
+		QObject::disconnect(m_connection);
+	}
+}
+
+void MediaPlayer::fadeOut() {
+
+	sf::Music::setVolume(sf::Music::getVolume() - m_volume / m_delta);
+	if (sf::Music::getVolume() <= 0) {
+		this->pause();
+		m_timer.stop();
+		QObject::disconnect(m_connection);
+	}
+}
+
+
+
+
 MediaPlayerDialog::MediaPlayerDialog(QWidget* parent) : Dialog(parent) {
 
 	this->resizeDialog(630, 630);
@@ -555,7 +631,8 @@ MediaPlayerDialog::MediaPlayerDialog(QWidget* parent) : Dialog(parent) {
 
 	m_current_song_label = new QLabel( "", drawArea());
 	m_current_song_label->move(15, 525);
-	
+	m_current_song_label->setMaximumWidth(400);
+
 	QFont font;
 	font.setFamily("Calibri");
 	font.setPointSizeF(12);
@@ -572,25 +649,26 @@ MediaPlayerDialog::MediaPlayerDialog(QWidget* parent) : Dialog(parent) {
 
 void MediaPlayerDialog::songSelected(Song* song) {
 
-	//if (m_music_player.getStatus() == sf::Music::Status::Playing)
-		//play = true;
-	m_music_player.pause();
+	onPause();
 	m_current_song = song;
 
+	//25fps?!/1 frame per 40 ms
+	//scroll text that is too long
+	//"C:\Users\Zack\Music\John Martin -- Debut single 'Anywhere For You' (Audio) _ Out 7th April.mp3"
 	auto setSongLabelText = [this](const QString& txt) {
 		m_current_song_label->setText(txt);
 		m_current_song_label->adjustSize();
 	};
 
 	if (m_current_song != nullptr && m_music_player.openFromFile(m_current_song->path())) {
-		setSongLabelText(m_current_song->artist() + "-" + m_current_song->songTitle());
+		setSongLabelText(m_current_song->artist().trimmed() + " - " + m_current_song->songTitle());
 		m_progress_slider->timePoint("0:00");
 		m_progress_slider->setRange(0, m_music_player.getDuration().asSeconds());
 		if (!m_play_pause_pb->isChecked())
 			m_play_pause_pb->setChecked(true);
-		else
-			onPlay_Pause(true);
+		onPlay();
 	}
+
 	else {
 		m_progress_slider->setRange(0, 0);
 		m_play_pause_pb->reset();
@@ -613,16 +691,21 @@ void MediaPlayerDialog::addMediaSlider() {
 		m_slider_pressed = true;
 		if (m_music_player.getStatus() == sf::Music::Status::Playing) {
 			m_resume_playing = true;
-			m_play_pause_pb->setChecked(false);} });
+			m_play_pause_pb->setChecked(false);
+			onPause();
+		} });
 
 	connect(m_progress_slider, &MediaSlider::sliderMoved, this, [this](int pos) {
 		m_music_player.setPlayingOffset(sf::seconds(pos)); });
 
 	connect(m_progress_slider, &MediaSlider::sliderReleased, this, [this]() {
 		m_slider_pressed = false;
-		if (m_resume_playing) 
+		//manualy pause/play here
+		if (m_resume_playing) {
 			m_play_pause_pb->setChecked(true);
-		m_resume_playing = false; });
+			onPlay();
+		}
+		m_resume_playing = false; });		
 
 	connect(m_progress_slider, &MediaSlider::timePoint, this, [this](const QString& txt) {
 		auto duration = (m_current_song) ? m_current_song->duration() : "0:00";
@@ -638,7 +721,15 @@ void MediaPlayerDialog::addMediaButtons() {
 
 	m_play_pause_pb = new PlayPauseButton(drawArea());
 	m_play_pause_pb->move(165, 577);
-	connect(m_play_pause_pb, &QPushButton::toggled, this, &MediaPlayerDialog::onPlay_Pause);
+	connect(m_play_pause_pb, &QPushButton::clicked, this, [this](bool v) {
+		if (v)
+			onPlay();
+		else {
+			m_music_player.pauseFadeOut();
+			m_song_list->onPause();
+		}});
+	//toggled when pressing media bar
+	//connect(m_play_pause_pb, &QPushButton::toggled, this, &MediaPlayerDialog::onPlay_Pause);
 
 	m_previous_pb = MediaButton::skipPrevious(drawArea());
 	m_previous_pb->move(115, 577);
@@ -655,33 +746,31 @@ void MediaPlayerDialog::addMediaButtons() {
 	connect(m_next_pb, &PushButton::released, this, [this]() { m_music_player.stop(); });
 }
 
-void MediaPlayerDialog::onPlay_Pause(bool play) {
+void MediaPlayerDialog::onPlay() {
 
-	if (play) {
+	if (m_song_list->rowCount() == 0)
+		return m_play_pause_pb->reset();
 
-		if (m_song_list->rowCount() == 0)
-			return m_play_pause_pb->reset();
+	if (m_current_song == nullptr)
+		return m_song_list->rowDoubleClicked(0);
 
-		if (m_current_song == nullptr)
-			return m_song_list->rowDoubleClicked(0);
+	m_music_player.playFadeIn();
+	m_song_list->onPlay();
 
-		m_music_player.play();
-		m_song_list->onPlay();
+	//be mindful when running QThreads::runThread as it has its own event loop
+	Threads::runThread([this]() {
+		while (m_music_player.getStatus() == sf::Music::Status::Playing)
+			m_progress_slider->setValue(m_music_player.getPlayingOffset().asSeconds());
 
-		//be mindful when running QThreads::runThread as it has its own event loop
-		Threads::runThread([this]() {
-			while (m_music_player.getStatus() == sf::Music::Status::Playing)
-				m_progress_slider->setValue(m_music_player.getPlayingOffset().asSeconds());
+		if (m_music_player.getStatus() == sf::Music::Status::Stopped) 
+			if (!m_song_list->nextSong()) {
+				m_play_pause_pb->reset();
+				m_progress_slider->setValue(0);
+			}		
+		});
+}
 
-			if (m_music_player.getStatus() == sf::Music::Status::Stopped) 
-				if (!m_song_list->nextSong()) {
-					m_play_pause_pb->reset();
-					m_progress_slider->setValue(0);
-				}		
-			});
-	}
-	else {
-		m_music_player.pause();
-		m_song_list->onPause();
-	}
+void MediaPlayerDialog::onPause() {
+	m_music_player.pause();
+	m_song_list->onPause();
 }

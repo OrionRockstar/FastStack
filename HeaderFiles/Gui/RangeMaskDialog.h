@@ -92,7 +92,7 @@ class RangeMaskDialog : public ProcessDialog {
 	CheckBox* m_invert_cb;
 
 public:
-	RangeMaskDialog(QWidget* parent = nullptr);
+	RangeMaskDialog(Workspace* parent = nullptr);
 
 private:
 	void addRangeSlider();

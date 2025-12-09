@@ -21,10 +21,18 @@ struct PSF {
     float fwhmy = 0.0f;
     float roundness = 1.0f;
     float flux = 0.0f;
-    float theta = 0.0;
+    float magnitude = 0.0f;
+    float theta = 0.0f; //radians
+    float rmse = 0.0f; //root mean square error
+    bool saturated = false;
+    int rx = 0;
+    int ry = 0;
+    float peak = 0.0f;
 
 private:
-    float beta = 10.0;
+    float beta = 10.0f;
+    int count = 0;
+
 
 public:
     template<typename T>
@@ -32,8 +40,8 @@ public:
 
         auto d = 4 * c[4] * c[5] - c[3] * c[3];
 
-        xc = (c[2] * c[3] - 2 * c[1] * c[5]) / d;//-c[1] / (2 * c[4]);
-        yc = (c[1] * c[3] - 2 * c[2] * c[4]) / d;//-c[2] / (2 * c[5]);
+        xc = (c[2] * c[3] - 2 * c[1] * c[5]) / d;
+        yc = (c[1] * c[3] - 2 * c[2] * c[4]) / d;
 
         double _a = c[4];
         double _2b = c[3];
@@ -44,12 +52,15 @@ public:
         double ct = cos(theta);
         double st = sin(theta);
 
+        //need to double check moffat
         switch (type) {
         case Type::gaussian: {
             sx = sqrt(1 / (2 * (_a * ct * ct + _2b * ct * st + _c * st * st)));
             sy = sqrt(1 / (2 * (_a * st * st - _2b * ct * st + _c * ct * ct)));
             fwhmx = 2.35482 * sx;
             fwhmy = 2.35482 * sy;
+            rx = fwtmx() / 2;
+            ry = fwtmy() / 2;
             A = exp((_a * (xc * xc) + _2b * (xc * yc) + _c * (yc * yc)) - c[0]);
             break;
         }
@@ -60,35 +71,76 @@ public:
             float b = 2 * sqrt(pow(2, 1 / beta) - 1);
             fwhmx = sx * b;
             fwhmy = sy * b;
-            A = pow(1 + (_a * (xc * xc) + _2b * (xc * yc) + _c * (yc * yc)) - c[0], -1 / beta);
+            rx = fwhmx;
+            ry = fwhmy;
+            A = pow(1 + (_a * (xc * xc) + _2b * (xc * yc) + _c * (yc * yc)) - c[0], beta);
             break;
         }
         }
 
-        int rx = fwhmx;
-        int ry = fwhmy;
-
-        if (!img.isInBounds(xc, yc))
+        if (!img.isInBounds(xc, yc)) {
+            xc = yc = std::nanf("");
             return;
+        }
 
+        saturated = isSaturated(img);
         flux = 0.0;
-        for (double y = yc - ry; y <= yc + ry; ++y) {
-            for (double x = xc - rx; x <= xc + rx; ++x) {
-                if (img.isInBounds(x, y))
-                    if (img(x, y) > bg)
+        count = 0;
+
+        //inline rmse
+        /*for (int y = yc - ry; y <= int(yc + ry); ++y) {
+            for (int x = xc - rx; x <= int(xc + rx); ++x) {
+                if (img.isInBounds(x, y)) {
+                    if (img(x, y) > bg) {
                         flux += Pixel<float>::toType(T(img(x, y) - bg));
+                        count++;
+                    }
+                }
+            }
+        }*/
+
+        double sum = 0;
+        //int count = 0;
+        auto v = [=, this](double dx, double dy) {
+            switch (type) {
+            case Type::gaussian:
+                return A * expf(-((_a * dx * dx) + (_2b * dx * dy) + (_c * dy * dy))) + B;
+            case Type::moffat:
+                return  A * powf(1 + (_a * (dx * dx) + _2b * (dx * dy) + _c * (dy * dy)), -beta) + B;
+            default:
+                return 0.0f;
+            }
+        };
+
+        for (int y = yc - ry; y <= int(yc + ry); ++y) {
+            double dy = y - yc;
+            for (int x = xc - rx; x <= int(xc + rx); ++x) {
+                double dx = x - xc;
+                if (img.isInBounds(x, y)) {
+                    if (img(x, y) > bg) {
+                        float pixel = Pixel<float>::toType(img(x, y));
+                        flux += pixel - B;
+                        float d = pixel - v(dx, dy);
+                        sum += d * d;
+                        count++;
+                    }
+                }
             }
         }
-        
+
+        magnitude = - 2.5 * log10(flux);
+        peak = Pixel<float>::toType(img.at(xc, yc));
         roundness = math::min(fwhmx, fwhmy) / math::max(fwhmx, fwhmy);
+        rmse = sqrt(sum / count);
+        //rmse = RMSE(img);
     }
 
     PSF() = default;
 
-    float luminance()const { return -2.5 * log10(flux); }
-
-    template<typename T>
-    float rmse(const Image<T>& img)const {
+    bool operator()(const PSF& a, const PSF& b) { return (a.A > b.A); }
+private:
+    //template<typename T>
+    /*float RMSE(const Image<T>& img)const {
 
         double ct = cos(theta);
         double st = sin(theta);
@@ -104,27 +156,26 @@ public:
 
         double sum = 0;
         int count = 0;
-        T b = Pixel<T>::toType(B);
-
-        auto v = [&, this](double dx, double dy) {
+        auto v = [=, this](double dx, double dy) {
             switch (type) {
             case Type::gaussian:
-                return A * expf(-((_a * dx * dx) + (_2b * dx * dy) + (_c * dy * dy)));
+                return A * expf(-((_a * dx * dx) + (_2b * dx * dy) + (_c * dy * dy))) + B;
             case Type::moffat:
-                return  A * powf(1 + (_a * (dx * dx) + _2b * (dx * dy) + _c * (dy * dy)), -1 / beta);
+                return  A * powf(1 + (_a * (dx * dx) + _2b * (dx * dy) + _c * (dy * dy)), -beta) + B;
             default:
                 return 0.0f;
             }
         };
 
-        for (double y = yc - ry; y <= yc + ry; ++y) {
+        T b = Pixel<T>::toType(B);
+        for (int y = yc - ry; y <= int(yc + ry); ++y) {
             double dy = y - yc;
-            double dy2 = dy * dy;
-            for (double x = xc - rx; x <= xc + rx; ++x) {
+            //double dy2 = dy * dy;
+            for (int x = xc - rx; x <= int(xc + rx); ++x) {
                 double dx = x - xc;
                 if (img.isInBounds(x, y)) {
                     if (img(x, y) > b) {
-                        float pix = Pixel<float>::toType(T(img(x, y) - b)) - v(dx,dy);
+                        float pix = Pixel<float>::toType(img(x, y)) - v(dx,dy);
                         sum += pix * pix;
                         count++;
                     }
@@ -133,6 +184,61 @@ public:
         }
 
         return sqrt(sum / count);
+    }*/
+
+    template<typename T>
+    bool isSaturated(const Image<T>& img)const {
+
+        //int rx = fwhmx / 2;
+        //int ry = fwhmy / 2;
+        T min_peak = 0.9 * Pixel<T>::max();
+        int pix_count = 0;
+
+        for (int y = yc - ry; y < int(yc + ry); ++y)
+            for (int x = xc - rx; x < int(xc + rx); ++x)
+                if (img.at(x, y) > min_peak)
+                    pix_count++;
+        
+        return (pix_count > 5);
+    }
+
+public:
+    bool isValid()const {
+
+        if (std::isnan(sx) || std::isnan(sy))
+            return false;
+
+        if (std::isinf(A))
+            return false;
+
+        if (std::isnan(xc) || std::isnan(yc))
+            return false;
+
+        if (sx < 1.0f || sy < 1.0f)
+            return false;
+
+        if (count < 5)
+            return false;
+
+        return true;
+    }
+
+    float sharpness()const {
+        float mean = ((flux + B * count) - peak) / (count - 1);
+        return (peak - mean) / A;
+    }
+
+    float mean()const {
+        return (flux + B * count) / (count - 1);
+    }
+
+    float peakMean()const {
+        float mean = ((flux + B * count) - peak) / (count - 1);
+        return peak / mean;
+    }
+
+    float meanFlux()const {
+        return flux / (std::_Pi * fwhmx * fwhmy);
     }
 
     float fwtmx()const {
@@ -144,6 +250,8 @@ public:
         case Type::moffat:
             return sx * sqrtf(powf(10, 1 / beta) - 1);
         }
+
+        return 0.0f;
     }
 
     float fwtmy()const {
@@ -155,29 +263,42 @@ public:
         case Type::moffat:
             return sy * sqrtf(powf(10, 1 / beta) - 1);
         }
+
+        return 0.0f;
     }
 };
-typedef std::vector<PSF> PSFVector;
 
+typedef std::vector<PSF> PSFVector;
 
 struct Star {
     // star descriptor
     float xc = 0; // x-coord of center
     float yc = 0; // y-coord of center
+
     int radius_x = 0;
     int radius_y = 0;
+    float theta = 0; //radians
 
-    float luminance = 0; //appoximated absolute magnitude of star(luminance)
+    float magnitude = 0; //appoximated absolute magnitude
+
+    Star(const PSF& psf) : xc(psf.xc), yc(psf.yc), radius_x(psf.rx), radius_y(psf.ry), theta(psf.theta), magnitude(psf.magnitude) {
+        //moffat needs fwhm
+        //radius_x = psf.fwhmx;
+        //radius_y = psf.fwhmy;
+    }
 
     Star(float x, float y, int r) :xc(x), yc(y), radius_x(r), radius_y(r) {};
 
-    Star(float x, float y, int rx, int ry) :xc(x), yc(y), radius_x(rx), radius_y(ry) {};
-
     Star() = default;
 
-    bool operator()(Star& a, Star& b) { return (a.luminance < b.luminance); }
+    bool operator()(const Star& a, const Star& b) { return (a.magnitude < b.magnitude); }
 
-    int avgRadius()const { return (radius_x + radius_y) / 2; }
+    float avgRadius()const { return (radius_x + radius_y) / 2.0f; }
+
+    int maxRadius()const { return math::max(radius_x, radius_y); }
+
+    int minRadius()const { return math::min(radius_x, radius_y); }
+
 };
 
 struct StarVector : public std::vector<Star> {

@@ -26,8 +26,6 @@ signals:
 
 class ImageStacking {
 
-	typedef std::vector<float> Pixelstack;
-
 public:
 	enum class Integration {
 		average,
@@ -52,6 +50,8 @@ public:
 	};
 
 protected:
+	typedef std::vector<float> Pixelstack;
+
 	struct PixelRows {
 
 	protected:
@@ -59,8 +59,8 @@ protected:
 
 	private:
 		Pixelstack m_pixels;
-		int m_width = 0;
-		int m_num_imgs = 0;
+		int m_width = 0; //size of row
+		int m_num_imgs = 0; //number of rows/images
 		int m_size = 0;
 
 		int m_max_threads = (omp_get_max_threads() < 4) ? omp_get_max_threads() : 4;
@@ -68,7 +68,7 @@ protected:
 	public:
 		PixelRows(int num_imgs, int width, ImageStacking& is);
 
-		float& operator() (int num, int row) { return m_pixels[row * m_width + num]; }
+		float& operator() (int x, int img_num) { return m_pixels[img_num * m_width + x]; }
 
 		int count()const { return m_num_imgs; }
 
@@ -93,7 +93,7 @@ protected:
 
 	Rejection m_rejection = Rejection::none;
 
-	float m_sigma_low = 2.0;
+	float m_sigma_low = 4.0;
 	float m_sigma_high = 3.0;
 
 	float m_perc_low = 0.1f;
@@ -187,7 +187,7 @@ class ImageStackingWeightMap : public ImageStacking {
 		float value = 0;
 		uint32_t img_num = 0;
 
-		bool operator ()(Pixel_t& a, Pixel_t& b) { return (a.value < b.value); }
+		bool operator()(Pixel_t& a, Pixel_t& b) { return (a.value < b.value); }
 	};
 
 	typedef std::vector<Pixel_t> Pixelstack_t;

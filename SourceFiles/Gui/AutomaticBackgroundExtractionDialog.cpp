@@ -5,7 +5,7 @@
 using ABE = AutomaticBackgroundExtraction;
 using ABED = AutomaticBackgroundExtractionDialog;
 
-ABED::AutomaticBackgroundExtractionDialog(QWidget* parent) : ProcessDialog("Automatic Background Extraction", QSize(530, 380), FastStack::recast(parent)->workspace(), true) {
+ABED::AutomaticBackgroundExtractionDialog(Workspace* parent) : ProcessDialog("Automatic Background Extraction", QSize(530, 380), parent, true) {
 
     connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_apply_to_preview_pb->setDisabled(true); });
 
@@ -215,17 +215,17 @@ void ABED::applyPreview() {
     switch (iwptr->type()) {
     case ImageType::UBYTE: {
         auto iw8 = iwptr;
-        iw8->updatePreview(m_abe, &ABE::applyTo);
+        //iw8->updatePreview(m_abe, &ABE::applyTo);
         break;
     }
     case ImageType::USHORT: {
         auto iw16 = previewRecast<uint16_t>(iwptr);
-        iw16->updatePreview(m_abe, &ABE::applyTo);
+        //iw16->updatePreview(m_abe, &ABE::applyTo);
         break;
     }
     case ImageType::FLOAT: {
         auto iw32 = previewRecast<float>(iwptr);
-        iw32->updatePreview(m_abe, &ABE::applyTo);
+        //iw32->updatePreview(m_abe, &ABE::applyTo);
     }
     }
 

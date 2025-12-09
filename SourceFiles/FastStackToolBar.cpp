@@ -123,4 +123,11 @@ FastStackToolBar::FastStackToolBar(QWidget* parent) : QToolBar(parent) {
 
     m_pix_val = new PixelValueLabel(this);
     this->addWidget(m_pix_val);
+
+    QWidget* s = new QWidget(this);
+    s->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    this->addWidget(s);
+
+    DigitalClock* dc = new DigitalClock(this);
+    this->addWidget(dc);
 }

@@ -1,14 +1,13 @@
 #pragma once
 #include"Image.h"
 #include "Star.h"
-#include "Wavelet.h"
-#include "Matrix.h"
 
 
 class StarDetector {
 
-    StructureMaps m_maps;
-    inline static float m_sigma = 0.42466 * 3; // constant * fwhm
+    float m_fwhm = 2;
+    float m_sigma = 0.42466 * m_fwhm; // constant * fwhm
+
     float m_K = 1.0;
     float m_roundness = 0.5;
 
@@ -19,9 +18,9 @@ class StarDetector {
 public:
     StarDetector() = default;
 
-    float sigmaK()const { return m_K; }
+    float K()const { return m_K; }
 
-    void setSigmaK(float K) { m_K = K; }
+    void setK(float K) { m_K = K; }
 
     float roundness()const { return m_roundness; }
 
@@ -38,21 +37,22 @@ public:
     PSF meanPSF()const { return m_average_psf; }
 
 private:
-    StarVector combineStarVectors(std::vector<StarVector>& svv);
+    template<typename T>
+    bool gaussianFit(const Image<T>& orig, const Image<T>& convolved, const Star& star, PSF& psf, T b, T t);
 
     template<typename T>
-    bool centerGravityFit(const Image<T>& img, const Star& star, PSF& psf, T b, T t);
+    bool moffatFit(const Image<T>& orig, const Image<T>& convolved, const Star& star, PSF& psf, T b, T t);
 
     template<typename T>
-    bool gaussianFit(const Image<T>& img, const Star& star, PSF& psf, T b);
+    bool psfFit(const Image<T>& orig, const Image<T>& convolved, Star& star, PSF& psf);
 
     template<typename T>
-    bool moffatFit(const Image<T>& img, const Star& star, PSF& psf, T b);
-
-    template<typename T>
-    bool psfFit(const Image<T>& img, Star& star, PSF& psf);
+    void daofind(const Image<T>& gray, StarVector& star_vector, PSFVector& psf_vector);
 
 public:
     template<typename T>
     StarVector DAOFIND(const Image<T>& img);
+
+    template<typename T>
+    PSFVector DAOFIND_PSF(const Image<T>& img);
 };

@@ -52,6 +52,8 @@ public:
 
 	const uint32_t& operator[](int val)const { return m_data[val]; }
 
+	void clear();
+
 	void fill(uint32_t val);
 
 	template<typename T>
@@ -69,6 +71,19 @@ public:
 
 		for (auto pixel : img)
 			m_data[pixel * k]++;
+	}
+
+	void addPixel(uint8_t pixel) {
+		m_data[Pixel<float>::toType(pixel) * resolution()]++;
+	}
+
+	void addPixel(uint16_t pixel) {
+		m_data[Pixel<float>::toType(pixel) * resolution()]++;
+	}
+
+	void addPixel(float pixel) {
+		math::clipf(pixel);
+		m_data[pixel * resolution()]++;
 	}
 
 	template<typename T>
@@ -121,6 +136,8 @@ public:
 	uint16_t max(bool clip = false);
 
 	float standardDeviation(float mean, bool clip = false);
+
+	uint16_t mode(bool clip = false);
 
 	uint32_t maxCount(bool clip = false);
 

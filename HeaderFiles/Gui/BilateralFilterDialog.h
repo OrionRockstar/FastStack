@@ -17,7 +17,7 @@ class BilateralFilterDialog : public ProcessDialog {
 	ComboBox* m_kernel_size_cb = nullptr;
 
 public:
-	BilateralFilterDialog(QWidget* parent = nullptr);
+	BilateralFilterDialog(Workspace* parent = nullptr);
 
 private:
 	void addSigmaInputs();

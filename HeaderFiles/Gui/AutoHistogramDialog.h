@@ -31,7 +31,7 @@ class AutoHistogramDialog : public ProcessDialog {
 	DoubleInput* m_highlight_blue_inp = nullptr;
 
 public:
-	AutoHistogramDialog(QWidget* parent);
+	AutoHistogramDialog(Workspace* parent);
 
 private:
 

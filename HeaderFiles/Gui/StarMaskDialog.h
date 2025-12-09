@@ -17,7 +17,7 @@ class StarMaskDialog : public ProcessDialog {
 	CheckBox* m_real_value_cb = nullptr;
 
 public:
-	StarMaskDialog(QWidget* parent);
+	StarMaskDialog(Workspace* parent);
 
 private:
 	void addStarThresholdInputs();

@@ -397,8 +397,8 @@ void HistogramView::resizeEvent(QResizeEvent* e) {
 
 	int dy = (scale() - 1) * (e->size().height() - e->oldSize().height());
 
-	m_offsetx = math::clip<int>(m_offsetx, 0, (m_gs->width() * scale()) - m_gs->width());
-	m_offsety = math::clip<int>(m_offsety += dy, 0, (m_gs->height() * scale()) - m_gs->height());
+	m_offsetx = math::clip(m_offsetx, 0, int((m_gs->width() * scale()) - m_gs->width()));
+	m_offsety = math::clip(m_offsety += dy, 0, int((m_gs->height() * scale()) - m_gs->height()));
 
 	m_hsb->resize(width() - m_hsb->thickness() + 1, m_hsb->thickness());
 	m_hsb->move(0, height() - m_hsb->thickness());

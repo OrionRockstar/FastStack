@@ -111,9 +111,7 @@ Image32 EdgeDetection::apply(const Image<T>& img) {
 
 //compute operator gradients and gradient direction
 	if (img.channels() == 3) {
-		Image<T> gray;
-		img.copyTo(gray);
-		gray.RGBtoGray();
+		Image<T> gray = img.createGrayscaleImage();
 
 #pragma omp parallel for
 		for (int y = 0; y < img.rows(); ++y) {
@@ -207,7 +205,7 @@ template Image32 EdgeDetection::apply(const Image32&);
 
 
 
-EdgeDetectionDialog::EdgeDetectionDialog(QWidget* parent) :ProcessDialog("Canny Edge Detection", QSize(250, 160), FastStack::recast(parent)->workspace(), false) {
+EdgeDetectionDialog::EdgeDetectionDialog(Workspace* parent) :ProcessDialog("Canny Edge Detection", QSize(250, 160), parent, false) {
 	
 	GroupBox* gb = new GroupBox("Operator", drawArea());
 	gb->move(15, 10);

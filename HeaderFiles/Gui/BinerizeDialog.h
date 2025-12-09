@@ -17,7 +17,7 @@ class BinerizeDialog : public ProcessDialog {
 	DoubleInput* m_blue_inp = nullptr;
 
 public:
-	BinerizeDialog(QWidget* parent);
+	BinerizeDialog(Workspace* parent);
 
 private:
 	void addRGBRadioInputs();

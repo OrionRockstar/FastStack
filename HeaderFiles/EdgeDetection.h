@@ -79,7 +79,7 @@ class EdgeDetectionDialog : public ProcessDialog {
 	QButtonGroup* m_operator_bg;
 
 public:
-	EdgeDetectionDialog(QWidget* paerent);
+	EdgeDetectionDialog(Workspace* paerent);
 
 	void resetDialog() {
 		m_ed.setOperator(EdgeDetection::Operator::sobel);

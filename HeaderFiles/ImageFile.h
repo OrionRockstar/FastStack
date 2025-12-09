@@ -33,8 +33,6 @@ protected:
 	ImageType m_img_type = ImageType::UBYTE;
 
 public:
-	//ImageFile() = default;
-
 	ImageFile(Type file_type) : m_type(file_type) {}
 
 	ImageFile(ImageFile&& other) noexcept {
@@ -63,51 +61,59 @@ public:
 	ImageType imageType()const { return m_img_type; }
 
 private:
-	void setBuffer() {
-
-		m_size = cols() * typeSize(imageType());
-
-		m_size = (streamsize() > 4096) ? streamsize() : 4096;
-
-		m_stream_buffer = std::make_unique<char[]>(streamsize());
-		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), streamsize());
-	}
+	void setBuffer();
 
 protected:
-	void resizeBuffer(std::streamsize size = 0) {
+	void resizeBuffer(std::streamsize size = 0);
 
-		if (size == 0)
-			return setBuffer();
+	virtual void open(std::filesystem::path path);
 
-		if (size == this->streamsize())
-			return;
-
-		m_size = size;
-		m_stream_buffer = std::make_unique<char[]>(streamsize());
-		m_stream.rdbuf()->pubsetbuf(m_stream_buffer.get(), streamsize());
-	}
-
-	virtual void open(std::filesystem::path path) {
-		m_stream.open(path, std::ios::in | std::ios::out | std::ios::binary);
-	}
-
-	virtual void create(std::filesystem::path path) {
-		m_stream.open(path, std::ios::out | std::ios::binary | std::ios::trunc);
-	}
+	virtual void create(std::filesystem::path path);
 
 public:
-	virtual void close() {
+	virtual void close();
+};
 
-		m_stream.close();
-		m_stream_buffer.reset();
-		m_size = 0;
 
-		m_rows = 0;
-		m_cols = 0;
-		m_channels = 1;
-		m_px_count = 0;
 
-		m_img_type = ImageType::UBYTE;
-	}
 
+
+class WeightMapImage : public ImageFile {
+#pragma pack(push, 1)
+	struct Header {
+		const char signature[3] = { 'W','M','I' };
+		uint32_t file_size = 0; //bytes
+		const uint16_t data_offset = 30;
+		uint32_t rows = 0;
+		uint32_t cols = 0;
+		uint16_t channels = 0;
+		uint32_t pixels_per_channel = 0;
+		uint32_t total_pixels = 0;
+		const int16_t bitdepth = 8;
+		uint8_t compression = 1;
+	};
+#pragma pack(pop)
+
+	struct RLE {
+		uint8_t count = 0;
+		uint8_t value = 0;
+	};
+
+	bool m_compression = true;
+
+	void writeHeader(const Image8& src, bool compression = true);
+
+public:
+
+	WeightMapImage() : ImageFile(Type::WMI) {}
+	
+	static bool isWeightMapImage(const std::filesystem::path& path);
+
+	void open(std::filesystem::path path)override;
+
+	void create(std::filesystem::path path)override;
+
+	void read(Image8& dst);
+
+	void write(const Image8& src, bool compression = true);
 };

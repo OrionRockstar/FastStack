@@ -124,7 +124,7 @@ void CurveGraphicsView::drawBackground(QPainter* painter, const QRectF& rect) {
 
 using CTD = CurvesTransformationDialog;
 
-CTD::CurvesTransformationDialog(QWidget* parent) : ProcessDialog("CurveTransform", QSize(400, 515), FastStack::recast(parent)->workspace()) {
+CTD::CurvesTransformationDialog(Workspace* parent) : ProcessDialog("CurveTransform", QSize(400, 515), parent) {
 
 	setDefaultTimerInterval(250);
 

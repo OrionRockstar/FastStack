@@ -2,6 +2,8 @@
 #include "ProcessDialog.h"
 #include "FastStack.h"
 #include "ImageWindow.h"
+#include "Maths.h"
+#include "QtConcurrent\qtconcurrentrun.h"
 //#include "Interpolator.h"
 //#include "HistogramTransformation.h"
 
@@ -233,6 +235,7 @@ ProcessDialog::ProcessDialog(const QString& name, const QSize& size, Workspace* 
 	m_toolbar = new DialogToolbar(this, preview, apply_dd, apply);
 	m_toolbar->setGeometry(m_border_width, drawArea()->geometry().bottom() + 1, size.width());
 	
+	
 	connect(this, &ProcessDialog::processDropped, this, &ProcessDialog::apply, Qt::UniqueConnection);
 	m_toolbar->connectFunctions(this, &ProcessDialog::createDragInstance, &ProcessDialog::apply, &ProcessDialog::showPreview, &ProcessDialog::resetDialog);
 	connect(m_timer.get(), &QTimer::timeout, this, &ProcessDialog::applytoPreview, Qt::UniqueConnection);
@@ -275,6 +278,11 @@ bool ProcessDialog::isPreviewValid()const {
 	return true;
 }
 
+void ProcessDialog::removePreview() {
+	m_preview = nullptr; 
+	emit previewRemoved();
+}
+
 void ProcessDialog::createDragInstance() {
 
 	QDrag* drag = new QDrag(this);
@@ -292,10 +300,19 @@ void ProcessDialog::connectZoomWindow() {
 	if (ptr->preview())
 		if (ptr->preview()->processType() == m_name)
 			if (ptr->zoomWindow())
-				ptr->zoomWindow()->connectZoomWindow(this, &ProcessDialog::applytoPreview);
+				ptr->zoomWindow()->connectZoomWindow2(this, &ProcessDialog::applytoPreview);
+}
+
+void ProcessDialog::onZoomWindowCreated() {
+
+	connectZoomWindow();
+	applytoPreview();
 }
 
 void ProcessDialog::applytoPreview() {
+
+	if (m_preview == nullptr)
+		return;
 
 	if (!m_finished)
 		return m_timer->start(100);
@@ -314,7 +331,8 @@ void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 	for (auto sw : m_workspace->subWindowList()) {
 		auto iw = imageRecast<>(sw->widget());
 		if (iw->previewExists()) {
-			//is same process or different image(window)
+			if (iw->preview()->processType() == "Crop Image")
+				return;
 			if (iw->preview()->processType() == name() || iw != iwptr) {
 				return;
 			}
@@ -347,14 +365,12 @@ void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 	}
 	}
 
-	////
 	//transfers preview to current process
 	for (auto child : m_workspace->children()) {
 		auto ptr = dynamic_cast<ProcessDialog*>(child);
 		if (ptr != nullptr) {
 			if (ptr->m_preview == iwptr->preview()) {
-				ptr->m_preview = nullptr;
-				emit ptr->previewRemoved();
+				ptr->removePreview();
 				break;
 			}
 		}
@@ -363,15 +379,15 @@ void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 	emit previewAdded();
 
 	//updates preview after apply
-	connect(iwptr, &ImageWindowBase::windowUpdated, this, &ProcessDialog::applytoPreview);
-	connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { m_preview = nullptr; emit previewRemoved(); });
+	connect(iwptr, &ImageWindowBase::windowUpdated, this, &ProcessDialog::applytoPreview, Qt::UniqueConnection);
+	connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, &ProcessDialog::removePreview, Qt::UniqueConnection);
 
 	iwptr->preview()->setTitle(iwptr->name() + " Preview: " + name());
 	iwptr->preview()->setProcessType(name());
 
 	if (!ignore_zoomwindow) {
 		connectZoomWindow();
-		connect(iwptr, &ImageWindowBase::zoomWindowCreated, this, &ProcessDialog::connectZoomWindow, Qt::UniqueConnection);
+		connect(iwptr, &ImageWindowBase::zoomWindowCreated, this, &ProcessDialog::onZoomWindowCreated, Qt::UniqueConnection);
 		connect(iwptr, &ImageWindowBase::zoomWindowClosed, this, &ProcessDialog::applytoPreview, Qt::UniqueConnection);
 	}
 
@@ -390,9 +406,10 @@ void ProcessDialog::closeEvent(QCloseEvent* close) {
 				PreviewWindow8* pptr = previewRecast(iwptr->preview());
 				pptr->setTitle(str);
 				pptr->setProcessType();
+				
 				if (iwptr->zoomWindow())
 					iwptr->zoomWindow()->disconnectZoomWindow();
-				//iwptr->di
+
 				switch (pptr->type()) {
 				case ImageType::UBYTE:
 					pptr->updatePreview();

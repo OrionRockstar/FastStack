@@ -70,7 +70,7 @@ void ASinhStretch::applyMono(Image<T>& img) {
 	float beta = computeBeta();
 	float asinhb = asinh(beta);
 
-	float max = img.computeMax(0);
+	float max = Pixel<float>::toType(img.computeMax(0));
 
 #pragma omp parallel for num_threads(2)
 	for (int el = 0; el < img.pxCount(); ++el) {

@@ -183,7 +183,6 @@ static void MessageBox(const QString& message, QWidget* parent) {
 
 
 
-
 class PreviewWindowBase;
 class ProcessDialog : public Dialog {
 	Q_OBJECT
@@ -219,9 +218,13 @@ signals:
 	void previewRemoved();
 
 private:
+	void removePreview();
+
 	void createDragInstance();
 
 	void connectZoomWindow();
+
+	void onZoomWindowCreated();
 
 protected:
 	void applytoPreview();
@@ -232,7 +235,7 @@ protected:
 		m_timer->setDefaultInterval(msec);
 	}
 
-	void showPreviewWindow(bool ignore_zoomwindow = false);
+	virtual void showPreviewWindow(bool ignore_zoomwindow = false);
 
 	virtual void onImageWindowCreated() {}
 
@@ -242,7 +245,7 @@ protected:
 
 	virtual void resetDialog() {}
 
-	virtual void showPreview() { showPreviewWindow(); }
+	void showPreview() { showPreviewWindow(); }
 
 	virtual void apply() {}
 

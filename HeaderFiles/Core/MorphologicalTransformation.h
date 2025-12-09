@@ -3,6 +3,71 @@
 #include "ProcessDialog.h"
 #include "Maths.h"
 
+template<typename T>
+class Kernel {
+	const Image<T>* m_img;
+	std::unique_ptr<T[]> m_data;
+
+	int m_dim = 0;
+	int m_radius = 0;
+	int m_size = 0;
+
+public:
+	Kernel(const Image<T>& img, size_t dimension);
+
+	Kernel(const Kernel<T>& kernel);
+
+	T& operator[](size_t el) { return m_data[el]; }
+
+	const T& operator[](size_t el)const { return m_data[el]; }
+
+	T& operator()(int x, int y) { return m_data[y * m_dim + x]; }
+
+	const T& operator()(int x, int y)const { return m_data[y * m_dim + x]; }
+
+	int dimension()const { return m_dim; }
+
+	int radius()const { return m_radius; }
+
+	int count()const { return m_size; }
+
+	virtual void populate(int y, int ch);
+
+	virtual void update(int x, int y, int ch);
+};
+
+
+
+class MorphologicalTransformation;
+
+template<typename T>
+class MorphologicalKernel : public Kernel<T> {
+
+	std::vector<uint16_t> m_locations;
+	std::vector<T> m_masked_data;
+
+public:
+	MorphologicalKernel(const Image<T>& img, const MorphologicalTransformation& mt);
+
+	void populate(int y, int ch)override;
+
+	void update(int x, int y, int ch)override;
+
+private:
+	void setMaskedData();
+
+public:
+	T minimum()const;
+
+	T maximum()const;
+
+	T selection(int pivot);
+
+	T median();
+
+	T midpoint()const;
+};
+
 
 class MorphologicalTransformation {
 
@@ -25,7 +90,6 @@ private:
 	int m_kernel_size = m_kernel_dim * m_kernel_dim;
 
 	std::vector<char> m_kmask = std::vector<char>(m_kernel_size, true);
-	std::vector<int> m_mask_loc = std::vector<int>(0);
 
 	float m_selection = 0.5;
 
@@ -33,130 +97,6 @@ private:
 
 	float m_amount = 1.00;
 	float m_orig_amount = 1 - m_amount;
-
-	template <typename T>
-	struct Kernel2D {
-		const MorphologicalTransformation* m_obj;
-		const Image<T>* m_img;
-
-		std::unique_ptr<T[]> data;
-
-		int m_dim = 0;
-		int m_radius = 0;
-		int m_size = 0;
-
-		Kernel2D(const MorphologicalTransformation& m, const Image<T>& img) {
-
-			m_dim = m.m_kernel_dim;
-			m_radius = m.m_kernel_radius;
-
-			m_size = m_dim * m_dim;
-			data = std::make_unique<T[]>(m_size);
-
-			m_obj = &m;
-			m_img = &img;
-
-		}
-
-		Kernel2D(const Kernel2D<T>& other) {
-			m_obj = other.m_obj;
-			m_img = other.m_img;
-
-			m_dim = other.m_dim;
-			m_radius = other.m_radius;
-			m_size = other.m_size;
-
-			data = std::make_unique<T[]>(m_size);
-			memcpy(data.get(), other.data.get(), m_size * sizeof(T));
-
-		}
-
-		~Kernel2D() {};
-
-		void populate(int y, int ch) {
-			for (int j = -m_radius, el = 0; j <= m_radius; ++j)
-				for (int i = -m_radius; i <= m_radius; ++i)
-					data[el++] = m_img->at_mirrored(i, y + j, ch);
-
-		}
-
-		void update(int x, int y, int ch) {
-
-			int xx = x + m_radius;
-			if (xx >= m_img->cols())
-				xx = 2 * m_img->cols() - (xx + 1);
-
-			for (int j = 0; j < m_size; j += m_dim) 
-				for (int i = 0; i < m_dim - 1; ++i)
-					data[j + i] = data[j + i + 1];
-
-			for (int j = -m_radius, el = m_dim - 1; j <= m_radius; ++j, el+=m_dim) {
-
-				int yy = y + j;
-				if (yy < 0)
-					yy = -yy;
-				else if (yy >= m_img->rows())
-					yy = 2 * m_img->rows() - (yy + 1);
-
-				data[el] = (*m_img)(xx, yy, ch);
-
-			}
-
-		}
-
-		T minimum()const {
-			T min = std::numeric_limits<T>::max();
-			for (int el = 0; el < m_obj->m_mask_loc.size(); ++el)
-				min = math::min(min, data[m_obj->m_mask_loc[el]]);
-			return min;
-		}
-
-		T maximum()const {
-			T max = std::numeric_limits<T>::min();
-			for (int el = 0; el < m_obj->m_mask_loc.size(); ++el)
-				max = math::max(max, data[m_obj->m_mask_loc[el]]);
-			return max;
-		}
-
-		T selection(int pivot)const {
-			std::vector<T> k(m_obj->m_mask_loc.size());
-
-			for (int el = 0; el < k.size(); ++el)
-				k[el] = data[m_obj->m_mask_loc[el]];
-
-			std::nth_element(&k[0], &k[pivot], &k[k.size()]);
-
-			return k[pivot];
-		}
-
-		T median()const {
-
-			std::vector<T> k(m_obj->m_mask_loc.size());
-
-			for (int el = 0; el < k.size(); ++el)
-				k[el] = data[m_obj->m_mask_loc[el]];
-
-			int h = k.size() / 2;
-
-			std::nth_element(&k[0], &k[h], &k[k.size()]);
-
-			return k[h];
-		}
-
-		T midpoint()const {
-
-			T min = std::numeric_limits<T>::max();
-			T max = std::numeric_limits<T>::min();
-
-			for (int el = 0; el < m_obj->m_mask_loc.size(); ++el) {
-				min = math::min(min, data[m_obj->m_mask_loc[el]]);
-				max = math::max(max, data[m_obj->m_mask_loc[el]]);
-			}
-
-			return (0.5 * min + 0.5 * max);
-		}
-
-	};
 
 public:
 	MorphologicalTransformation() = default;
@@ -206,14 +146,15 @@ public:
 
 	ProgressSignal* signalObject()const  {return m_ps;}
 
+	std::vector<uint16_t> maskedLocations()const;
+
 private:
+	int maskCount()const;
 
 	template<typename T>
 	T blend(T old_pixel, T new_pixel) {
 		return T(m_orig_amount * old_pixel + m_amount * new_pixel);
 	}
-
-	void GetMaskedLocations();
 
 	template <typename T>
 	void erosion(Image<T>&img);

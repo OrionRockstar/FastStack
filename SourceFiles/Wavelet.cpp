@@ -12,7 +12,7 @@ Wavelet::Images::Images(const Image<T> src, bool to_grayscale) {
 	src.copyTo(source);
 
 	if (to_grayscale)
-		source.RGBtoGray();
+		source.toGrayscale();
 
 	convolved = Image32(source.rows(), source.cols(), source.channels());
 	wavelet = Image32(source.rows(), source.cols(), source.channels());
@@ -202,17 +202,12 @@ Image8Vector StructureMaps::generateMaps(const Image<T>& img) {
 	for (int i = 0; i < layers(); ++i) {
 
 		atrous(i, images);
-
-		float min = abs(w.computeMin(0));
-		for (auto& p : w)
-			p += min;
-
-		//w.normalize();
+		w.normalize();
 
 		float median = w.computeMedian(0);
-		float dev = w.computeStdDev(0);
+		float sigma = w.compute_nMAD(0);
 
-		float threshold = median + m_K * dev;
+		float threshold = median + m_K * sigma;
 
 		Image8 bi_wavelet(img.rows(), img.cols());
 

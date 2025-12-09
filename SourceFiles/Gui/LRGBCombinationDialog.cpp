@@ -105,7 +105,7 @@ void LRGBCD::addLumInputs() {
     m_image_selection_layout->addWidget(m_lum_cb, 0, 0);
     connect(m_lum_cb, &QCheckBox::clicked, this, [this](bool v) { m_lrgbc.enableLum(v); });
 
-    m_lum_combo = new ComboBox(this);
+    m_lum_combo = new ImageComboBox(this);
     m_lum_combo->setPalette(m_pal);
     m_lum_combo->setFixedWidth(250);
     m_image_selection_layout->addWidget(m_lum_combo, 0, 1);
@@ -121,7 +121,7 @@ void LRGBCD::addRedInputs() {
     m_image_selection_layout->addWidget(m_red_cb, 1, 0);
     connect(m_red_cb, &QCheckBox::clicked, this, [this](bool v) { m_lrgbc.channelCombination().enableRed(v); });
 
-    m_red_combo = new ComboBox(this);
+    m_red_combo = new ImageComboBox(this);
     m_red_combo->setPalette(m_pal);
     m_red_combo->setFixedWidth(250);
     m_image_selection_layout->addWidget(m_red_combo, 1, 1);
@@ -138,7 +138,7 @@ void LRGBCD::addGreenInputs() {
     m_image_selection_layout->addWidget(m_green_cb, 2, 0);
     connect(m_green_cb, &QCheckBox::clicked, this, [this](bool v) { m_lrgbc.channelCombination().enableGreen(v); });
 
-    m_green_combo = new ComboBox(this);
+    m_green_combo = new ImageComboBox(this);
     m_green_combo->setPalette(m_pal);
     m_green_combo->setFixedWidth(250);
     m_image_selection_layout->addWidget(m_green_combo, 2, 1);
@@ -154,7 +154,7 @@ void LRGBCD::addBlueInputs() {
     m_image_selection_layout->addWidget(m_blue_cb, 3, 0);
     connect(m_blue_cb, &QCheckBox::clicked, this, [this](bool v) { m_lrgbc.channelCombination().enableBlue(v); });
 
-    m_blue_combo = new ComboBox(this);
+    m_blue_combo = new ImageComboBox(this);
     m_blue_combo->setPalette(m_pal);
     m_blue_combo->setFixedWidth(250);
     m_image_selection_layout->addWidget(m_blue_combo, 3, 1);

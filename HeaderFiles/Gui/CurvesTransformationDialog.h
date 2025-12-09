@@ -74,7 +74,7 @@ private:
 	QLabel* m_current_point;
 
 public:
-	CurvesTransformationDialog(QWidget* parent = nullptr);
+	CurvesTransformationDialog(Workspace* parent = nullptr);
 
 public slots:
 	void onItemARC();

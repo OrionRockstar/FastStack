@@ -545,6 +545,25 @@ public:
 		return true;
 	}
 
+	template<typename P = T>
+	P pixel(int x, int y)const {
+		return Pixel<P>::toType((*this)(x, y));
+	}
+
+	template<typename P = T>
+	P pixel(int x, int y, int ch)const {
+		return Pixel<P>::toType((*this)(x, y, ch));
+	}
+
+	template<typename P = T>
+	void setPixel(P pixel, int x, int y) {
+		(*this)(x, y) = Pixel<T>::toType(pixel);
+	}
+
+	template<typename P = T>
+	void setPixel(T pixel, int x, int y, int ch) {
+		(*this)(x, y, ch) = Pixel<T>::toType(pixel);
+	}
 
 private:
 	template<typename P = T>
@@ -649,24 +668,16 @@ public:
 		m_blue[el] = Pixel<T>::toType(color.blue);
 	}
 
-	void setPixel(T pixel, int x, int y) {
-		if (isInBounds(x, y))
-			(*this)(x, y) = pixel;
-	}
+	void toGrayscale() {
 
-	void setPixel(T pixel, int x, int y, int ch) {
-		if (isInBounds(x, y) && ch < channels())
-			(*this)(x, y, ch) = pixel;
-	}
-
-	void RGBtoGray() {
-
-		if (m_channels != 3)
+		if (m_channels == 1)
 			return;
 
+		if (m_channels == 3) {
 #pragma omp parallel for num_threads(2)
-		for (int el = 0; el < pxCount(); ++el)
-			m_data[el] = Pixel<T>::toType(ColorSpace::CIEL(color<double>(el)));
+			for (int el = 0; el < pxCount(); ++el)
+				m_data[el] = Pixel<T>::toType(ColorSpace::CIEL(color<double>(el)));
+		}
 		
 		m_data.reset((T*)std::realloc(m_data.release(), pxCount() * sizeof(T)));
 
@@ -699,6 +710,7 @@ public:
 		}
 	}
 
+	Image<T> createGrayscaleImage()const;
 
 	void copyTo(Image<T>& dst)const {
 		if (!this->isSameShape(dst))
@@ -780,16 +792,15 @@ public:
 		return at(x, y, ch);
 	}
 
-	void FillZero() {
+	void fillZero() {
 		for (T& pixel : *this)
 			pixel = 0;
 	}
 
-	void FillValue(T val) {
+	void fillValue(T val) {
 		for (T& pixel : *this)
 			pixel = val;
 	}
-
 
 	void truncate(T a, T b);
 

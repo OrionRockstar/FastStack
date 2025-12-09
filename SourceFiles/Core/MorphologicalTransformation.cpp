@@ -2,6 +2,147 @@
 #include"FastStack.h"
 #include "MorphologicalTransformation.h"
 
+template<typename T>
+Kernel<T>::Kernel(const Image<T>& img, size_t dimension) {
+
+	m_img = &img;
+	m_dim = dimension;
+	m_radius = (dimension - 1) / 2;
+	m_size = m_dim * m_dim;
+	m_data = std::make_unique<T[]>(m_size);
+}
+
+template<typename T>
+Kernel<T>::Kernel(const Kernel<T>& other) {
+	
+	m_img = other.m_img;
+	m_dim = other.m_dim;
+	m_radius = other.m_radius;
+	m_size = other.m_size;
+	m_data = std::make_unique<T[]>(m_size);
+	memcpy(&m_data[0], &other.m_data[0], sizeof(T) * m_size);
+}
+
+template<typename T>
+void Kernel<T>::populate(int y, int ch) {
+
+	for (int j = -m_radius, el = 0; j <= m_radius; ++j)
+		for (int i = -m_radius; i <= m_radius; ++i)
+			m_data[el++] = m_img->at_mirrored(i, y + j, ch);
+}
+
+template<typename T>
+void Kernel<T>::update(int x, int y, int ch) {
+
+	int xx = x + m_radius;
+	if (xx >= m_img->cols())
+		xx = 2 * m_img->cols() - (xx + 1);
+
+	for (int j = 0; j < m_size; j += m_dim)
+		for (int i = 0; i < m_dim - 1; ++i)
+			m_data[j + i] = m_data[j + i + 1];
+
+	for (int j = -m_radius, el = m_dim - 1; j <= m_radius; ++j, el += m_dim) {
+
+		int yy = y + j;
+		if (yy < 0)
+			yy = -yy;
+		else if (yy >= m_img->rows())
+			yy = 2 * m_img->rows() - (yy + 1);
+
+		m_data[el] = (*m_img)(xx, yy, ch);
+	}
+}
+template class Kernel<uint8_t>;
+template class Kernel<uint16_t>;
+template class Kernel<float>;
+
+
+
+
+
+template<typename T>
+MorphologicalKernel<T>::MorphologicalKernel(const Image<T>& img, const MorphologicalTransformation& mt) : Kernel<T>(img, mt.kernelDimension()) {
+
+	m_locations = mt.maskedLocations();
+	m_masked_data = std::vector<T>(m_locations.size());
+}
+
+template<typename T>
+void MorphologicalKernel<T>::populate(int y, int ch) {
+
+	Kernel<T>::populate(y, ch);
+	setMaskedData();
+}
+
+template<typename T>
+void MorphologicalKernel<T>::update(int x, int y, int ch) {
+
+	Kernel<T>::update(x, y, ch);
+	setMaskedData();
+}
+
+template<typename T>
+void MorphologicalKernel<T>::setMaskedData() {
+
+	if (m_masked_data.size() == this->count())
+		memcpy(&m_masked_data[0], &(*this)[0], sizeof(T) * this->count());
+	else
+		for (int el = 0; el < m_masked_data.size(); ++el)
+			m_masked_data[el] = (*this)[m_locations[el]];
+}
+
+template<typename T>
+T MorphologicalKernel<T>::minimum()const {
+
+	T min = std::numeric_limits<T>::max();
+
+	for (int el = 0; el < m_masked_data.size(); ++el)
+		min = math::min(min, m_masked_data[el]);
+
+	return min;
+}
+
+template<typename T>
+T MorphologicalKernel<T>::maximum()const {
+
+	T max = std::numeric_limits<T>::min();
+
+	for (int el = 0; el < m_masked_data.size(); ++el)
+		max = math::max(max, m_masked_data[el]);
+
+	return max;
+}
+
+template<typename T>
+T MorphologicalKernel<T>::selection(int pivot) {
+
+	std::nth_element(m_masked_data.begin(), m_masked_data.begin() + pivot, m_masked_data.end());
+	return m_masked_data[pivot];
+}
+
+template<typename T>
+T MorphologicalKernel<T>::median() {
+
+	return selection(m_masked_data.size() / 2);
+}
+
+template<typename T>
+T MorphologicalKernel<T>::midpoint()const {
+
+	T min = std::numeric_limits<T>::max();
+	T max = std::numeric_limits<T>::min();
+
+	for (int el = 0; el < m_masked_data.size(); ++el) {
+		min = math::min(min, m_masked_data[el]);
+		max = math::max(max, m_masked_data[el]);
+	}
+
+	return (0.5 * min + 0.5 * max);
+}
+
+
+
 using MT = MorphologicalTransformation;
 
 void MT::resizeKernel(int new_dim) {
@@ -90,18 +231,30 @@ void MT::rotateMask() {
 	m_kmask = temp;
 }
 
+int MT::maskCount()const {
 
-void MT::GetMaskedLocations() {
+	int c = 0;
+	for (auto v : m_kmask)
+		if (v)
+			c++;
+
+	return c;
+}
+
+std::vector<uint16_t> MT::maskedLocations()const {
+
 	int count = 0; //number of true values
 	for (auto v : m_kmask)
 		if (v) count++;
 
-	m_mask_loc = std::vector<int>(count);
+	std::vector<uint16_t> locations(count);
 
 	for (int j = 0, el = 0; j < m_kernel_dim; ++j)
 		for (int i = 0; i < m_kernel_dim; ++i)
 			if (m_kmask[j * m_kernel_dim + i])
-				m_mask_loc[el++] = j * m_kernel_dim + i; //location of true values in the kernel
+				locations[el++] = j * m_kernel_dim + i; //location of true values in the kernel
+
+	return locations;
 }
 
 template<typename T>
@@ -112,11 +265,12 @@ void MT::erosion(Image<T>& img) {
 	m_ps->emitText("Erosion...");
 	int sum = 0, total = img.channels() * img.rows();
 
+	MorphologicalKernel<T> kernel(img, *this);
+
 	for (int ch = 0; ch < img.channels(); ++ch) {
-#pragma omp parallel for
+#pragma omp parallel for firstprivate(kernel)
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -153,11 +307,12 @@ void MT::dialation(Image<T>& img) {
 	m_ps->emitText("Dialation...");
 	int sum = 0, total = img.channels() * img.rows();
 
+	MorphologicalKernel<T> kernel(img, *this);
+
 	for (int ch = 0; ch < img.channels(); ++ch) {
-#pragma omp parallel for
+#pragma omp parallel for firstprivate(kernel)
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -212,14 +367,15 @@ void MT::selection(Image<T>& img) {
 	m_ps->emitText("Selection...");
 	int sum = 0, total = img.channels() * img.rows();
 
-	int pivot = (m_selection == 1.0) ? m_mask_loc.size() - 1 : m_mask_loc.size() * m_selection;
+	int pivot = (m_selection == 1.0) ? maskCount() - 1 : maskCount() * m_selection;
+
+	MorphologicalKernel<T> kernel(img, *this);
 
 	for (int ch = 0; ch < img.channels(); ++ch) {
 
-#pragma omp parallel for
+#pragma omp parallel for firstprivate(kernel)
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -249,7 +405,7 @@ template void MT::selection(Image32&);
 template <typename T>
 void MT::median(Image<T>& img) {
 
-	if (m_mask_loc.size() == m_kmask.size() && m_kernel_dim <= 9)
+	if (maskCount() == m_kmask.size() && m_kernel_dim <= 9)
 		return fastMedian(img, m_kernel_dim);
 
 	Image<T> temp(img);
@@ -257,11 +413,12 @@ void MT::median(Image<T>& img) {
 	m_ps->emitText("Median...");
 	int sum = 0, total = img.channels() * img.rows();
 
+	MorphologicalKernel<T> kernel(img, *this);
+
 	for (int ch = 0; ch < img.channels(); ++ch) {
-#pragma omp parallel for
+#pragma omp parallel for firstprivate(kernel)
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -296,11 +453,12 @@ void MT::midpoint(Image<T>& img) {
 	m_ps->emitText("Selection...");
 	int sum = 0, total = img.channels() * img.rows();
 
+	MorphologicalKernel<T> kernel(img, *this);
+
 	for (int ch = 0; ch < img.channels(); ++ch) {
 #pragma omp parallel for
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -446,11 +604,13 @@ void MT::fastMedian9x9(Image<T>& img) {
 
 	int sum = 0, total = img.channels() * img.rows();
 
+	Kernel<T> kernel(img, kernelDimension());
+	std::vector<T> k(kernel.count());
+
 	for (int ch = 0; ch < img.channels(); ++ch) {
-#pragma omp parallel for //private(kernel)
+#pragma omp parallel for firstprivate(kernel, k)
 		for (int y = 0; y < img.rows(); ++y) {
 
-			Kernel2D<T> kernel(*this, img);
 			kernel.populate(y, ch);
 
 			for (int x = 0; x < img.cols(); ++x) {
@@ -458,8 +618,7 @@ void MT::fastMedian9x9(Image<T>& img) {
 				if (x != 0)
 					kernel.update(x, y, ch);
 
-				std::vector<T> k(kernel.m_size);
-				memcpy(&k[0], &kernel.data[0], k.size() * sizeof(T));
+				memcpy(&k[0], &kernel[0], k.size() * sizeof(T));
 
 				for (int r = 0; r < 9; ++r) {
 					for (int i = 0, j = 41; i < 40; ++i, ++j) {
@@ -514,9 +673,9 @@ template void MT::fastMedian(Image32&, int);
 template <typename T>
 void MT::apply(Image<T>& src) {
 
-	GetMaskedLocations();
-	if (m_mask_loc.size() == 0)
-		return src.FillZero();
+	//GetMaskedLocations();
+	if (maskCount() == 0)
+		return src.fillZero();
 
 	switch (m_morph_filter) {
 	case Type::erosion:

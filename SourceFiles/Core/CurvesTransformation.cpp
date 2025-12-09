@@ -3,69 +3,61 @@
 #include "FastStack.h"
 
 void CurveTransform::setInterpolation(ColorComponent comp, Curve::Type type) {
-	rCurve(comp).setInterpolation(type);
+	curve(comp).setInterpolation(type);
 }
 
 void CurveTransform::setDataPoints(ColorComponent comp, std::vector<QPointF> points) {
-	rCurve(comp).setDataPoints(points);
+	curve(comp).setDataPoints(points);
 }
 
 void CurveTransform::computeCoefficients(ColorComponent comp) {
-	rCurve(comp).computeCoeffecients();
+	curve(comp).computeCoeffecients();
 }
 
-void CurveTransform::interpolateValues(ColorComponent comp, std::vector<double>& values) {
+void CurveTransform::interpolateValues(ColorComponent comp, std::vector<double>& values)const {
 
 	if (m_comp_curves[int(comp)].isIdentity())
 		return;
 
-	for (auto& val : values) {
+	for (auto& val : values) 
 		val = m_comp_curves[int(comp)].interpolate(val);
-	}
 }
 
 template<typename T>
 void CurveTransform::apply(Image<T>& img) {
 
 	using CC = ColorComponent;
+	using CCR = const Curve&;
 
-	auto applyChannel = [&, this](Curve* curve, int ch) {
+	auto applyChannel = [&, this](const Curve& curve, int ch) {
 		for (auto& p : ImageChannel(img, ch))
-			p = p = math::clip(curve->interpolate(p));
+			p = Pixel<T>::toType(math::clip(curve.interpolate(Pixel<float>::toType(p))));
 	};
 
-	Curve RGB_K = rCurve(CC::rgb_k);
+	CCR RGB_K = ccurve(CC::rgb_k);
 
 	if (!RGB_K.isIdentity()) {
 
-#pragma omp parallel for num_threads(img.channels())
 		for (int ch = 0; ch < img.channels(); ++ch)
-			applyChannel(&RGB_K, ch);
+			std::thread(applyChannel, RGB_K, ch).join();
 	}
-
-
 
 	if (img.channels() == 1)
 		return;
 
-	Curve red = rCurve(CC::red);
-	Curve green = rCurve(CC::green);
-	Curve blue = rCurve(CC::blue);
+	CCR red = ccurve(CC::red);
+	CCR green = ccurve(CC::green);
+	CCR blue = ccurve(CC::blue);
 
 	if (!red.isIdentity() || !green.isIdentity() || !blue.isIdentity()) {
-
-		std::thread t0 = std::thread(applyChannel, &red, 0);
-		std::thread t1 = std::thread(applyChannel, &green, 1);
-		std::thread t2 = std::thread(applyChannel, &blue, 2);
-
-		t0.join();
-		t1.join();
-		t2.join();
+		std::thread(applyChannel, red, 0).join();
+		std::thread(applyChannel, green, 1).join();
+		std::thread(applyChannel, blue, 2).join();
 	}
 
-	Curve Lightness = rCurve(CC::Lightness);
-	Curve a = rCurve(CC::a);
-	Curve b = rCurve(CC::b);
+	CCR Lightness = ccurve(CC::Lightness);
+	CCR a = ccurve(CC::a);
+	CCR b = ccurve(CC::b);
 
 	if (!Lightness.isIdentity() || !a.isIdentity() || !b.isIdentity()) {
 
@@ -85,7 +77,7 @@ void CurveTransform::apply(Image<T>& img) {
 
 
 
-	Curve c = rCurve(CC::c);
+	CCR c = ccurve(CC::c);
 
 	if (!c.isIdentity()) {
 
@@ -105,8 +97,8 @@ void CurveTransform::apply(Image<T>& img) {
 
 
 
-	Curve Hue = rCurve(CC::hue);
-	Curve Saturation = rCurve(CC::saturation);
+	CCR Hue = ccurve(CC::hue);
+	CCR Saturation = ccurve(CC::saturation);
 
 	if (!Hue.isIdentity() || !Saturation.isIdentity()) {
 #pragma omp parallel for num_threads(3)

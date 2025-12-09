@@ -5,7 +5,7 @@
 
 using LHE = LocalHistogramEqualization;
 using LHED = LocalHistogramEqualizationDialog;
-LHED::LocalHistogramEqualizationDialog(QWidget* parent) : ProcessDialog("LocalHistogramEqualization", QSize(475, 180), FastStack::recast(parent)->workspace()) {
+LHED::LocalHistogramEqualizationDialog(Workspace* parent) : ProcessDialog("LocalHistogramEqualization", QSize(475, 180), parent) {
 
 	setDefaultTimerInterval(500);
 
@@ -170,6 +170,7 @@ void LHED::applyPreview() {
 	auto lhe = m_lhe;
 	double sf = iwptr->scaleFactor();
 
+	//needs to run in own event loop
 	if (sf < 1.0)
 		lhe.setKernelRadius(m_kr_input->value() / int(1.0 / sf));
 	else 

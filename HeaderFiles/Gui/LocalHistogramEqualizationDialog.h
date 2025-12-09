@@ -24,7 +24,7 @@ class LocalHistogramEqualizationDialog : public ProcessDialog {
 	ComboBox* m_hist_res_combo = nullptr;
 
 public:
-	LocalHistogramEqualizationDialog(QWidget* parent = nullptr);
+	LocalHistogramEqualizationDialog(Workspace* parent = nullptr);
 
 private:
 	void addKernelRadiusInputs();

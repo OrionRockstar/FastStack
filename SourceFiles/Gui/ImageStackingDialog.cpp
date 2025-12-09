@@ -54,14 +54,14 @@ void StarDetectionGroupBox::addThresholdInputs() {
 
 	QString txt = "Sets K value of star threshold defined as median + K * standard deviation.";
 
-	m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sd->sigmaK(), new DoubleValidator(0.1, 10.0, 2), this, 20.0);
+	m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sd->K(), new DoubleValidator(0.1, 5.0, 2), this, 20.0);
 	m_sigmaK_input->move(185, 25);
 	m_sigmaK_input->setToolTip(txt);
 	m_sigmaK_input->setSliderWidth(205);
 
 	auto func = [this]() {
 		double value = m_sigmaK_input->value();
-		m_sd->setSigmaK(value);
+		m_sd->setK(value);
 	};
 
 	connect(m_sigmaK_input, &InputBase::actionTriggered, this, func);
@@ -384,7 +384,7 @@ void ImageStackingDialog::IntegrationGroupBox::reset() {
 
 
 
-ImageStackingDialog::ImageStackingDialog(QWidget* parent): ProcessDialog("ImageStacking", QSize(540,500), FastStack::recast(parent)->workspace(), false, false) {
+ImageStackingDialog::ImageStackingDialog(Workspace* parent): ProcessDialog("ImageStacking", QSize(540,500), parent, false, false) {
 
 	m_toolbox = new QToolBox(drawArea());
 	m_toolbox->setFixedWidth(520);
@@ -707,7 +707,7 @@ DrizzleIntegrationDialog::DrizzleGroupBox::DrizzleGroupBox(Drizzle& drizzle, QWi
 
 
 
-DrizzleIntegrationDialog::DrizzleIntegrationDialog(QWidget* parent) : ProcessDialog("Drizzle Integration", QSize(540,500), FastStack::recast(parent)->workspace(), false, false) {
+DrizzleIntegrationDialog::DrizzleIntegrationDialog(Workspace* parent) : ProcessDialog("Drizzle Integration", QSize(540,500), parent, false, false) {
 
 	m_toolbox = new QToolBox(drawArea());
 	m_toolbox->setFixedWidth(520);

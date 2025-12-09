@@ -5,7 +5,7 @@
 
 
 //use same preview style as auto bg extract where i manually update preview
-StarMaskDialog::StarMaskDialog(QWidget* parent) : ProcessDialog("StarMask", QSize(500, 180), FastStack::recast(parent)->workspace(), false, true, false) {
+StarMaskDialog::StarMaskDialog(Workspace* parent) : ProcessDialog("StarMask", QSize(500, 185), parent, false, true, false) {
 
     addStarThresholdInputs();
     addRoundnessInputs();
@@ -13,7 +13,7 @@ StarMaskDialog::StarMaskDialog(QWidget* parent) : ProcessDialog("StarMask", QSiz
     addPSFInputs();
 
     m_real_value_cb = new CheckBox("RPV", drawArea());
-    m_real_value_cb->move(365, 137);
+    m_real_value_cb->move(365, 142);
     m_real_value_cb->setToolTip("Real pixel value");
     connect(m_real_value_cb, &QCheckBox::clicked, this, [this](bool v) { m_sm.setRealValue(v); });
 
@@ -24,12 +24,12 @@ void StarMaskDialog::addStarThresholdInputs() {
 
     QString txt = "Sets K value of star threshold, defined as median + K * avg deviation.";
 
-    m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sm.starDetector().sigmaK(), new DoubleValidator(0.1, 10.0, 2), drawArea(), 20);
+    m_sigmaK_input = new DoubleInput("Star signal threshold:   ", m_sm.starDetector().K(), new DoubleValidator(0.1, 5.0, 2), drawArea(), 20);
     m_sigmaK_input->move(175, 15);
     m_sigmaK_input->setSliderWidth(200);
     m_sigmaK_input->setToolTip(txt);
 
-    auto func = [this]() { m_sm.starDetector().setSigmaK(m_sigmaK_input->valuef()); };
+    auto func = [this]() { m_sm.starDetector().setK(m_sigmaK_input->valuef()); };
     connect(m_sigmaK_input, &InputBase::actionTriggered, this, func);
     connect(m_sigmaK_input, &InputBase::editingFinished, this, func);
 }
@@ -59,16 +59,15 @@ void StarMaskDialog::addGaussianBlurInputs() {
 void StarMaskDialog::addPSFInputs() {
 
     m_psf_combo = new ComboBox(drawArea());
-    m_psf_combo->move(135, 135);
+    m_psf_combo->move(135, 140);
     addLabel(m_psf_combo, new QLabel("PSF:"));
     m_psf_combo->addItem("Gaussian", QVariant::fromValue(PSF::Type::gaussian));
     m_psf_combo->addItem("Moffat", QVariant::fromValue(PSF::Type::moffat));
 
     m_beta_sb = new DoubleSpinBox(m_sm.starDetector().beta(), 0.0, 10.0, 1, drawArea());
-    m_beta_sb->move(285, 135);
+    m_beta_sb->move(285, 140);
     addLabel(m_beta_sb, new QLabel("Beta:"));
     m_beta_sb->setSingleStep(0.1);
-
 
     auto activate = [this]() {
 

@@ -112,7 +112,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Histogram.cpp" />
+    <ClCompile Include="ImageFile.cpp" />
+    <ClCompile Include="SourceFiles\Core\Histogram.cpp" />
     <ClCompile Include="SourceFiles\Gui\HistogramView.cpp" />
     <ClCompile Include="SourceFiles\Gui\ImageSubWindow.cpp" />
     <ClCompile Include="SourceFiles\MediaPlayerDialog.cpp" />

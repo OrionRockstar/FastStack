@@ -3,6 +3,33 @@
 #include "Maths.h"
 #include "ImageWindow.h"
 
+DigitalClock::DigitalClock(QWidget* parent) : QLCDNumber(parent) {
+
+	QTimer* timer = new QTimer(this);
+	connect(timer, &QTimer::timeout, this, &DigitalClock::displayTime);
+
+	timer->start(500);
+	displayTime();
+
+	this->setAutoFillBackground(true);
+
+	QPalette p(this->palette());
+	p.setColor(QPalette::Button, Qt::black);
+	p.setColor(QPalette::ButtonText, QColor(0,199,0));
+	p.setColor(QPalette::Light, QColor(0, 99, 0));
+	p.setColor(QPalette::Dark, QColor(0, 99, 0));
+
+	this->setPalette(p);
+}
+
+void DigitalClock::displayTime() {
+
+	auto time = QTime::currentTime().toString("hh:mm");
+
+	this->display(time);
+}
+
+
 Frame::Frame(const QRect& rect, int frame_width) : m_frame_width(frame_width) {
 
 	this->resize(rect);
@@ -146,9 +173,9 @@ void PushButton::paintEvent(QPaintEvent* e) {
 	if (hitButton(mapFromGlobal(QCursor::pos())))
 		opt.palette.setBrush(QPalette::Button, m_hover_color);
 
-	style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &opt, &p);
-	style()->drawControl(QStyle::CE_PushButtonLabel, &opt, &p);
-	//style()->drawControl(QStyle::CE_PushButton, &opt, &p, this);
+	//style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &opt, &p);
+	//style()->drawControl(QStyle::CE_PushButtonLabel, &opt, &p);
+	style()->drawControl(QStyle::CE_PushButton, &opt, &p, this);
 }
 
 
@@ -182,15 +209,16 @@ DialogTitleBar::DialogTitleBar(QWidget* parent) : QWidget(parent) {
 	int w = (parent) ? parentWidget()->width() : 300;
 	this->setGeometry(0, 0, w, m_titlebar_height);
 
-	m_default_pal.setColor(QPalette::Window, QColor(69, 0, 128));
-	m_default_pal.setColor(QPalette::Inactive,QPalette::Window, QColor(128, 128, 128));
+	QPalette pal(palette());
+	pal.setColor(QPalette::Window, QColor(69, 0, 128));
+	pal.setColor(QPalette::Inactive,QPalette::Window, QColor(128, 128, 128));
 
-	m_default_pal.setColor(QPalette::Button, QColor(39, 39, 39));
-	m_default_pal.setColor(QPalette::Inactive, QPalette::Button, QColor(128, 128, 128));
+	pal.setColor(QPalette::Button, QColor(39, 39, 39));
+	pal.setColor(QPalette::Inactive, QPalette::Button, QColor(128, 128, 128));
 
-	m_default_pal.setColor(QPalette::Accent, QColor(0, 0, 69, 169));
-	m_default_pal.setColor(QPalette::Inactive, QPalette::Accent, QColor(128, 128, 128));
-	this->setPalette(m_default_pal);
+	pal.setColor(QPalette::Accent, QColor(0, 0, 69));
+	pal.setColor(QPalette::Inactive, QPalette::Accent, QColor(128, 128, 128));
+	this->setPalette(pal);
 
 	m_bg = new QButtonGroup(this);
 	m_bg->setExclusive(true);
@@ -214,7 +242,7 @@ DialogTitleBar::DialogTitleBar(QWidget* parent) : QWidget(parent) {
 	connect(m_bg->button(2), &QPushButton::released, this, onShade);
 
 	for (auto button : m_bg->buttons()) {
-		button->setPalette(m_default_pal);
+		button->setPalette(palette());
 		button->resize(m_button_dim, m_button_dim);
 		button->setIconSize({ 18, 18 });
 		button->move(width() - 4 - (m_bg->id(button) * m_button_dim), 4);
@@ -261,11 +289,11 @@ void DialogTitleBar::paintEvent(QPaintEvent* e) {
 
 	QPen pen;
 	pen.setWidth(2);
-	pen.setColor(m_default_pal.color(palette().currentColorGroup(), QPalette::Accent));
+	pen.setColor(palette().color(palette().currentColorGroup(), QPalette::Accent));
 	p.setPen(pen);
 	auto r = this->rect();
 	p.drawRect(r);
-	r.adjust(-1, -1, 1, 1);
+	r.adjust(1, 1, -1, -1);
 	p.fillRect(r, palette().color(QPalette::Window));
 
 	p.drawPixmap(3, 3, pm);
@@ -458,6 +486,8 @@ CheckablePushButton::CheckablePushButton(const QString& text, QWidget* parent) :
 
 	this->setCheckable(true);
 	this->setAutoDefault(false);
+	QPalette pal;
+	//pal.setBrush(QPalette::Active, QPalette::Button, Qt::red);
 }
 
 CheckablePushButton::CheckablePushButton(const QIcon& icon, const QString& text, QWidget* parent) : CheckablePushButton(text, parent) {
@@ -481,6 +511,10 @@ void CheckablePushButton::paintEvent(QPaintEvent* event) {
 		pal.setBrush(QPalette::Button, palette().brush(QPalette::Button));
 		pal.setBrush(QPalette::ButtonText, palette().brush(QPalette::ButtonText));
 	}
+
+	//if (isDown())
+		//pal.setBrush(QPalette::Button, palette().brush(QPalette::Button));
+		//std::cout<< this->backgroundRole() << '\n';
 	/*if (opt.state & QStyle::State_Off) {
 		//std::cout << "SSS\n";
 		pal.setBrush(QPalette::Button, palette().brush(QPalette::Button));
@@ -494,13 +528,14 @@ void CheckablePushButton::paintEvent(QPaintEvent* event) {
 
 
 	//if (opt.state & QStyle::State_MouseOver)
-	if (hitButton(mapFromGlobal(QCursor::pos())))
+	if (hitButton(mapFromGlobal(QCursor::pos()))) {
 		pal.setBrush(QPalette::Button, m_hover_color);
-
+	}
 	opt.palette = pal;
 
-	style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &opt, &p);
-	style()->drawControl(QStyle::CE_PushButtonLabel, &opt, &p);
+	//QStyle::PE_PanelButtonCommand
+	style()->drawControl(QStyle::CE_PushButton, &opt, &p);
+	//style()->drawControl(QStyle::CE_PushButtonLabel, &opt, &p);
 	//style()->drawControl(QStyle::CE_PushButton, &opt, &p, this);
 }
 
@@ -616,6 +651,7 @@ DoubleLineEdit::DoubleLineEdit(DoubleValidator* validator, QWidget* parent) : Li
 	this->setValidator(validator);
 	validator->setParent(this);
 	this->resize(85, 30);
+	this->setAlignment(Qt::AlignHCenter);
 
 	connect(this, &QLineEdit::editingFinished, this, &DoubleLineEdit::addTrailingZeros);
 	connect(this, &QLineEdit::editingFinished, this, &DoubleLineEdit::removeEndDecimal);
@@ -857,7 +893,6 @@ void Slider::paintEvent(QPaintEvent* event) {
 	opt.subControls = QStyle::SC_SliderGroove;
 	style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
 
-
 	opt.subControls = QStyle::SC_SliderHandle;
 
 	if (!isMouseOverHandle()) {
@@ -883,8 +918,6 @@ void Slider::paintEvent(QPaintEvent* event) {
 		opt.palette.setBrush(QPalette::Active, QPalette::Button, Qt::blue);
 		opt.palette.setBrush(QPalette::Inactive, QPalette::Button, Qt::blue);
 	}*/
-
-	//style()->drawComplexControl(QStyle::CC_Slider, &opt, &p, this);
 }
 
 
@@ -1069,23 +1102,24 @@ void ComboBox::addLabel(QLabel* label)const {
 	label->move(x - tw, ((2 * y) + h - fh) / 2);
 }
 
-void ComboBox::addImage(const ImageWindow<>* iw) {
+
+void ImageComboBox::addImage(const ImageWindow<>* iw) {
 	this->addItem(iw->name(), QVariant::fromValue(&iw->source()));
 }
 
-void ComboBox::addImage(const QString& name, const Image8* img) {
+void ImageComboBox::addImage(const QString& name, const Image8* img) {
 	this->addItem(name, QVariant::fromValue(img));
 }
 
-const Image8* ComboBox::currentImage() {
+const Image8* ImageComboBox::currentImage() {
 	return currentData().value<const Image8*>();
 }
 
-const Image8* ComboBox::imageAt(int index) {
+const Image8* ImageComboBox::imageAt(int index) {
 	return itemData(index).value<const Image8*>();
 }
 
-int ComboBox::findImage(const Image8* img) {
+int ImageComboBox::findImage(const Image8* img) {
 
 	for (int i = 0; i < count(); ++i)
 		if (img == imageAt(i))
@@ -1093,6 +1127,9 @@ int ComboBox::findImage(const Image8* img) {
 
 	return -1;
 }
+
+
+
 
 InterpolationComboBox::InterpolationComboBox(QWidget* parent) : ComboBox(parent) {
 

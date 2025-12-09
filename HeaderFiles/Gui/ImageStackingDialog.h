@@ -146,7 +146,7 @@ class ImageStackingDialog:public ProcessDialog {
 	Image32 m_output;
 
 public:
-	ImageStackingDialog(QWidget* parent = nullptr);
+	ImageStackingDialog(Workspace* parent = nullptr);
 
 private:
 	signals:
@@ -248,7 +248,7 @@ class DrizzleIntegrationDialog : public ProcessDialog {
 	TextDisplay* m_text = nullptr;
 	Image32 m_output;
 public:
-	DrizzleIntegrationDialog(QWidget* parent = nullptr);
+	DrizzleIntegrationDialog(Workspace* parent = nullptr);
 
 private:
 signals:

@@ -2,6 +2,12 @@
 #include "Histogram.h"
 
 
+void Histogram::clear() {
+
+	for (int i = 0; i < resolution(); ++i)
+		m_data[i] = 0;
+}
+
 void Histogram::fill(uint32_t val) {
 
 	for (int i = 0; i < resolution(); ++i)
@@ -140,6 +146,20 @@ float Histogram::standardDeviation(float mean, bool clip) {
 	}
 
 	return sqrt(var / count);
+}
+
+uint16_t Histogram::mode(bool clip) {
+
+	uint32_t max_count = 0;
+	uint16_t value = 0;
+
+	for (int i = clip; i < resolution() - clip; ++i)
+		if (m_data[i] > max_count) {
+			max_count = m_data[i];
+			value = i;
+		}
+
+	return value;
 }
 
 uint32_t Histogram::maxCount(bool clip) {

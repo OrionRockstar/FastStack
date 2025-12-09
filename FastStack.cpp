@@ -2,13 +2,13 @@
 #include "FastStack.h"
 
 #include "AutomaticBackgroundExtraction.h"
-#include "ImageStackingDialog.h"
+//#include "ImageStackingDialog.h"
 #include "ImageCalibration.h"
 #include "ImageGeometryDialogs.h"
 #include "ChannelCombination.h"
 #include "LRGBCombination.h"
 #include "StarAlignment.h"
-#include "MediaPlayerDialog.h"
+//#include "MediaPlayerDialog.h"
 
 
 FastStack::FastStack(QWidget *parent) : QMainWindow(parent) { 
@@ -34,6 +34,8 @@ FastStack::FastStack(QWidget *parent) : QMainWindow(parent) {
     
     connect(m_workspace, &Workspace::imageActivated, m_toolbar->imageInformationLabel(), &ImageInformationLabel::displayText);
 
+    //ResizeDialog* rd = new ResizeDialog(m_workspace);
+    //PSFUtilityDialog* psfd = new PSFUtilityDialog(m_workspace);
     //MediaPlayerDialog* mpd = new MediaPlayerDialog(this);
     //DrizzleIntegrationDialog* did = new DrizzleIntegrationDialog(this);
     //StarAlignmentDialog* sad = new StarAlignmentDialog(this);

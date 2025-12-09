@@ -66,7 +66,8 @@ class ImageFileReader {
 		"JPEG file(*.jpg *.jpeg);;"
 		"PNG file(*.png);;"
 		"XISF file(*.xisf);;"
-		"TIFF file(*.tiff *.tif)";
+		"TIFF file(*.tiff *.tif);;"
+		"WMI file(*.wmi)";
 
 public:
 	ImageFileReader(Workspace* workspace);

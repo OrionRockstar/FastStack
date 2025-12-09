@@ -7,6 +7,7 @@
 
 ImageFileReader::ImageFileReader(Workspace* workspace) : m_workspace(workspace) {}
 
+//add support for weight map images
 Status ImageFileReader::read(std::filesystem::path file_path) {
 	Image8 img8;
 	Image16 img16;
@@ -59,6 +60,13 @@ Status ImageFileReader::read(std::filesystem::path file_path) {
 		}
 		}
 		tiff.close();
+	}
+
+	else if (WeightMapImage::isWeightMapImage(filename)) {
+		WeightMapImage wmi;
+		wmi.open(file_path);
+		wmi.read(img8);
+		wmi.close();
 	}
 
 	else if (ext == ".bmp") {

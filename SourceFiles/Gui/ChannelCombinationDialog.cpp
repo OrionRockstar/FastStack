@@ -108,7 +108,7 @@ void CCD::addRedInputs() {
 	m_red_cb->move(225, 30);
 	connect(m_red_cb, &QCheckBox::clicked, this, [this](bool v) { m_cc.enableRed(v); });
 
-	m_red_combo = new ComboBox(drawArea());
+	m_red_combo = new ImageComboBox(drawArea());
 	m_red_combo->setFixedWidth(250);
 	m_red_combo->addItem("No Selected Image", 0);
 	m_red_combo->move(300, 28);
@@ -123,7 +123,7 @@ void CCD::addGreenInputs() {
 	m_green_cb->move(225, 70);
 	connect(m_green_cb, &QCheckBox::clicked, this, [this](bool v) { m_cc.enableGreen(v); });
 
-	m_green_combo = new ComboBox(drawArea());
+	m_green_combo = new ImageComboBox(drawArea());
 	m_green_combo->setFixedWidth(250);
 	m_green_combo->addItem("No Selected Image", 0);
 	m_green_combo->move(300, 68);
@@ -138,7 +138,7 @@ void CCD::addBlueInputs() {
 	m_blue_cb->move(225, 110);
 	connect(m_blue_cb, &QCheckBox::clicked, this, [this](bool v) { m_cc.enableBlue(v); });
 
-	m_blue_combo = new ComboBox(drawArea());
+	m_blue_combo = new ImageComboBox(drawArea());
 	m_blue_combo->setFixedWidth(250);
 	m_blue_combo->addItem("No Selected Image", 0);
 	m_blue_combo->move(300, 108);
