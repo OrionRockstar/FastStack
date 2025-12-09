@@ -238,7 +238,7 @@ public:
     }
 
     float meanFlux()const {
-        return flux / (std::_Pi * fwhmx * fwhmy);
+        return flux / (std::numbers::pi * fwhmx * fwhmy);
     }
 
     float fwtmx()const {

@@ -375,6 +375,7 @@ void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 			}
 		}
 	}
+
 	m_preview = iwptr->preview();
 	emit previewAdded();
 

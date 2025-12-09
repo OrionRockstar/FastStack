@@ -56,7 +56,7 @@ private:
     static constexpr double esp = 216.0 / 24389.0;
     static constexpr double _16_116 = 16.0 / 116.0;
     static constexpr double k_116 = k / 116.0;
-    static constexpr double _2pi = 2 * std::_Pi;
+    static constexpr double _2pi = 2 * std::numbers::pi;
 
     inline static const Matrix RGB_YCbCr = Matrix(3, 3, {  0.299,   0.597,   0.114,
                                                           -0.1687, -0.3313,  0.5,

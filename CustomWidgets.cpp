@@ -1284,7 +1284,7 @@ void GroupBox::paintEvent(QPaintEvent* event) {
 
 	if (title() != "") {
 		QList<QPointF> points;
-		double dtheta = (2 * std::_Pi * 15) / 360;
+		double dtheta = (2 * std::numbers::pi * 15) / 360;
 
 		QPoint point = draw_rect.topLeft();
 		p.drawLine(QPoint(point.x() + radius + 1, point.y()), { text_beginX - text_margin, point.y() });
@@ -1293,19 +1293,19 @@ void GroupBox::paintEvent(QPaintEvent* event) {
 		p.drawLine(QPoint(point.x() - radius - 1, point.y()), { text_endX + text_margin, point.y() });
 
 		point = radius_rect.topLeft();
-		for (double theta = std::_Pi / 2; theta <= std::_Pi; theta += dtheta)
+		for (double theta = std::numbers::pi / 2; theta <= std::numbers::pi; theta += dtheta)
 			points.push_back(QPointF(point.x() + radius * cos(theta), point.y() - radius * sin(theta)));
 
 		point = radius_rect.bottomLeft();
-		for (double theta = std::_Pi; theta <= 3 * std::_Pi / 2; theta += dtheta)
+		for (double theta = std::numbers::pi; theta <= 3 * std::numbers::pi / 2; theta += dtheta)
 			points.push_back(QPointF(point.x() + radius * cos(theta), point.y() - radius * sin(theta)));
 
 		point = radius_rect.bottomRight();
-		for (double theta = 3 * std::_Pi / 2; theta <= 2 * std::_Pi; theta += dtheta)
+		for (double theta = 3 * std::numbers::pi / 2; theta <= 2 * std::numbers::pi; theta += dtheta)
 			points.push_back(QPointF(point.x() + radius * cos(theta), point.y() - radius * sin(theta)));
 
 		point = radius_rect.topRight();
-		for (double theta = 0; theta <= std::_Pi / 2; theta += dtheta)
+		for (double theta = 0; theta <= std::numbers::pi / 2; theta += dtheta)
 			points.push_back(QPointF(point.x() + radius * cos(theta), point.y() - radius * sin(theta)));
 
 		p.drawPolyline(QPolygonF(points));

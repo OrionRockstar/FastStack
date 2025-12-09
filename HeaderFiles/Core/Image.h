@@ -204,7 +204,7 @@ private:
 	uint32_t m_rows = 0;
 	uint32_t m_cols = 0;
 	uint32_t m_channels = 0;
-	ImageType m_type = ImageType::UBYTE;
+	ImageType m_type = getImageType<T>();
 
 	uint32_t m_pixel_count = m_rows * m_cols;
 	uint32_t m_total_pixel_count = m_pixel_count * m_channels;

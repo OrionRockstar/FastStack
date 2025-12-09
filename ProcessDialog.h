@@ -235,7 +235,7 @@ protected:
 		m_timer->setDefaultInterval(msec);
 	}
 
-	virtual void showPreviewWindow(bool ignore_zoomwindow = false);
+	void showPreviewWindow(bool ignore_zoomwindow = false);
 
 	virtual void onImageWindowCreated() {}
 

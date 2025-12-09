@@ -98,7 +98,7 @@ std::vector<float> GaussianFilter::buildGaussianKernel_1D(uint32_t size, float s
 	std::vector<float> kernel(size);
 
 	float s = 2 * sigma * sigma;
-	float k1 = 1 / sqrtf(std::_Pi * s), k2 = 1 / s;
+	float k1 = 1 / sqrtf(std::numbers::pi * s), k2 = 1 / s;
 	float g_sum = 0;
 
 	for (int j = -k_rad; j <= k_rad; ++j)

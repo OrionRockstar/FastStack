@@ -389,7 +389,7 @@ void TIFF::write(const Image<T>& src, ImageType new_type, bool planar_contiguous
     using enum PlanarConfig;
 
     TIFFHeader header;
-    header.offset = src.totalPxCount() * abs(typeSize(new_type)) + 8;
+    header.offset = src.totalPxCount() * typeSize(new_type) + 8;
 
     m_stream.write((char*)&header, sizeof(header));
 

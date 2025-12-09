@@ -71,7 +71,7 @@ std::vector<T> localBackground(const Image<T>& img, const Star& star, bool circu
         int r_inner = im * rad;
         int r_outer = om * rad;
 
-        local_background.reserve((std::_Pi * r_outer * r_outer) - (std::_Pi * r_inner * r_inner));
+        local_background.reserve((std::numbers::pi * r_outer * r_outer) - (std::numbers::pi * r_inner * r_inner));
         for (int y = yc - r_outer; y <= int(yc + r_outer); ++y) {
             for (int x = xc - r_outer; x <= int(xc + r_outer); ++x) {
                 if (img.isInBounds(x, y)) {

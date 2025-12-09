@@ -149,7 +149,7 @@ Image32 EdgeDetection::apply(const Image<T>& img) {
 		for (int x = 0; x < img.cols(); ++x) {
 			float theta = g_theta(x, y);
 			float a = g_mag.at(x + 1.5 * cos(theta), y + 1.5 * sin(theta));
-			theta += std::_Pi;
+			theta += std::numbers::pi;
 			float b = g_mag.at(x + 1.5 * cos(theta), y + 1.5 * sin(theta));
 			float g = g_mag(x, y);
 

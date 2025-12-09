@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include <numbers>
 
 namespace math {
 
@@ -37,13 +38,13 @@ namespace math {
 
     inline float distancef(float x1, float y1, float x2, float y2) { return sqrtf((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
-    constexpr inline float radiansToDegrees(float rads) { return rads * 180 / std::_Pi; }
+    constexpr inline float radiansToDegrees(float rads) { return rads * 180 / std::numbers::pi; }
 
-    constexpr inline double radiansToDegrees(double rads) { return rads * 180 / std::_Pi; }
+    constexpr inline double radiansToDegrees(double rads) { return rads * 180 / std::numbers::pi; }
 
-    constexpr inline float degreesToRadians(float deg) { return deg * std::_Pi / 180; }
+    constexpr inline float degreesToRadians(float deg) { return deg * std::numbers::pi / 180; }
 
-    constexpr inline double degreesToRadians(double deg) { return deg * std::_Pi / 180; }
+    constexpr inline double degreesToRadians(double deg) { return deg * std::numbers::pi / 180; }
 
     template<typename T>
     double mean(const std::vector<T>& vector) {
