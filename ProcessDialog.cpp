@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "ProcessDialog.h"
 #include "FastStack.h"
-#include "ImageWindow.h"
+//#include "ImageWindow.h"
 #include "Maths.h"
 #include "QtConcurrent\qtconcurrentrun.h"
 //#include "Interpolator.h"
@@ -291,7 +291,7 @@ void ProcessDialog::createDragInstance() {
 	mimeData->setData("process", pointer);
 	drag->setMimeData(mimeData);
 
-	Qt::DropAction dropAction = drag->exec(Qt::CopyAction | Qt::MoveAction);
+	drag->exec(Qt::CopyAction | Qt::MoveAction);
 }
 
 void ProcessDialog::connectZoomWindow() {
@@ -322,7 +322,7 @@ void ProcessDialog::applytoPreview() {
 	m_finished = true;
 }
 
-void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
+void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow, PreviewWindowBase* preview) {
 
 	if (m_workspace->subWindowList().size() == 0)
 		return;
@@ -341,26 +341,26 @@ void ProcessDialog::showPreviewWindow(bool ignore_zoomwindow) {
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
-		if (ignore_zoomwindow)
+		if (ignore_zoomwindow && preview == nullptr)
 			iwptr->showPreview(new PreviewWindow8(iwptr, true));
 		else
-			iwptr->showPreview();
+			iwptr->showPreview(previewRecast(preview));
 		break;
 	}
 	case ImageType::USHORT: {
 		auto iw16 = imageRecast<uint16_t>(iwptr);
-		if (ignore_zoomwindow)
+		if (ignore_zoomwindow && preview == nullptr)
 			iw16->showPreview(new PreviewWindow16(iw16, true));
 		else
-			iw16->showPreview();
+			iw16->showPreview(previewRecast<uint16_t>(preview));
 		break;
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = imageRecast<float>(iwptr);
-		if (ignore_zoomwindow)
+		if (ignore_zoomwindow && preview == nullptr)
 			iw32->showPreview(new PreviewWindow32(iw32, true));
 		else
-			iw32->showPreview();
+			iw32->showPreview(previewRecast<float>(preview));
 		break;
 	}
 	}

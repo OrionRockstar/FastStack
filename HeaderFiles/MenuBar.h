@@ -56,8 +56,10 @@ class Menu : public QMenu {
 protected:
     Workspace* m_workspace = nullptr;
 
+    Workspace* workspace() const { return m_workspace; }
+
 public:
-    Menu(Workspace* workspace, QWidget* parent) : m_workspace(workspace), QMenu(parent) {}
+    Menu(Workspace* workspace, QWidget* parent = nullptr) : m_workspace(workspace), QMenu(parent) {}
 };
 
 
@@ -277,8 +279,8 @@ class MenuBar: public QMenuBar {
     //Ui::MenuBarClass ui;
 public:
     MenuBar(FastStack* parent);
-	~MenuBar() {}
 
+private:
     Workspace* m_workspace = nullptr;
     //QMainWindow* m_parent;
 
@@ -291,6 +293,7 @@ public:
 
     uint32_t image_counter = 0;
 
+public:
     void Open();
 
     void Save();

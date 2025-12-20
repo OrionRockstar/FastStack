@@ -245,27 +245,27 @@ EdgeDetectionDialog::EdgeDetectionDialog(Workspace* parent) :ProcessDialog("Cann
 void EdgeDetectionDialog::apply() {
 	using ED = EdgeDetection;
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
 		Image32 img32 = m_ed.apply(iwptr->source());
-		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iwptr->name(), m_workspace);
+		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iwptr->name(), workspace());
 		break;
 	}
 	case ImageType::USHORT: {
 		auto iw16 = imageRecast<uint16_t>(iwptr);
 		Image32 img32 = m_ed.apply(iw16->source());
-		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iw16->name(), m_workspace);
+		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iw16->name(), workspace());
 		break;
 	}
 	case ImageType::FLOAT: {
 		auto iw32 = imageRecast<float>(iwptr);
 		Image32 img32 = m_ed.apply(iw32->source());
-		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iw32->name(), m_workspace);
+		ImageWindow32* niw = new ImageWindow32(std::move(img32), m_ed.getOperator_qstring() + iw32->name(), workspace());
 		break;
 	}
 	}

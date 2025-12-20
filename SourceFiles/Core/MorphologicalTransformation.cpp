@@ -559,8 +559,8 @@ void MT::fastMedian5x5(Image<T>& img) {
 	temp.moveTo(img);
 }
 template void MT::fastMedian5x5(Image8&);
-template void MT::fastMedian5x5(Image8&);
-template void MT::fastMedian5x5(Image8&);
+template void MT::fastMedian5x5(Image16&);
+template void MT::fastMedian5x5(Image32&);
 
 template <typename T>
 void MT::fastMedian7x7(Image<T>& img) {

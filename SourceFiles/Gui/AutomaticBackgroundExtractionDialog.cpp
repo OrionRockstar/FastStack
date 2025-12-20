@@ -7,8 +7,6 @@ using ABED = AutomaticBackgroundExtractionDialog;
 
 ABED::AutomaticBackgroundExtractionDialog(Workspace* parent) : ProcessDialog("Automatic Background Extraction", QSize(530, 380), parent, true) {
 
-    connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_apply_to_preview_pb->setDisabled(true); });
-
     addSampleGeneration();
     addSampleRejection();
     addOther();
@@ -158,13 +156,15 @@ void ABED::addOther() {
     m_apply_to_preview_pb->resize(500, m_apply_to_preview_pb->height());
     m_apply_to_preview_pb->setDisabled(true);
 
-    connect(m_apply_to_preview_pb, &QPushButton::released, this, [this]() { std::thread t(&ABED::applytoPreview, this); t.detach(); });
+    connect(m_apply_to_preview_pb, &QPushButton::released, this, &ABED::applytoPreview);
+    connect(this, &ProcessDialog::previewRemoved, this, std::bind(&PushButton::setEnabled, m_apply_to_preview_pb, true));
+    connect(this, &ProcessDialog::previewAdded, this, std::bind(&PushButton::setEnabled, m_apply_to_preview_pb, false));
 }
 
 void ABED::closeEvent(QCloseEvent* e) {
 
-    if (m_preview)
-        m_preview->close();
+    if (isPreviewValid())
+        preview()->close();
 
     ProcessDialog::closeEvent(e);
 }
@@ -174,32 +174,23 @@ void ABED::resetDialog() {}
 void ABED::showPreview() {
 
     showPreviewWindow(true);
-
-    if (m_preview != nullptr && !m_apply_to_preview_pb->isEnabled())
-        m_apply_to_preview_pb->setEnabled(true);
 }
 
 void ABED::apply() {
 
-    if (m_workspace->subWindowList().size() == 0)
+    if (!workspace()->hasSubWindows())
         return;
 
-    auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-    switch (iwptr->type()) {
-    case ImageType::UBYTE: {
-        return iwptr->applyToSource(m_abe, &ABE::apply);
+    switch (currentImageType()) {
+    case ImageType::UBYTE: 
+        return currentImageWindow()->applyToSource(m_abe, &ABE::apply);
+    
+    case ImageType::USHORT: 
+        return currentImageWindow<uint16_t>()->applyToSource(m_abe, &ABE::apply);
+    
+    case ImageType::FLOAT: 
+        return currentImageWindow<float>()->applyToSource(m_abe, &ABE::apply);
     }
-    case ImageType::USHORT: {
-        auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-        return iw16->applyToSource(m_abe, &ABE::apply);
-    }
-    case ImageType::FLOAT: {
-        auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-        return iw32->applyToSource(m_abe, &ABE::apply);
-    }
-    }
-
 }
 
 void ABED::applyPreview() {
@@ -207,26 +198,21 @@ void ABED::applyPreview() {
     if (!isPreviewValid())
         return;
 
-    PreviewWindow8* iwptr = previewRecast(m_preview);
-
     m_apply_to_preview_pb->setDisabled(true);
     m_apply_to_preview_pb->setText("Generating Preview");
 
-    switch (iwptr->type()) {
-    case ImageType::UBYTE: {
-        auto iw8 = iwptr;
-        //iw8->updatePreview(m_abe, &ABE::applyTo);
+    switch (preview()->type()) {
+    case ImageType::UBYTE: 
+        preview()->updatePreview(m_abe, &ABE::applyTo);
         break;
-    }
-    case ImageType::USHORT: {
-        auto iw16 = previewRecast<uint16_t>(iwptr);
-        //iw16->updatePreview(m_abe, &ABE::applyTo);
+    
+    case ImageType::USHORT: 
+        preview<uint16_t>()->updatePreview(m_abe, &ABE::applyTo);
         break;
-    }
-    case ImageType::FLOAT: {
-        auto iw32 = previewRecast<float>(iwptr);
-        //iw32->updatePreview(m_abe, &ABE::applyTo);
-    }
+    
+    case ImageType::FLOAT: 
+        preview<float>()->updatePreview(m_abe, &ABE::applyTo);
+    
     }
 
     m_apply_to_preview_pb->setEnabled(true);

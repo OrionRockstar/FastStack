@@ -12,7 +12,8 @@
 
 
 FastStack::FastStack(QWidget *parent) : QMainWindow(parent) { 
-    ui.setupUi(this);
+
+    //ui.setupUi(this);
 
     QApplication::setWindowIcon(QIcon("./Icons//fast_stack_icon.png"));
 

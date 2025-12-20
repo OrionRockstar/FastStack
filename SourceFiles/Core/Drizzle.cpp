@@ -101,8 +101,8 @@ void Drizzle::drizzleFrame(const Image32& src, const Image8& weight_map, const M
 				double x_o = x * drizzle_homography(0, 0) + dyx + drizzle_homography(0, 2) + m_offset;
 				double y_o = x * drizzle_homography(1, 0) + dyy + drizzle_homography(1, 2) + m_offset;
 
-				double x_wm = x * homography(0, 0) + yx + homography(0, 2);
-				double y_wm = x * homography(1, 0) + yy + homography(1, 2);
+				//double x_wm = x * homography(0, 0) + yx + homography(0, 2);
+				//double y_wm = x * homography(1, 0) + yy + homography(1, 2);
 
 				drizzlePixel(src(x, y, ch), { x_o,y_o,ch }, output, Pixel<float>::toType(weight_map.at(x_o, y_o, ch)));
 			}

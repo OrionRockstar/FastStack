@@ -79,10 +79,10 @@ void SCNRDialog::resetDialog() {
 
 void SCNRDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast(workspace()->currentSubWindow()->widget());
 
 	if (iwptr->channels() != 3) {
 		QMessageBox::information(this, "", "Image must be a RGB image.");

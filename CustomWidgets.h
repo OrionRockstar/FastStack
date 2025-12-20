@@ -287,7 +287,7 @@ signals:
 	void windowCreated();
 };
 
-static void addLabel(const QWidget* widget, QLabel* label, int spaces = 3) {
+inline void addLabel(const QWidget* widget, QLabel* label, int spaces = 3) {
 
 	label->setParent(widget->parentWidget());
 	auto g = widget->geometry();
@@ -742,7 +742,7 @@ private:
 
 
 class GroupBox : public QGroupBox {
-	CheckBox* m_cb;
+	//CheckBox* m_cb;
 
 public:
 	GroupBox(QWidget* parent) : QGroupBox(parent) {}

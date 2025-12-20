@@ -1,8 +1,8 @@
 #include "pch.h"
-#include "ImageSubWindow.h"
+#include "SubWindow.h"
 
 
-ImageSubWindow::ImageSubWindow(QWidget* widget) : QMdiSubWindow() {
+SubWindow::SubWindow(QWidget* widget) : QMdiSubWindow() {
 
     this->setWidget(widget);
     //this->setMinimumSize(200, 200);
@@ -20,11 +20,11 @@ ImageSubWindow::ImageSubWindow(QWidget* widget) : QMdiSubWindow() {
 
     m_timer = new QTimer(this);
     m_timer->setSingleShot(true);
-    connect(m_timer, &QTimer::timeout, this, &ImageSubWindow::action);
+    connect(m_timer, &QTimer::timeout, this, &SubWindow::action);
 
 }
 
-void ImageSubWindow::resizeToFit(int w, int h) {
+void SubWindow::resizeToFit(int w, int h) {
 
     int fw = style()->pixelMetric(QStyle::PM_MdiSubWindowFrameWidth);
     int tbh = style()->pixelMetric(QStyle::PM_TitleBarHeight);
@@ -32,13 +32,13 @@ void ImageSubWindow::resizeToFit(int w, int h) {
     this->resize(w + (2 * fw), h + (tbh + fw));
 }
 
-void ImageSubWindow::action() {
+void SubWindow::action() {
     emit actionTriggered();
     opaqueStyle()->setOpacity(0.55);
     update();
 }
 
-bool ImageSubWindow::event(QEvent* e) {
+bool SubWindow::event(QEvent* e) {
 
     if (e->type() == QEvent::HideToParent)
         this->resize(400, style()->pixelMetric(QStyle::PM_TitleBarHeight));
@@ -46,7 +46,7 @@ bool ImageSubWindow::event(QEvent* e) {
     return QMdiSubWindow::event(e);
 }
 
-void ImageSubWindow::mousePressEvent(QMouseEvent* e) {
+void SubWindow::mousePressEvent(QMouseEvent* e) {
 
     QMdiSubWindow::mousePressEvent(e);
 
@@ -54,7 +54,7 @@ void ImageSubWindow::mousePressEvent(QMouseEvent* e) {
         m_timer->start(1'000);
 }
 
-void ImageSubWindow::mouseMoveEvent(QMouseEvent* e) {
+void SubWindow::mouseMoveEvent(QMouseEvent* e) {
 
     QMdiSubWindow::mouseMoveEvent(e);
 
@@ -64,7 +64,7 @@ void ImageSubWindow::mouseMoveEvent(QMouseEvent* e) {
     }
 }
 
-void ImageSubWindow::mouseReleaseEvent(QMouseEvent* e) {
+void SubWindow::mouseReleaseEvent(QMouseEvent* e) {
 
     QMdiSubWindow::mouseReleaseEvent(e);
 
@@ -79,7 +79,7 @@ void ImageSubWindow::mouseReleaseEvent(QMouseEvent* e) {
     }
 }
 
-void ImageSubWindow::paintEvent(QPaintEvent* e) {
+void SubWindow::paintEvent(QPaintEvent* e) {
 
     QPainter p(this);
     QColor c = palette().color(QPalette::Window);

@@ -320,10 +320,10 @@ void MTD::resetDialog() {
 
 void MTD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast(workspace()->currentSubWindow()->widget());
 
 	std::unique_ptr<ProgressDialog> pd;
 	if (m_mt.kernelDimension() >= 9 || m_mt.morphologicalFilter() == MT::Type::selection)

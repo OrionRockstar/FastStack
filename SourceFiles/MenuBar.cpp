@@ -19,7 +19,7 @@ BackgroundExtractionMenu::BackgroundExtractionMenu(Workspace* workspace, QWidget
 void BackgroundExtractionMenu::autoBackgroundExtractionSelection() {
 
 	if (m_abed == nullptr) {
-		m_abed = std::make_unique<AutomaticBackgroundExtractionDialog>(m_workspace);
+		m_abed = std::make_unique<AutomaticBackgroundExtractionDialog>(workspace());
 		connect(m_abed.get(), &ProcessDialog::windowClosed, this, [this]() { m_abed.reset(); });
 	}
 }
@@ -38,7 +38,7 @@ ColorMenu::ColorMenu(Workspace* workspace, QWidget* parent) : Menu(workspace, pa
 
 void ColorMenu::channelCombinationSelection() {
 	if (m_ccd == nullptr) {
-		m_ccd = std::make_unique<ChannelCombinationDialog>(parentWidget());
+		m_ccd = std::make_unique<ChannelCombinationDialog>(workspace());
 		connect(m_ccd.get(), &ProcessDialog::windowClosed, this, [this]() {m_ccd.reset(); });
 	}
 }
@@ -46,19 +46,17 @@ void ColorMenu::channelCombinationSelection() {
 void ColorMenu::lrgbCombinationSelection() {
 
 	if (m_lrgbd == nullptr) {
-		m_lrgbd = std::make_unique<LRGBCombinationDialog>(parentWidget());
+		m_lrgbd = std::make_unique<LRGBCombinationDialog>(m_workspace);
 		connect(m_lrgbd.get(), &ProcessDialog::windowClosed, this, [this]() { m_lrgbd.reset(); });
 	}
 }
 
 void ColorMenu::rgbGrayscaleConverstionSelection() {
 
-	auto ptr = FastStack::recast(parentWidget())->workspace();
-
-	if (ptr->subWindowList().isEmpty())
+	if (workspace()->subWindowList().isEmpty())
 		return;
-
-	auto iw = reinterpret_cast<ImageWindow8*>(ptr->currentSubWindow()->widget());
+	
+	auto iw = reinterpret_cast<ImageWindow8*>(workspace()->currentSubWindow()->widget());
 
 	switch (iw->type()) {
 	case ImageType::UBYTE:

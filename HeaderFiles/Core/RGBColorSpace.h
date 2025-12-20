@@ -189,12 +189,10 @@ public:
     }*/
 
     static Color<double> HSVtoRGB(double H, double S, double V) {
-        double R = 0, G = 0, B = 0;
 
         if (S == 0)
             return { V,V,V };
         
-
         H *= 6;
         int vi = int(floor(H));
         double v1 = V * (1 - S);

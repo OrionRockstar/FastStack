@@ -4,7 +4,7 @@
 #include "FastStackToolBar.h"
 #include "ImageGeometryDialogs.h"
 #include "ImageWindowMenu.h"
-#include "ProcessDialog.h"
+//#include "ProcessDialog.h"
 
 
 ImageLabel::ImageLabel(const QImage& img, QWidget* parent) : m_image(&img), QLabel(parent) {
@@ -119,7 +119,7 @@ ImageWindowBase::ImageWindowBase(const QString& name, Workspace* parent) : m_nam
 
     m_name = name + ((count != 0) ? QString::number(count) : "");
 
-    m_sw_parent = m_workspace->addImageSubWindow(new ImageSubWindow(this));
+    m_sw_parent = m_workspace->addSubWindow(new SubWindow(this));
 
     m_toolbar = new ImageWindowToolbar(this);
     m_sa = new IWScrollArea(this);
@@ -140,8 +140,8 @@ ImageWindowBase::ImageWindowBase(const QString& name, Workspace* parent) : m_nam
         m_sbX->setOpacity(opacity);
         update();
     };
-    connect(m_sw_parent, &ImageSubWindow::actionTriggered, this, std::bind(setOpacity, 0.55));
-    connect(m_sw_parent, &ImageSubWindow::actionFinished, this, std::bind(setOpacity, 1.0));
+    connect(m_sw_parent, &SubWindow::actionTriggered, this, std::bind(setOpacity, 0.55));
+    connect(m_sw_parent, &SubWindow::actionFinished, this, std::bind(setOpacity, 1.0));
 
     auto ftb = reinterpret_cast<FastStack*>(m_workspace->parentWidget())->toolbar();
     connect(this, &IWB::pixelValue, ftb->pixelValueLabel(), &PixelValueLabel::displayText);
@@ -179,7 +179,7 @@ void ImageWindowBase::setZoomWindowColor(const QColor& color) {
 void ImageWindowBase::closeEvent(QCloseEvent* e) {
 
     emit windowClosed();
-    m_workspace->removeImageSubWindow(m_sw_parent);
+    m_workspace->removeSubWindow(m_sw_parent);
     e->accept();
 }
 
@@ -352,6 +352,16 @@ ImageWindow<T>::ImageWindow(Image<T>&& img, QString name, Workspace* parent) : m
     m_old_factor = m_factor = 1.0 / abs(factorPoll());
 
     this->setWindowTitle("1:" + QString(std::to_string(abs(factorPoll())).c_str()) + " " + m_name);
+
+    //auto swl = workspace()->subWindowList();
+    //QList<ImageSubWindow*> list;
+
+    //std::transform(swl.begin(), swl.end(), std::back_inserter(list), [](QMdiSubWindow* b) { return dynamic_cast<ImageSubWindow*>(b); });
+    //std::copy(workspace()->subWindowList().begin(), workspace()->subWindowList().end(), )
+    //memcpy(&list[0], &workspace()->subWindowList()[0], list.size() * 8);
+    //QList<ImageSubWindow*> list(swl.begin(), swl.end());
+    //for (auto isw : list)
+        //isw->test();
 
     m_drows = m_source.rows() * factor();
     m_dcols = m_source.cols() * factor();

@@ -24,7 +24,7 @@ Image<T> RangeMask::generateMask(const Image<T>& img) {
 				float pixel = 0;
 
 				if (m_lightness && img.channels() == 3)
-					pixel = ColorSpace::CIEL(img.color<double>(x, y));
+					pixel = ColorSpace::CIEL(img.template color<double>(x, y));
 
 				else
 					pixel = Pixel<float>::toType(img(x, y, ch));
@@ -84,7 +84,7 @@ void RangeMask::generateMask_overwrite(Image<T>& img) {
 				float pixel = 0;
 
 				if (m_lightness && img.channels() == 3)
-					pixel = ColorSpace::CIEL(img.color<double>(x, y));
+					pixel = ColorSpace::CIEL(img.template color<double>(x, y));
 
 				else
 					pixel = Pixel<float>::toType(img(x, y, ch));

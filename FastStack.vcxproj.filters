@@ -247,7 +247,7 @@
     <ClCompile Include="SourceFiles\Gui\HistogramView.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SourceFiles\Gui\ImageSubWindow.cpp">
+    <ClCompile Include="SourceFiles\Gui\SubWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ImageFile.cpp">
@@ -512,7 +512,7 @@
     <QtMoc Include="HeaderFiles\Gui\HistogramView.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <QtMoc Include="HeaderFiles\Gui\ImageSubWindow.h">
+    <QtMoc Include="HeaderFiles\Gui\SubWindow.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

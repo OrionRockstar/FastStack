@@ -303,7 +303,7 @@ void CCD::apply() {
 		std::cout << m_dark_gb->filePaths()[0] << "\n";
 		is.stackImages(m_dark_gb->filePaths(), master);
 
-		ImageWindow32* iw32 = new ImageWindow32(std::move(master), "MasterDark", reinterpret_cast<Workspace*>(m_workspace));
+		ImageWindow32* iw32 = new ImageWindow32(std::move(master), "MasterDark", reinterpret_cast<Workspace*>(workspace()));
 	}
 
 	Image32 dflat;
@@ -313,7 +313,7 @@ void CCD::apply() {
 		is.stackImages(m_dflat_gb->filePaths(), dflat);
 
 		if (m_flat_gb->filePaths().size() == 0)
-			ImageWindow32* iw32 = new ImageWindow32(std::move(dflat), "MasterDarkFlat", reinterpret_cast<Workspace*>(m_workspace));
+			ImageWindow32* iw32 = new ImageWindow32(std::move(dflat), "MasterDarkFlat", reinterpret_cast<Workspace*>(workspace()));
 	}
 
 	else if (m_dflat_gb->filePaths().size() == 1 && m_flat_gb->filePaths().size() > 1) {
@@ -338,6 +338,6 @@ void CCD::apply() {
 		else 
 			is.stackImages(m_flat_gb->filePaths(), master);
 
-		ImageWindow32* iw32 = new ImageWindow32(std::move(master), "MasterFlat", reinterpret_cast<Workspace*>(m_workspace));
+		ImageWindow32* iw32 = new ImageWindow32(std::move(master), "MasterFlat", reinterpret_cast<Workspace*>(workspace()));
 	}
 }

@@ -36,8 +36,6 @@ private:
 
 	void resetDialog();
 
-	void showPreview();
-
 	void apply();
 
 	void applyPreview();

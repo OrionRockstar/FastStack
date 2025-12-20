@@ -316,23 +316,18 @@ void AHD::resetDialog() {
 
 void AHD::apply() {
 
-    if (m_workspace->subWindowList().size() == 0)
+    if (!workspace()->hasSubWindows())
         return;
 
-    auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-    switch (iwptr->type()) {
-    case ImageType::UBYTE: {
-        return iwptr->applyToSource(m_ah, &AutoHistogram::apply);
-    }
-    case ImageType::USHORT: {
-        auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-        return iw16->applyToSource(m_ah, &AutoHistogram::apply);
-    }
-    case ImageType::FLOAT: {
-        auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-        return iw32->applyToSource(m_ah, &AutoHistogram::apply);
-    }
+    switch (currentImageType()) {
+    case ImageType::UBYTE: 
+        return currentImageWindow()->applyToSource(m_ah, &AutoHistogram::apply);
+    
+    case ImageType::USHORT: 
+        return currentImageWindow<uint16_t>()->applyToSource(m_ah, &AutoHistogram::apply);
+    
+    case ImageType::FLOAT: 
+        return currentImageWindow<float>()->applyToSource(m_ah, &AutoHistogram::apply);  
     }
 }
 
@@ -341,20 +336,14 @@ void AHD::applyPreview() {
     if (!isPreviewValid())
         return;
 
-    auto iwptr = reinterpret_cast<PreviewWindow8*>(m_preview);
-
-    switch (iwptr->type()) {
-    case ImageType::UBYTE: {
-        auto iw8 = iwptr;
-        return iw8->updatePreview(m_ah, &AutoHistogram::apply);
-    }
-    case ImageType::USHORT: {
-        auto iw16 = reinterpret_cast<PreviewWindow16*>(iwptr);
-        return iw16->updatePreview(m_ah, &AutoHistogram::apply);
-    }
-    case ImageType::FLOAT: {
-        auto iw32 = reinterpret_cast<PreviewWindow32*>(iwptr);
-        return iw32->updatePreview(m_ah, &AutoHistogram::apply);
-    }
+    switch (preview()->type()) {
+    case ImageType::UBYTE: 
+        return preview()->updatePreview(m_ah, &AutoHistogram::apply);
+    
+    case ImageType::USHORT: 
+        return preview<uint16_t>()->updatePreview(m_ah, &AutoHistogram::apply);
+    
+    case ImageType::FLOAT: 
+        return preview<float>()->updatePreview(m_ah, &AutoHistogram::apply);
     }
 }

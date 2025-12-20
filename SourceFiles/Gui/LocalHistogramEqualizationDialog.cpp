@@ -139,12 +139,12 @@ void LHED::resetDialog() {
 
 void LHED::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
 	ProgressDialog* pd = new ProgressDialog(m_lhe.progressSignal(), this);
 
-	auto iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -166,9 +166,8 @@ void LHED::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = previewRecast(m_preview);
 	auto lhe = m_lhe;
-	double sf = iwptr->scaleFactor();
+	double sf = preview()->scaleFactor();
 
 	//needs to run in own event loop
 	if (sf < 1.0)
@@ -176,17 +175,14 @@ void LHED::applyPreview() {
 	else 
 		lhe.setKernelRadius(m_kr_input->value() * sf);
 
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->updatePreview(lhe, &LHE::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(lhe, &LHE::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(lhe, &LHE::apply);
-	}
+	switch (preview()->type()) {
+	case ImageType::UBYTE:
+		return preview()->updatePreview(lhe, &LHE::apply);
+	
+	case ImageType::USHORT: 
+		return preview<uint16_t>()->updatePreview(lhe, &LHE::apply);
+	
+	case ImageType::FLOAT:
+		return preview<float>()->updatePreview(lhe, &LHE::apply);
 	}
 }

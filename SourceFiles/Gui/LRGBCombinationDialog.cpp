@@ -4,8 +4,8 @@
 
 
 using LRGBCD = LRGBCombinationDialog;
-
-LRGBCD::LRGBCombinationDialog(QWidget* parent) : ProcessDialog("LRGBCombination", { 400,275 }, FastStack::recast(parent)->workspace(), false, false) {
+//crashing
+LRGBCD::LRGBCombinationDialog(Workspace* workspace) : ProcessDialog("LRGBCombination", { 400,275 }, workspace, false, false) {
 
     m_toolbox = new QToolBox(drawArea());
     m_toolbox->setBackgroundRole(QPalette::Window);
@@ -16,7 +16,6 @@ LRGBCD::LRGBCombinationDialog(QWidget* parent) : ProcessDialog("LRGBCombination"
 
     m_toolbox->move(10, 10);
     m_toolbox->setFixedWidth(380);
-
 
     addImageSelection();
     m_toolbox->addItem(m_image_selection_gb, "Image Selection");
@@ -29,7 +28,7 @@ LRGBCD::LRGBCombinationDialog(QWidget* parent) : ProcessDialog("LRGBCombination"
 
 void LRGBCD::onImageWindowCreated() {
 
-    auto iw = imageRecast<>(m_workspace->subWindowList().last()->widget());
+    auto iw = imageRecast<>(workspace()->subWindowList().last()->widget());
 
     if (iw->channels() == 1) {
         m_lum_combo->addImage(iw);
@@ -41,7 +40,7 @@ void LRGBCD::onImageWindowCreated() {
 
 void LRGBCD::onImageWindowClosed() {
 
-    auto img = &imageRecast<>(m_workspace->currentSubWindow()->widget())->source();
+    auto img = &imageRecast<>(workspace()->currentSubWindow()->widget())->source();
 
     int index = m_lum_combo->findImage(img);
     if (index == m_lum_combo->currentIndex()) {
@@ -84,7 +83,7 @@ void LRGBCD::addImageSelection() {
     addGreenInputs();
     addBlueInputs();
 
-    for (auto sw : m_workspace->subWindowList()) {
+    for (auto sw : workspace()->subWindowList()) {
         auto iw = imageRecast<>(sw->widget());
         if (iw->channels() == 1) {
             m_lum_combo->addImage(iw);
@@ -322,7 +321,7 @@ void LRGBCD::apply() {
 
     if (status) {
         Image32 lrgb = m_lrgbc.generateLRGBImage();
-        ImageWindow32* iw = new ImageWindow32(std::move(lrgb), "LRGB Image", m_workspace);
+        ImageWindow32* iw = new ImageWindow32(std::move(lrgb), "LRGB Image", workspace());
     }
 
     else

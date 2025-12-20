@@ -304,12 +304,12 @@ HTD::HistogramTransformationDialog(Workspace* parent) : ProcessDialog("Histogram
 
 void HTD::onImageWindowCreated() {
 
-	m_image_sel->addImage(imageRecast<>(m_workspace->subWindowList().last()->widget()));
+	m_image_sel->addImage(imageRecast<>(workspace()->subWindowList().last()->widget()));
 }
 
 void HTD::onImageWindowClosed() {
 
-	int index = m_image_sel->findImage(&imageRecast<>(m_workspace->currentSubWindow()->widget())->source());
+	int index = m_image_sel->findImage(&imageRecast<>(workspace()->currentSubWindow()->widget())->source());
 
 	if (index == m_image_sel->currentIndex()) {
 		m_current_histogram.clear();
@@ -542,7 +542,7 @@ void HTD::addImageSelectionCombo() {
 	m_image_sel->move(200, 520);
 	m_image_sel->setFixedWidth(200);
 
-	for (auto sw : m_workspace->subWindowList())
+	for (auto sw : workspace()->subWindowList())
 		m_image_sel->addImage(imageRecast<>(sw->widget()));
 
 	connect(m_image_sel, &QComboBox::activated, this, &HTD::onImageSelection);
@@ -587,26 +587,21 @@ void HTD::resetDialog() {
 
 void HTD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	ImageWindow8* iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->type()) {
+	switch (currentImageType()) 
 	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_ht, &HistogramTransformation::apply);
+		currentImageWindow()->applyToSource(m_ht, &HistogramTransformation::apply);
 		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->applyToSource(m_ht, &HistogramTransformation::apply);
+	
+	case ImageType::USHORT: 
+		currentImageWindow<uint16_t>()->applyToSource(m_ht, &HistogramTransformation::apply);
 		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		iw32->applyToSource(m_ht, &HistogramTransformation::apply);
+	
+	case ImageType::FLOAT: 
+		currentImageWindow<float>()->applyToSource(m_ht, &HistogramTransformation::apply);
 		break;
-	}
 	}
 
 	onImageSelection();
@@ -619,19 +614,14 @@ void HTD::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	PreviewWindow8* iwptr = previewRecast(m_preview);
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->updatePreview(m_ht, &HistogramTransformation::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(m_ht, &HistogramTransformation::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(m_ht, &HistogramTransformation::apply);
-	}
+	switch (preview()->type()) {
+	case ImageType::UBYTE: 
+		return preview()->updatePreview(m_ht, &HistogramTransformation::apply);
+	
+	case ImageType::USHORT: 
+		return preview<uint16_t>()->updatePreview(m_ht, &HistogramTransformation::apply);
+	
+	case ImageType::FLOAT: 
+		return preview<float>()->updatePreview(m_ht, &HistogramTransformation::apply);
 	}
 }

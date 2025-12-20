@@ -3,6 +3,7 @@
 #include "Star.h"
 #include "Workspace.h"
 #include "CustomWidgets.h"
+#include "ImageWindow.h"
 
 
 class DialogToolbar : public QWidget {
@@ -183,7 +184,7 @@ static void MessageBox(const QString& message, QWidget* parent) {
 
 
 
-class PreviewWindowBase;
+
 class ProcessDialog : public Dialog {
 	Q_OBJECT
 
@@ -192,12 +193,18 @@ private:
 	std::unique_ptr<Timer> m_timer = std::make_unique<Timer>(100, this);
 
 	bool m_finished = true;
-
-protected:
 	QString m_name;
 	Workspace* m_workspace;
-
 	PreviewWindowBase* m_preview = nullptr;
+
+protected:
+	template<typename T = uint8_t>
+	PreviewWindow<T>* preview()const { return previewRecast<T>(m_preview); }
+	
+	ImageType currentImageType()const { return imageRecast<>(m_workspace->currentSubWindow()->widget())->type(); }
+
+	template<typename T = uint8_t>
+	ImageWindow<T>* currentImageWindow()const { return imageRecast<T>(m_workspace->currentSubWindow()->widget()); }
 
 public:
 	ProcessDialog(const QString& name, const QSize& size, Workspace* parent_workspace, bool preview = true, bool apply_dd = true, bool apply = true);
@@ -227,6 +234,8 @@ private:
 	void onZoomWindowCreated();
 
 protected:
+	Workspace* workspace()const { return m_workspace; }
+
 	void applytoPreview();
 
 	void startTimer()const { m_timer->start(); }
@@ -235,7 +244,7 @@ protected:
 		m_timer->setDefaultInterval(msec);
 	}
 
-	void showPreviewWindow(bool ignore_zoomwindow = false);
+	void showPreviewWindow(bool ignore_zoomwindow = false, PreviewWindowBase* preview = nullptr);
 
 	virtual void onImageWindowCreated() {}
 
@@ -245,7 +254,7 @@ protected:
 
 	virtual void resetDialog() {}
 
-	void showPreview() { showPreviewWindow(); }
+	virtual void showPreview() { showPreviewWindow(); }
 
 	virtual void apply() {}
 

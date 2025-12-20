@@ -105,17 +105,17 @@ void StarMaskDialog::resetDialog() {
 
 void StarMaskDialog::apply() {
 
-    if (m_workspace->subWindowList().size() == 0)
+    if (!workspace()->hasSubWindows())
         return;
 
-    auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+    auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
     QString name = "StarMask";
 
     enableSiblings_Subwindows(false);
 
     int count = 0;
-    for (auto sw : m_workspace->subWindowList()) {
+    for (auto sw : workspace()->subWindowList()) {
         auto ptr = imageRecast<>(sw->widget());
         if (ptr->name().contains(name))
             count++;
@@ -127,19 +127,19 @@ void StarMaskDialog::apply() {
     switch (iwptr->type()) {
     case ImageType::UBYTE: {
         Image8 sm = m_sm.generateStarMask(iwptr->source());
-        ImageWindow8* iw = new ImageWindow8(std::move(sm), name, m_workspace);
+        ImageWindow8* iw = new ImageWindow8(std::move(sm), name, workspace());
         break;
     }
     case ImageType::USHORT: {
         auto iw16 = imageRecast<uint16_t>(iwptr);
         Image16 sm = m_sm.generateStarMask(iw16->source());
-        ImageWindow16* iw = new ImageWindow16(std::move(sm), name, m_workspace);
+        ImageWindow16* iw = new ImageWindow16(std::move(sm), name, workspace());
         break;
     }
     case ImageType::FLOAT: {
         auto iw32 = imageRecast<float>(iwptr);
         Image32 sm = m_sm.generateStarMask(iw32->source());
-        ImageWindow32* iw = new ImageWindow32(std::move(sm), name, m_workspace);
+        ImageWindow32* iw = new ImageWindow32(std::move(sm), name, workspace());
         break;
     }
     }

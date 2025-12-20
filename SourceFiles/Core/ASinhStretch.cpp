@@ -35,35 +35,6 @@ float ASinhStretch::computeBeta() {
 	return mid;
 }
 
-template<typename T, typename P>
-static void testThread(int num_threads, Image<T>& img, P&& func) {
-
-	std::vector<std::thread> threads(num_threads);
-	int d = (img.end() - img.begin()) / num_threads;
-	int r = (img.end() - img.begin()) % num_threads;
-
-	for (int i = 0; i < num_threads; ++i)
-		threads[i] = std::thread(func, img.begin() + i * d, img.begin() + (i + 1) * d);
-
-	for (auto& t : threads)
-		t.join();
-}
-
-static void testThread(int num_threads, int iterations, std::function<void (int,int)> func) {
-
-	std::vector<std::thread> threads(num_threads);
-
-	int step = iterations / num_threads;
-
-	for (int i = 0; i < num_threads; ++i) {
-		int r = (i + 1 == num_threads) ? iterations % num_threads : 0;
-		threads[i] = std::thread(func, i * step, (i + 1) * step + r);
-	}
-
-	for (auto& t : threads)
-		t.join();
-}
-
 template<typename T>
 void ASinhStretch::applyMono(Image<T>& img) {
 
@@ -100,7 +71,7 @@ void ASinhStretch::applyRGB(Image<T>& img) {
 #pragma omp parallel for num_threads(2)
 	for (int y = 0; y < img.rows(); ++y) {
 		for (int x = 0; x < img.cols(); ++x) {
-			auto color = img.color<float>(x,y);
+			auto color = img.template color<float>(x,y);
 
 			float I = rescale(color_space[0] * color.red + color_space[1] * color.green + color_space[2] * color.blue);
 			float k = (I != 0) ? asinh(beta * I) / (I * asinhb) : beta / asinhb;
@@ -109,7 +80,7 @@ void ASinhStretch::applyRGB(Image<T>& img) {
 			color.green = math::clip(rescale(color.green) * k);
 			color.blue = math::clip(rescale(color.blue) * k);
 
-			img.setColor<>(x, y, color);
+			img.template setColor<>(x, y, color);
 		}
 	}
 }

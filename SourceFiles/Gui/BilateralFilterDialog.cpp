@@ -123,25 +123,20 @@ void BilateralFilterDialog::resetDialog() {
 
 void BilateralFilterDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
 	//std::unique_ptr<ProgressDialog> pd(std::make_unique<ProgressDialog>(m_bf.progressSignal()));
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->applyToSource(m_bf, &BilateralFilter::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		return iw16->applyToSource(m_bf, &BilateralFilter::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		return iw32->applyToSource(m_bf, &BilateralFilter::apply);
-	}
+	switch (currentImageType()) {
+	case ImageType::UBYTE: 
+		return currentImageWindow()->applyToSource(m_bf, &BilateralFilter::apply);
+	
+	case ImageType::USHORT: 
+		return currentImageWindow<uint16_t>()->applyToSource(m_bf, &BilateralFilter::apply);
+	
+	case ImageType::FLOAT: 
+		return currentImageWindow<float>()->applyToSource(m_bf, &BilateralFilter::apply);
 	}
 }
 
@@ -150,17 +145,15 @@ void BilateralFilterDialog::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = previewRecast(m_preview);
-
-	switch (iwptr->type()) {
+	switch (preview()->type()) {
 
 	case ImageType::UBYTE:
-		return iwptr->updatePreview(m_bf, &BilateralFilter::applyTo);
+		return preview()->updatePreview(m_bf, &BilateralFilter::applyTo);
 
 	case ImageType::USHORT:
-		return previewRecast<uint16_t>(iwptr)->updatePreview(m_bf, &BilateralFilter::applyTo);
+		return preview<uint16_t>()->updatePreview(m_bf, &BilateralFilter::applyTo);
 
 	case ImageType::FLOAT:
-		return previewRecast<float>(iwptr)->updatePreview(m_bf, &BilateralFilter::applyTo);
+		return preview<float>()->updatePreview(m_bf, &BilateralFilter::applyTo);
 	}
 }

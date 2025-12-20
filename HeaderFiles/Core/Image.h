@@ -758,9 +758,24 @@ public:
 			return 0;
 	}
 
+	T at_mirrored(int x, int y)const {
+
+		if (y < 0)
+			y = -y;
+		else if (y >= rows())
+			y = 2 * rows() - (y + 1);
+
+		if (x < 0)
+			x = -x;
+		else if (x >= cols())
+			x = 2 * cols() - (x + 1);
+
+		return this->at(x, y);
+	}
+
 	T at_mirrored(int x, int y, int ch)const {
 		if (ch >= channels())
-			0;
+			return 0;
 
 		if (y < 0)
 			y = -y;
@@ -775,9 +790,7 @@ public:
 		return at(x, y, ch);
 	}
 
-	T at_replicated(int x, int y, int ch)const {
-		if (ch >= channels())
-			0;
+	T at_replicated(int x, int y)const {
 
 		if (y < 0)
 			y = 0;
@@ -789,7 +802,24 @@ public:
 		else if (x >= cols())
 			x = cols() - 1;
 
-		return at(x, y, ch);
+		return (*this)(x, y);
+	}
+
+	T at_replicated(int x, int y, int ch)const {
+		if (ch >= channels())
+			return 0;
+
+		if (y < 0)
+			y = 0;
+		else if (y >= rows())
+			y = rows() - 1;
+
+		if (x < 0)
+			x = 0;
+		else if (x >= cols())
+			x = cols() - 1;
+
+		return (*this)(x, y, ch);
 	}
 
 	void fillZero() {
@@ -826,7 +856,7 @@ private:
 public:
 	uint32_t computeClippedPxCount(int ch)const;
 
-	void computeMinMax(T& min, T& max)const;
+	void computeMinMax(T& min, T& max, int ch)const;
 
 	T computeMax(int ch, bool clip = false)const;
 

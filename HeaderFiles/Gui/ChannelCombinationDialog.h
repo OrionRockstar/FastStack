@@ -19,7 +19,7 @@ class ChannelCombinationDialog : public ProcessDialog {
 	ImageComboBox* m_blue_combo;
 
 public:
-	ChannelCombinationDialog(QWidget* parent);
+	ChannelCombinationDialog(Workspace* workspace);
 
 private:
 	void onImageWindowCreated()override;

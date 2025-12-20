@@ -192,7 +192,7 @@ class CropDialog : public ProcessDialog {
 	int m_previous_index = 0;
 	ImageWindowComboBox* m_image_sel;
 	Crop m_crop;
-
+	QMetaObject::Connection m_connection;
 public:
 	CropDialog(Workspace* parent);
 
@@ -202,8 +202,6 @@ private:
 	void onImageWindowClosed()override;
 
 	void onActivation_imageSelection(int index);
-
-	void showPreviewWindow(ImageWindow8* iw);
 
 	void resetDialog();
 

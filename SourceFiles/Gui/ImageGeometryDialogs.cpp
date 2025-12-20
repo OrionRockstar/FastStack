@@ -68,10 +68,10 @@ void RotationDialog::resetDialog() {
 
 void RotationDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -133,10 +133,10 @@ void FastRotationDialog::resetDialog() {
 
 void FastRotationDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -201,10 +201,10 @@ void IntegerResampleDialog::resetDialog() {
 
 void IntegerResampleDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->subWindowList().size() == 0)
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {
@@ -489,7 +489,7 @@ CropDialog::CropDialog(Workspace* parent) : ProcessDialog("Crop Image", QSize(22
 	m_image_sel = new ImageWindowComboBox(drawArea());
 	m_image_sel->move(10, 15);
 
-	for (auto sw : m_workspace->subWindowList())
+	for (auto sw : workspace()->subWindowList())
 		m_image_sel->addImageWindow(imageRecast(sw->widget()));
 
 	connect(m_image_sel, &QComboBox::activated, this, &CropDialog::onActivation_imageSelection); // show preview on activation
@@ -499,102 +499,54 @@ CropDialog::CropDialog(Workspace* parent) : ProcessDialog("Crop Image", QSize(22
 
 void CropDialog::onImageWindowCreated() {
 
-	m_image_sel->addImageWindow(imageRecast(m_workspace->subWindowList().last()->widget()));
+	m_image_sel->addImageWindow(imageRecast(workspace()->subWindowList().last()->widget()));
 }
 
 void CropDialog::onImageWindowClosed() {
 
-	int index = m_image_sel->findImageWindow(imageRecast(m_workspace->currentSubWindow()->widget()));
+	int index = m_image_sel->findImageWindow(imageRecast(workspace()->currentSubWindow()->widget()));
 	if (index == m_image_sel->currentIndex())
 		m_image_sel->setCurrentIndex(0);
 	m_image_sel->removeItem(index);
 }
 
 void CropDialog::onActivation_imageSelection(int index) {
-	
-	for (auto sw : m_workspace->subWindowList()) {
-		auto iwptr = imageRecast<>(sw->widget());
-		if (iwptr->previewExists()) {
-			if (index != 0 && iwptr->preview()->processType() == name())
-				return;
-			else 
-				iwptr->preview()->close();
-		}
+
+	if (index == 0) {
+		if (preview())
+			preview()->close();
+		return;
+	}
+
+	if (preview()) {
+		disconnect(m_connection);
+		preview()->close();
 	}
 
 	auto iwptr = m_image_sel->currentImageWindow();
+	workspace()->setActiveSubWindow(iwptr->subwindow());
 
-	showPreviewWindow(iwptr);
-	/*if (iwptr == nullptr)
-		return;
-
-	switch (iwptr->type()) {
+	switch (currentImageType()) {
 	case ImageType::UBYTE: {
-		iwptr->showPreview(new CropPreview<uint8_t>(iwptr));
+		this->showPreviewWindow(false, new CropPreview(currentImageWindow()));
 		break;
 	}
 	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->showPreview(new CropPreview<uint16_t>(iw16));
+		this->showPreviewWindow(false, new CropPreview<uint16_t>(currentImageWindow<uint16_t>()));
 		break;
 	}
 	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		iw32->showPreview(new CropPreview<float>(iw32));
+		this->showPreviewWindow(false, new CropPreview<float>(currentImageWindow<float>()));
 		break;
 	}
 	}
-
-	emit previewAdded();
-
-	//updates preview after apply
-	connect(iwptr, &ImageWindowBase::windowUpdated, this, &CropDialog::applytoPreview);
-	connect(iwptr->preview(), &PreviewWindowBase::windowClosed, this, [this]() { 
-		m_preview = nullptr; emit previewRemoved(); m_image_sel->setCurrentIndex(0); });
-
-	m_preview = iwptr->preview();
-	m_preview->setTitle(iwptr->name() + " Crop Window");
-	m_preview->setProcessType(name());*/
-}
-
-void CropDialog::showPreviewWindow(ImageWindow8* iw) {
-
-	if (iw == nullptr)
-		return;
-
-	switch (iw->type()) {
-	case ImageType::UBYTE: {
-		iw->showPreview(new CropPreview<uint8_t>(iw));
-		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iw);
-		iw16->showPreview(new CropPreview<uint16_t>(iw16));
-		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iw);
-		iw32->showPreview(new CropPreview<float>(iw32));
-		break;
-	}
-	}
-
-	m_preview = iw->preview();
-	emit previewAdded();
-
-	//updates preview after apply
-	connect(iw, &ImageWindowBase::windowUpdated, this, &CropDialog::applytoPreview);
-	connect(iw->preview(), &PreviewWindowBase::windowClosed, this, [this]() {
-		m_preview = nullptr; emit previewRemoved(); m_image_sel->setCurrentIndex(0); });
-
-	m_preview = iw->preview();
-	m_preview->setTitle(iw->name() + " Crop Window");
-	m_preview->setProcessType(name());
+	m_connection = connect(preview(), &PreviewWindowBase::windowClosed, std::bind(&QComboBox::setCurrentIndex, m_image_sel, 0));
+	preview()->setTitle(currentImageWindow()->name() + " Crop Window");
 }
 
 void CropDialog::resetDialog() {
 
-	for (auto sw : m_workspace->subWindowList()) {
+	for (auto sw : workspace()->subWindowList()) {
 		auto iwptr = reinterpret_cast<ImageWindow8*>(sw->widget());
 		if (m_image_sel->currentText() == iwptr->name()) {
 			if (iwptr->previewExists())
@@ -605,7 +557,7 @@ void CropDialog::resetDialog() {
 
 void CropDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
 	auto iwptr = m_image_sel->currentImageWindow();
@@ -633,8 +585,8 @@ void CropDialog::apply() {
 	}
 	}
 
-	if (m_preview)
-		m_preview->close();
+	disconnect(m_connection);
+	preview()->close();
 }
 
 void CropDialog::applyPreview() {
@@ -642,17 +594,15 @@ void CropDialog::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	PreviewWindow8* iwptr = previewRecast(m_preview);
-
-	switch (iwptr->type()) {
+	switch (preview()->type()) {
 	case ImageType::UBYTE: 
-		return iwptr->updatePreview();
+		return preview()->updatePreview();
 	
 	case ImageType::USHORT: 
-		return previewRecast<uint16_t>(iwptr)->updatePreview();
+		return preview<uint16_t>()->updatePreview();
 	
 	case ImageType::FLOAT: 
-		return previewRecast<float>(iwptr)->updatePreview();
+		return preview<float>()->updatePreview();
 	}
 }
 
@@ -701,7 +651,7 @@ ResizeDialog::ResizeDialog(Workspace* parent) : ProcessDialog("Resize Image", QS
 	m_image_sel->move(40, 15);
 	m_image_sel->resize(240, m_image_sel->height());
 
-	for (auto sw : m_workspace->subWindowList())
+	for (auto sw : workspace()->subWindowList())
 		m_image_sel->addImageWindow(imageRecast(sw->widget()));
 
 	connect(m_image_sel, &QComboBox::currentIndexChanged, this, &ResizeDialog::imageSelection); // show preview on activation
@@ -902,12 +852,12 @@ QSize ResizeDialog::getNewSize() {
 
 void ResizeDialog::onImageWindowCreated() {
 
-	m_image_sel->addImageWindow(imageRecast(m_workspace->subWindowList().last()->widget()));
+	m_image_sel->addImageWindow(imageRecast(workspace()->subWindowList().last()->widget()));
 }
 
 void ResizeDialog::onImageWindowClosed() {
 
-	int index = m_image_sel->findImageWindow(imageRecast(m_workspace->currentSubWindow()->widget()));
+	int index = m_image_sel->findImageWindow(imageRecast(workspace()->currentSubWindow()->widget()));
 
 	if (index == m_image_sel->currentIndex())
 		m_image_sel->setCurrentIndex(0);
@@ -972,7 +922,7 @@ void ResizeDialog::resetDialog() {
 
 void ResizeDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
 	auto iwptr = m_image_sel->currentImageWindow();
@@ -1068,10 +1018,10 @@ void HomographyTransformationDialog::resetDialog() {
 
 void HomographyTransformationDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	switch (iwptr->type()) {
 	case ImageType::UBYTE: {

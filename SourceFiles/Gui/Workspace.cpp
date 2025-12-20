@@ -16,7 +16,7 @@ Workspace::Workspace(QWidget* parent) : QMdiArea(parent) {
     this->setBackground(QColor(96,96,96));
 }
 
-ImageSubWindow* Workspace::addImageSubWindow(ImageSubWindow* isw, Qt::WindowFlags windowFlags) {
+SubWindow* Workspace::addSubWindow(SubWindow* isw, Qt::WindowFlags windowFlags) {
 
     auto sw = QMdiArea::addSubWindow(isw, windowFlags);
     emit imageWindowCreated();
@@ -30,10 +30,10 @@ ImageSubWindow* Workspace::addImageSubWindow(ImageSubWindow* isw, Qt::WindowFlag
     if (m_offsety > size().height() * 0.5)
         m_offsety = 0;
     
-    return dynamic_cast<ImageSubWindow*>(sw);
+    return dynamic_cast<SubWindow*>(sw);
 }
 
-void Workspace::removeImageSubWindow(ImageSubWindow* subwindow) {
+void Workspace::removeSubWindow(SubWindow* subwindow) {
 
     emit imageWindowClosed();
     QMdiArea::removeSubWindow(subwindow);

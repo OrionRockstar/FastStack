@@ -57,7 +57,7 @@ void SCNR::apply(Image<T>& img) {
 
 	for (int y = 0; y < img.rows(); ++y) {
 		for (int x = 0; x < img.cols(); ++x) {
-			auto c = img.color<float>(x, y);
+			auto c = img.template color<float>(x, y);
 
 			if (preserveLightness()) {
 				float L = ColorSpace::CIEL(c);
@@ -68,7 +68,7 @@ void SCNR::apply(Image<T>& img) {
 			else
 				removeColor(c);
 
-			img.setColor(x, y, c);
+			img.template setColor<>(x, y, c);
 		}
 	}
 }

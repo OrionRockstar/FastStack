@@ -448,9 +448,6 @@ void CurveScene::drawGrid() {
 	int step_x = width() / 4;
 	int step_y = height() / 4;
 
-	int x = step_x;
-	int y = step_y;
-
 	QPen pen = QColor(123, 123, 123);
 	pen.setWidthF(.75);
 

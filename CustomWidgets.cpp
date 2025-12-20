@@ -168,9 +168,7 @@ void PushButton::paintEvent(QPaintEvent* e) {
 	this->initStyleOption(&opt);
 	p.setOpacity(m_opacity);
 
-	
-	//if (opt.state & QStyle::State_MouseOver)
-	if (hitButton(mapFromGlobal(QCursor::pos())))
+	if (hitButton(mapFromGlobal(QCursor::pos())) && isEnabled())
 		opt.palette.setBrush(QPalette::Button, m_hover_color);
 
 	//style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &opt, &p);
@@ -495,7 +493,7 @@ CheckablePushButton::CheckablePushButton(const QIcon& icon, const QString& text,
 	this->setIcon(icon);
 }
 
-void CheckablePushButton::paintEvent(QPaintEvent* event) {
+void CheckablePushButton::paintEvent(QPaintEvent* e) {
 
 	QPainter p(this);
 	p.setOpacity(m_opacity);
@@ -528,7 +526,7 @@ void CheckablePushButton::paintEvent(QPaintEvent* event) {
 
 
 	//if (opt.state & QStyle::State_MouseOver)
-	if (hitButton(mapFromGlobal(QCursor::pos()))) {
+	if (hitButton(mapFromGlobal(QCursor::pos())) && isEnabled()) {
 		pal.setBrush(QPalette::Button, m_hover_color);
 	}
 	opt.palette = pal;

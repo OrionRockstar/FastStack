@@ -39,10 +39,10 @@ void WaveletLayersDialog::resetDialog() {
 
 void WaveletLayersDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	auto iwptr = imageRecast<>(workspace()->currentSubWindow()->widget());
 
 	enableSiblings_Subwindows(false);
 
@@ -70,14 +70,14 @@ void WaveletLayersDialog::apply() {
 		std::string name = "WaveletImage" + std::to_string(i);
 		int count = 0;
 
-		for (auto sw : m_workspace->subWindowList()) {
+		for (auto sw : workspace()->subWindowList()) {
 			auto ptr = reinterpret_cast<ImageWindow8*>(sw->widget());
 			std::string img_name = ptr->name().toStdString();
 			if (name == img_name)
 				name += "_" + std::to_string(++count);
 		}
 
-		ImageWindow32* iw = new ImageWindow32(std::move(wavelet_vector[i]), QString::fromStdString(name), m_workspace);
+		ImageWindow32* iw = new ImageWindow32(std::move(wavelet_vector[i]), QString::fromStdString(name), workspace());
 	}
 
 	enableSiblings_Subwindows(true);

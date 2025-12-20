@@ -95,26 +95,18 @@ void ETD::resetDialog() {
 
 void ETD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
+	switch (currentImageType()) {
+	case ImageType::UBYTE:
+		return currentImageWindow()->applyToSource(m_et, &ET::apply);
+	
+	case ImageType::USHORT: 
+		return currentImageWindow<uint16_t>()->applyToSource(m_et, &ET::apply);
 
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		iwptr->applyToSource(m_et, &ET::apply);
-		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		iw16->applyToSource(m_et, &ET::apply);
-		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		iw32->applyToSource(m_et, &ET::apply);
-		break;
-	}
+	case ImageType::FLOAT:
+		return currentImageWindow<float>()->applyToSource(m_et, &ET::apply);
 	}
 }
 
@@ -123,22 +115,18 @@ void ETD::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = previewRecast<>(m_preview);
-
 	ET et = m_et;
-	et.setSigma(et.sigma() * iwptr->scaleFactor());
+	et.setSigma(et.sigma() * preview()->scaleFactor());
 
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->updatePreview(et, &ET::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(et, &ET::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(et, &ET::apply);
-	}
+	switch (preview()->type()) {
+	case ImageType::UBYTE: 
+		return preview()->updatePreview(et, &ET::apply);
+	
+	case ImageType::USHORT: 
+		return preview<uint16_t>()->updatePreview(et, &ET::apply);
+
+	case ImageType::FLOAT:
+		return preview<float>()->updatePreview(et, &ET::apply);
+	
 	}
 }

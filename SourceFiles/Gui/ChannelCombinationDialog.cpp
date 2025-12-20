@@ -4,14 +4,14 @@
 
 using CCD = ChannelCombinationDialog;
 
-CCD::ChannelCombinationDialog(QWidget* parent) : ProcessDialog("ChannelCombination", { 560, 165 }, FastStack::recast(parent)->workspace(), false, false) {
+CCD::ChannelCombinationDialog(Workspace* workspace) : ProcessDialog("ChannelCombination", { 560, 165 }, workspace, false, false) {
 
 	addColorSpaceBG();
 	addRedInputs();
 	addGreenInputs();
 	addBlueInputs();
 
-	for (auto sw : m_workspace->subWindowList()) {
+	for (auto sw : workspace->subWindowList()) {
 		auto iw = imageRecast<>(sw->widget());
 		if (iw->channels() == 1) {
 			m_red_combo->addImage(iw);
@@ -66,7 +66,7 @@ void CCD::addColorSpaceBG() {
 
 void CCD::onImageWindowCreated() {
 
-	auto iw = imageRecast<>(m_workspace->subWindowList().last()->widget());
+	auto iw = imageRecast<>(workspace()->subWindowList().last()->widget());
 
 	if (iw->channels() == 1) {
 		m_red_combo->addImage(iw);
@@ -77,7 +77,7 @@ void CCD::onImageWindowCreated() {
 
 void CCD::onImageWindowClosed() {
 
-	auto img = &imageRecast<>(m_workspace->currentSubWindow()->widget())->source();
+	auto img = &imageRecast<>(workspace()->currentSubWindow()->widget())->source();
 
 	int index = m_red_combo->findImage(img);
 	if (index == m_red_combo->currentIndex()) {
@@ -167,7 +167,7 @@ void CCD::apply() {
 
 	if (status) {
 		Image32  rgb = m_cc.generateRGBImage();
-		ImageWindow32* iw = new ImageWindow32(std::move(rgb), "RGB Image", m_workspace);
+		ImageWindow32* iw = new ImageWindow32(std::move(rgb), "RGB Image", workspace());
 	}
 
 	else

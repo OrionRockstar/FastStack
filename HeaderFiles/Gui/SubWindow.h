@@ -1,15 +1,14 @@
 #pragma once
 #include "CustomWidgets.h"
 
-
-class ImageSubWindow : public QMdiSubWindow {
+class SubWindow : public QMdiSubWindow {
 	Q_OBJECT
 
 private:
 	QTimer* m_timer = nullptr;
 
 public:
-	ImageSubWindow(QWidget* widget);
+	SubWindow(QWidget* widget);
 
 	void resizeToFit(int w, int h);
 

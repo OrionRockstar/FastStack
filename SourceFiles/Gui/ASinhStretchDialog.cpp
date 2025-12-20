@@ -7,13 +7,13 @@ using ASSD = ASinhStretchDialog;
 ASSD::ASinhStretchDialog(Workspace* parent) : ProcessDialog("ASinhStretch", QSize(500, 155), parent) {
 
 	setDefaultTimerInterval(250);
-	connect(this, &ProcessDialog::previewRemoved, this, [this]() { m_bp_comp->setEnabled(false); });
 
 	m_bp_comp = new PushButton("Compute Blackpoint", drawArea());
 	m_bp_comp->move(90, 110);
 	m_bp_comp->setDisabled(true);
 	connect(m_bp_comp, &QPushButton::released, this, [this]() { computeBlackpoint(); applytoPreview(); });
-
+	connect(this, &ProcessDialog::previewAdded, std::bind(&PushButton::setEnabled, m_bp_comp, true));
+	connect(this, &ProcessDialog::previewRemoved, std::bind(&PushButton::setEnabled, m_bp_comp, false));
 
 	addStretchFactorInputs();
 	addBlackpointInputs();
@@ -125,26 +125,21 @@ void ASSD::addFinetuneInputs() {
 
 
 void ASSD::computeBlackpoint() {
-	if (m_workspace->subWindowList().size() == 0 || m_preview == nullptr)
+	if (!workspace()->hasSubWindows() || !isPreviewValid())
 		return;
 
-	auto iwptr = previewRecast(m_preview)->imageWindow();
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		m_ash.computeBlackpoint(iwptr->source());
+	switch (preview()->type()) {
+	case ImageType::UBYTE: 
+		m_ash.computeBlackpoint(preview()->imageWindow()->source());
 		break;
-	}
-	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<const ImageWindow16*>(iwptr);
-		m_ash.computeBlackpoint(iw16->source());
+	
+	case ImageType::USHORT: 
+		m_ash.computeBlackpoint(preview<uint16_t>()->imageWindow()->source());
 		break;
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<const ImageWindow32*>(iwptr);
-		m_ash.computeBlackpoint(iw32->source());
+	
+	case ImageType::FLOAT: 
+		m_ash.computeBlackpoint(preview<float>()->imageWindow()->source());
 		break;
-	}
 	}
 
 	m_bp_slider->setValue(m_ash.blackpoint() * 1'000);
@@ -167,33 +162,20 @@ void ASSD::resetDialog() {
 	applytoPreview();
 }
 
-void ASSD::showPreview() {
-
-	ProcessDialog::showPreview();
-
-	if (m_preview != nullptr && !m_bp_comp->isEnabled())
-		m_bp_comp->setEnabled(true);
-}
-
 void ASSD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	ImageWindow8* iwptr = imageRecast(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->applyToSource(m_ash, &ASinhStretch::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		return iw16->applyToSource(m_ash, &ASinhStretch::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		return iw32->applyToSource(m_ash, &ASinhStretch::apply);
-	}
+	switch (currentImageType()) {
+	case ImageType::UBYTE: 
+		return currentImageWindow()->applyToSource(m_ash, &ASinhStretch::apply);
+	
+	case ImageType::USHORT: 
+		return currentImageWindow<uint16_t>()->applyToSource(m_ash, &ASinhStretch::apply);
+	
+	case ImageType::FLOAT: 
+		return currentImageWindow<float>()->applyToSource(m_ash, &ASinhStretch::apply);
 	}
 }
 
@@ -202,20 +184,14 @@ void ASSD::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	PreviewWindow8* iwptr = previewRecast(m_preview);
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		auto iw8 = iwptr;
-		return iw8->updatePreview(m_ash, &ASinhStretch::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(m_ash, &ASinhStretch::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(m_ash, &ASinhStretch::apply);
-	}
+	switch (preview()->type()) {
+	case ImageType::UBYTE: 
+		return preview()->updatePreview(m_ash, &ASinhStretch::apply);
+	
+	case ImageType::USHORT: 
+		return preview<uint16_t>()->updatePreview(m_ash, &ASinhStretch::apply);
+	
+	case ImageType::FLOAT: 
+		return preview<float>()->updatePreview(m_ash, &ASinhStretch::apply);
 	}
 }

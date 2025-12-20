@@ -64,13 +64,13 @@ void CurveTransform::apply(Image<T>& img) {
 #pragma omp parallel for num_threads(3)
 		for (int y = 0; y < img.rows(); ++y) {
 			for (int x = 0; x < img.cols(); ++x) {
-				auto rgb = img.color<double>(x, y);
+				auto rgb = img.template color<double>(x, y);
 
 				double L, _a, _b;
 				ColorSpace::RGBtoCIELab(rgb, L, _a, _b);
 				rgb = ColorSpace::CIELabtoRGB(Lightness.interpolate(L), a.interpolate(_a), b.interpolate(_b));
 				
-				img.setColor<>(x, y, rgb);
+				img.template setColor<>(x, y, rgb);
 			}
 		}
 	}
@@ -84,13 +84,13 @@ void CurveTransform::apply(Image<T>& img) {
 #pragma omp parallel for num_threads(3)
 		for (int y = 0; y < img.rows(); ++y) {
 			for (int x = 0; x < img.cols(); ++x) {
-				auto rgb = img.color<double>(x, y);
+				auto rgb = img.template color<double>(x, y);
 
 				double L, _c, _h;
 				ColorSpace::RGBtoCIELch(rgb, L, _c, _h);
 				rgb = ColorSpace::CIELchtoRGB(L, c.interpolate(_c), _h);
 
-				img.setColor<>(x, y, rgb);
+				img.template setColor<>(x, y, rgb);
 			}
 		}
 	}
@@ -104,13 +104,13 @@ void CurveTransform::apply(Image<T>& img) {
 #pragma omp parallel for num_threads(3)
 		for (int y = 0; y < img.rows(); ++y) {
 			for (int x = 0; x < img.cols(); ++x) {
-				auto rgb = img.color<double>(x, y);
+				auto rgb = img.template color<double>(x, y);
 
 				double H, S, V, L;
 				ColorSpace::RGBtoHSVL(rgb, H, S, V, L);
 				rgb = ColorSpace::HSVLtoRGB(Hue.interpolate(H), Saturation.interpolate(S), V, L);
 
-				img.setColor(x, y, rgb);
+				img.template setColor<>(x, y, rgb);
 			}
 		}
 	}

@@ -19,7 +19,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -67,10 +67,11 @@
       <FloatingPointModel>Fast</FloatingPointModel>
       <PreprocessorDefinitions>$(Qt_DEFINES_);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <OpenMPSupport>true</OpenMPSupport>
-      <MinimalRebuild>false</MinimalRebuild>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>C:\Users\Zack\source\repos\FastStack\HeaderFiles\Gui;C:\Users\Zack\source\repos\FastStack\HeaderFiles\Core;C:\Users\Zack\source\repos\FastStack\HeaderFiles;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ConformanceMode>true</ConformanceMode>
+      <WarningLevel>Level4</WarningLevel>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -115,7 +116,7 @@
     <ClCompile Include="ImageFile.cpp" />
     <ClCompile Include="SourceFiles\Core\Histogram.cpp" />
     <ClCompile Include="SourceFiles\Gui\HistogramView.cpp" />
-    <ClCompile Include="SourceFiles\Gui\ImageSubWindow.cpp" />
+    <ClCompile Include="SourceFiles\Gui\SubWindow.cpp" />
     <ClCompile Include="SourceFiles\MediaPlayerDialog.cpp" />
     <ClCompile Include="SourceFiles\Gui\ExponentialTransformationDialog.cpp" />
     <ClCompile Include="SourceFiles\Core\ExponentialTransformation.cpp" />
@@ -275,7 +276,7 @@
     <ClInclude Include="HeaderFiles\Gui\LRGBCombinationDialog.h" />
     <QtMoc Include="HeaderFiles\MediaPlayerDialog.h" />
     <QtMoc Include="HeaderFiles\Gui\HistogramView.h" />
-    <QtMoc Include="HeaderFiles\Gui\ImageSubWindow.h" />
+    <QtMoc Include="HeaderFiles\Gui\SubWindow.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="HeaderFiles\Core\RGBColorSpace.h" />
     <QtMoc Include="HeaderFiles\SaveFileOptionsWindows.h" />

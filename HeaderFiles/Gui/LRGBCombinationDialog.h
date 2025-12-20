@@ -45,7 +45,7 @@ class LRGBCombinationDialog : public ProcessDialog {
 	Slider* m_blue_slider;
 
 public:
-	LRGBCombinationDialog(QWidget* parent);
+	LRGBCombinationDialog(Workspace* workspace);
 private:
 	void onImageWindowCreated()override;
 

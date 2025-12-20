@@ -256,24 +256,18 @@ void ASD::resetDialog() {
 
 void ASD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = reinterpret_cast<ImageWindow8*>(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		auto iw8 = reinterpret_cast<ImageWindow8*>(iwptr);
-		return iw8->applyToSource(m_as, &AdaptiveStretch::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = reinterpret_cast<ImageWindow16*>(iwptr);
-		return iw16->applyToSource(m_as, &AdaptiveStretch::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = reinterpret_cast<ImageWindow32*>(iwptr);
-		return iw32->applyToSource(m_as, &AdaptiveStretch::apply);
-	}
+	switch (currentImageType()) {
+	case ImageType::UBYTE: 
+		return currentImageWindow()->applyToSource(m_as, &AdaptiveStretch::apply);
+	
+	case ImageType::USHORT: 
+		return currentImageWindow<uint16_t>()->applyToSource(m_as, &AdaptiveStretch::apply);
+	
+	case ImageType::FLOAT:
+		return currentImageWindow<float>()->applyToSource(m_as, &AdaptiveStretch::apply);
 	}
 }
 
@@ -282,26 +276,21 @@ void ASD::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = reinterpret_cast<PreviewWindow8*>(m_preview);
-
-	switch (iwptr->type()) {
+	switch (preview()->type()) {
 	case ImageType::UBYTE: {
-		auto pw8 = reinterpret_cast<PreviewWindow8*>(m_preview);
-		auto iw8 = pw8->imageWindow();
-		m_as.computeCDF(iw8->source());
-		return pw8->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
+		auto p = preview();
+		m_as.computeCDF(p->imageWindow()->source());
+		return p->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
 	}
 	case ImageType::USHORT: {
-		auto pw16 = reinterpret_cast<PreviewWindow16*>(m_preview);
-		auto iw16 = pw16->imageWindow();
-		m_as.computeCDF(iw16->source());
-		return pw16->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
+		auto p = preview<uint16_t>();
+		m_as.computeCDF(p->imageWindow()->source());
+		return p->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
 	}
 	case ImageType::FLOAT: {
-		auto pw32 = reinterpret_cast<PreviewWindow32*>(m_preview);
-		auto iw32 = pw32->imageWindow();
-		m_as.computeCDF(iw32->source());
-		return pw32->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
+		auto p = preview<float>();
+		m_as.computeCDF(p->imageWindow()->source());
+		return p->updatePreview(m_as, &AdaptiveStretch::apply_NoCDF);
 	}
 	}
 }

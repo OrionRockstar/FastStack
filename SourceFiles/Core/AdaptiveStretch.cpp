@@ -28,7 +28,6 @@ void AdaptiveStretch::computeCDF(const Image<T>& img) {
 	std::vector<uint32_t> pos;
 	std::vector<uint32_t> neg;
 
-	int multiplier = (isFloatImage(img)) ? m_data_points - 1 : 1;
 	int size = [&]() {
 		switch (img.type()) {
 		case ImageType::UBYTE:
@@ -41,75 +40,77 @@ void AdaptiveStretch::computeCDF(const Image<T>& img) {
 			return 256;
 		}
 	}();
+	uint32_t K = size - 1;
 
 	pos.resize(size, 0);
 	neg.resize(size, 0);
 	m_cdf_curve.resize(size);	
 
-	T noise = Pixel<T>::toType(m_noise_thresh);
+	float thresh = m_noise_thresh;
 	float contrast = (m_contrast_protection) ? m_contrast_threshold : 0;
 
-#pragma omp parallel for num_threads(4)
-	for (int y = 0; y < img.rows() - 1; ++y) {
-		for (int x = 0; x < img.cols() - 1; ++x) {
+	auto tp = getTimePoint();
+#pragma omp parallel for firstprivate(K, thresh) num_threads(4)
+	for (int y = 0; y < img.rows(); ++y) {
+		for (int x = 0; x < img.cols(); ++x) {
 
-			T a0 = img(x, y);
+			float a0 = img.template pixel<float>(x, y);
 
-			T a1 = img(x + 1, y);
-			uint32_t l1 = math::min(a0, a1) * multiplier;
+			float a1 = Pixel<float>::toType(img.at_replicated(x + 1, y));
+			uint32_t l1 = math::min(a0, a1) * K;
 
-			T a2 = img(x - 1, y + 1);
-			uint32_t l2 = math::min(a0, a2) * multiplier;
+			float a2 = Pixel<float>::toType(img.at_replicated(x - 1, y + 1));
+			uint32_t l2 = math::min(a0, a2) * K;
 
-			T a3 = img(x, y + 1);
-			uint32_t l3 = math::min(a0, a3) * multiplier;
+			float a3 = Pixel<float>::toType(img.at_replicated(x, y + 1));
+			uint32_t l3 = math::min(a0, a3) * K;
 
-			T a4 = img(x + 1, y + 1);
-			uint32_t l4 = math::min(a0, a4) * multiplier;
+			float a4 = Pixel<float>::toType(img.at_replicated(x + 1, y + 1));
+			uint32_t l4 = math::min(a0, a4) * K;
 
-			if (abs(a0 - a1) > noise)
+			if (abs(a0 - a1) > thresh)
 				pos[l1]++;
 			else
 				neg[l1]++;
 
-			if (abs(a0 - a2) > noise)
+			if (abs(a0 - a2) > thresh)
 				pos[l2]++;
 			else
 				neg[l2]++;
 
-			if (abs(a0 - a3) > noise)
+			if (abs(a0 - a3) > thresh)
 				pos[l3]++;
 			else
 				neg[l3]++;
 
-			if (abs(a0 - a4) > noise)
+			if (abs(a0 - a4) > thresh)
 				pos[l4]++;
 			else
 				neg[l4]++;
 		}
 	}
-
+	displayTimeDuration(tp);
 	m_cdf_curve[0] = pos[0] - contrast * neg[0];
 	for (int i = 1; i < m_cdf_curve.size(); ++i)
 		m_cdf_curve[i] = pos[i] - contrast * neg[i] + m_cdf_curve[i - 1];
 
-	T max = img.computeMax(0);
-	T min = img.computeMin(0);
+	T min, max;
+	img.computeMinMax(min, max, 0);
 
-	int bm = min * multiplier, bM = max * multiplier;
+	int bm = min * K, bM = max * K;
 	double mindiff = 0;
 
 	//find "greatest" net_cdf decrease
-	for (int k = bm; k < bM; ++k) {
-		float d = m_cdf_curve[k + 1] - m_cdf_curve[k];
+	for (int i = bm; i < bM; ++i) {
+		float d = m_cdf_curve[i + 1] - m_cdf_curve[i];
 		if (d < mindiff)
 			mindiff = d;
 	}
 
 	if (mindiff < 0) {
 		mindiff = -mindiff;
-		for (int k = bm; k <= bM; ++k)
-			m_cdf_curve[k] += (k - bm) * (mindiff + 1 / (bM - bm));
+		for (int i = bm; i <= bM; ++i)
+			m_cdf_curve[i] += (i - bm) * (mindiff + 1 / (bM - bm));
 	}
 
 	m_cdf_curve.setMin(m_cdf_curve[bm]);

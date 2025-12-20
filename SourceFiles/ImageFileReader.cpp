@@ -79,11 +79,16 @@ Status ImageFileReader::read(std::filesystem::path file_path) {
 	else if (ext == ".jpg" || ext == ".jpeg" || ext == ".png") {
 		QImageReader imgReader(file_path.string().c_str());
 		imgReader.setAutoTransform(true);
-		QImage img = imgReader.read();		
+		QImage img = imgReader.read();
+
+		//std::cout << img.format() << "\n";
 		if (img.format() == QImage::Format_RGB32 || img.format() == QImage::Format_ARGB32)
 			img = img.convertToFormat(QImage::Format_RGB888);
 
-		QImagetoImage(img, img8);
+		if (img.format() == QImage::Format_Grayscale16)
+			QImagetoImage(img, img16);
+		else
+			QImagetoImage(img, img8);
 	}
 
 	else

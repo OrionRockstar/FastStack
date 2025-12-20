@@ -26,9 +26,8 @@ void ET::apply(Image<T>& img) {
                     if (img.channels() == 1)
                         L = Pixel<float>::toType(img(x, y));
                     else
-                        L = ColorSpace::CIEL(img.color<double>(x, y));
+                        L = ColorSpace::CIEL(img.template color<double>(x, y));
                 }
-                double L1 = 1 - L;
 
                 for (int ch = 0; ch < img.channels(); ++ch) {
 

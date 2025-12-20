@@ -189,10 +189,6 @@ inline float byteswap_float(const float inp) {
     return *(float*)&buff;
 }
 
-static int NUM_THREADS(int num) {
-    return (num > omp_get_max_threads()) ? omp_get_max_threads() : num;
-}
-
 template<typename T>
 struct PointBase {
     T x = 0;
@@ -312,14 +308,14 @@ public:
 
     //bool operator()(PointBase& a, PointBase& b) { return (a.x() < b.x()); }
 };
-using Point = PointBase<int>;
-template class PointBase<int>;
+template struct PointBase<int>;
+typedef PointBase<int> Point;
 
-using PointF = PointBase<float>;
-template class PointBase<float>;
+template struct PointBase<float>;
+typedef PointBase<float> PointF;
 
-using PointD = PointBase<double>;
-template class PointBase<double>;
+template struct PointBase<double>;
+typedef PointBase<double> PointD;
 
 template<typename T>
 struct ImagePointBase {
@@ -442,7 +438,7 @@ public:
         //thread.detach();
     }
 
-    void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size) {
+    void run(std::function<void(uint32_t start, uint32_t end)> func, uint32_t size)const {
 
         if (size == 0 || m_thread_count == 0)
             return;
@@ -452,7 +448,7 @@ public:
 
         std::vector<std::thread> threads;
 
-        for (int i = 0; i < thread_count; ++i) {
+        for (uint32_t i = 0; i < thread_count; ++i) {
             uint32_t start = i * chunk_size;
             threads.emplace_back(func, start, math::min(start + chunk_size, size));
         }
@@ -461,7 +457,7 @@ public:
             th.join();
     }
 
-    void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size) {
+    void run(std::function<void(uint32_t start, uint32_t end, uint32_t thread_num)> func, uint32_t size)const {
 
         if (size == 0 || m_thread_count == 0)
             return;

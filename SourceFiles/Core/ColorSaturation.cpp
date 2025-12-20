@@ -33,7 +33,7 @@ void ColorSaturation::apply(Image<T>& img) {
     for (int y = 0; y < img.rows(); ++y) {
 		for (int x = 0; x < img.cols(); ++x) {
 
-			auto rgb = img.color<double>(x, y);
+			auto rgb = img.template color<double>(x, y);
 
 			double H, S, V, L;
 			ColorSpace::RGBtoHSVL(rgb, H, S, V, L);
@@ -42,7 +42,7 @@ void ColorSaturation::apply(Image<T>& img) {
 			double k = scalingFactor(m_scale * m_saturation_curve.interpolate(H));
 			shiftHue(H, -m_hue_shift);
 
-			img.setColor<>(x, y, ColorSpace::HSVLtoRGB(H, math::clip(S * k), V, L));
+			img.template setColor<>(x, y, ColorSpace::HSVLtoRGB(H, math::clip(S * k), V, L));
 		}
     }
 }

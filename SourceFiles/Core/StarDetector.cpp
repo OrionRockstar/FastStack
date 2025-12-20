@@ -216,6 +216,7 @@ bool StarDetector::gaussianFit(const Image<T>& orig, const Image<T>& conv, const
         }
     }*/
 
+    //chamge to 9?!
     if (pix_count < 6)
         return false;
 
@@ -311,16 +312,15 @@ bool StarDetector::psfFit(const Image<T>& orig, const Image<T>& conv, Star& star
 
     for (int i = 0; i < 5; ++i) {
 
-        //orig 1 & 3
         std::vector<T> bg = localBackground(orig, star, false, 1, 3);
-        if (bg.size() < 13) // int((3^2 * pi - 1^2 * pi) / 2 + 0.5)
+        if (bg.size() < 13)
             return false;
         T b = math::median(bg);
         T s = 1.4826 * math::mad(bg, b); 
         T t = Pixel<T>::toType(math::clip(Pixel<float>::toType(b) + Pixel<float>::toType(s)));
 
-        //if (i < 2)
-            //star.radius_x = star.radius_y = 2 + i;
+        if (i == 0 && starMean(orig, star) < 0.7 * Pixel<T>::max())
+            star.radius_x = star.radius_y = 2;
 
         PSF _psf = psf;
         switch (m_psf_type) {
@@ -364,10 +364,15 @@ bool StarDetector::psfFit(const Image<T>& orig, const Image<T>& conv, Star& star
     
     if (psf.rmse > 0.35)
         return false;
+    
 
     //filters large, dim regions, such as nebula, that give a false "good fit"
     int v = (m_psf_type == PSF::Type::gaussian) ? 4 : 6;
-    if (psf.mean() < psf.B + 3 * sigma && star.avgRadius() > v && psf.peak < 0.75 * Pixel<float>::max())
+    if (psf.mean() < psf.B + 3 * sigma && star.avgRadius() > v && psf.peak < 0.7)
+        return false;
+
+    float fwhm = math::max(psf.fwhmx, psf.fwhmy);
+    if (psf.peak < 0.7 && fwhm > 4 && psf.peak / fwhm < 0.015)
         return false;
 
     if (psf.peak < psf.B + sigma || psf.A < psf.B + sigma)
@@ -433,7 +438,7 @@ void StarDetector::daofind(const Image<T>& gray, StarVector& star_vector, PSFVec
     threads.run([&, t, sigma](int start, int end) {
 
         float ks = m_K * Pixel<float>::toType(sigma);
-        int sr = 3;//search_radius
+        int sr = 2;//search_radius
         int star_rad = 3;//7px diameter
         StarVector sv;
         sv.reserve(math::max(int(star_vector.capacity() / threads.threadCount()), 200));
@@ -448,6 +453,7 @@ void StarDetector::daofind(const Image<T>& gray, StarVector& star_vector, PSFVec
                     Point max_pos(x, y);
                     Star star(x, y, star_rad);
 
+                    for (int iter = 0; iter < 2; ++iter)
                     for (int j = y - sr; j <= y + sr; ++j) {
                         for (int i = x - sr; i <= x + sr; ++i) {
                             if (gray.isInBounds(i, j)) {
@@ -502,7 +508,7 @@ void StarDetector::daofind(const Image<T>& gray, StarVector& star_vector, PSFVec
         }, conv.rows());
     //displayTimeDuration(tp);
 
-    auto erase_element = []<typename T>(std::vector<T>&v, size_t pos) {
+    auto erase_element = []<typename P>(std::vector<P>&v, size_t pos) {
         std::swap(v[pos], v[v.size() - 1]);
         v.pop_back();
     };

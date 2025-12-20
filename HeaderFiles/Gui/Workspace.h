@@ -1,6 +1,7 @@
 #pragma once
 #include "Image.h"
-#include "ImageSubWindow.h"
+#include "SubWindow.h"
+
 
 class Workspace:public QMdiArea {
     Q_OBJECT
@@ -10,14 +11,23 @@ private:
     int m_offsetx = 0;
     int m_offsety = 0;
 
+    using QMdiArea::addSubWindow;
+    using QMdiArea::currentSubWindow;
+    using QMdiArea::removeSubWindow;
+
 public:
     Workspace(QWidget* parent = nullptr);
 
-    ImageSubWindow* addImageSubWindow(ImageSubWindow* isw, Qt::WindowFlags windowFlags = Qt::WindowFlags());
+    SubWindow* addSubWindow(SubWindow* isw, Qt::WindowFlags windowFlags = Qt::WindowFlags());
 
-    void removeImageSubWindow(ImageSubWindow* subwindow);
+    void removeSubWindow(SubWindow* subwindow);
 
     void enableChildren(bool enable);
+
+    bool hasSubWindows()const { return !this->subWindowList().isEmpty(); }
+
+    SubWindow* currentSubWindow()const { return dynamic_cast<SubWindow*>(QMdiArea::currentSubWindow()); }
+
 signals:
     void imageWindowClosed();
 

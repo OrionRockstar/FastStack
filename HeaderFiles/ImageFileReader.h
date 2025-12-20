@@ -48,10 +48,18 @@ static void QImagetoImage(const QImage& src, Image<T>& dst) {
 	
 	dst = Image<T>(src.height(), src.width(), channels);
 
-	for (int ch = 0; ch < dst.channels(); ++ch)
-		for (int y = 0; y < dst.rows(); ++y)
+
+
+	if (src.format() == QImage::Format_Grayscale16)
+		for (int y = 0; y < dst.rows(); ++y) 
 			for (int x = 0; x < dst.cols(); ++x)
-				dst(x, y, ch) = Pixel<T>::toType(src.scanLine(y)[channels * x + ch]);
+				dst(x, y) = Pixel<T>::toType(((uint16_t*)src.scanLine(y))[x]);
+			
+	else 
+		for (int ch = 0; ch < dst.channels(); ++ch)
+			for (int y = 0; y < dst.rows(); ++y)
+				for (int x = 0; x < dst.cols(); ++x)
+					dst(x, y, ch) = Pixel<T>::toType(src.scanLine(y)[channels * x + ch]);
 }
 
 

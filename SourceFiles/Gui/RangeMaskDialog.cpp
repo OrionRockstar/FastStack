@@ -83,7 +83,7 @@ void RangeSlider::mouseMoveEvent(QMouseEvent* e) {
 		m_high.state &= ~QStyle::State_MouseOver;
 
 	if (e->buttons() == Qt::LeftButton) {
-		int diff = width() - maximum();
+		//int diff = width() - maximum();
 		int x = QStyle::sliderValueFromPosition(minimum(), maximum(), e->x() - m_handle_width / 2, width() - m_handle_width, false);
 
 		if (m_low_act) {
@@ -317,43 +317,31 @@ void RangeMaskDialog::resetDialog() {
 
 void RangeMaskDialog::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
+	QString name = "RangeMask";
 
-	std::string name = "RangeMask";
+	//enableSiblings_Subwindows(false);
 
-	enableSiblings_Subwindows(false);
-
-	int count = 0;
-	for (auto sw : m_workspace->subWindowList()) {
-		auto ptr = imageRecast<>(sw->widget());
-		std::string img_name = ptr->name().toStdString();
-		if (name == img_name)
-			name += std::to_string(++count);
-	}
-
-	switch (iwptr->type()) {
+	switch (currentImageType()) {
 	case ImageType::UBYTE: {
-		Image8 rm = m_rm.generateMask(iwptr->source());
-		ImageWindow8* iw = new ImageWindow8(std::move(rm), name.c_str(), m_workspace);
+		Image8 rm = m_rm.generateMask(currentImageWindow()->source());
+		ImageWindow8* iw = new ImageWindow8(std::move(rm), name, workspace());
 		break;
 	}
 	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		Image16 rm = m_rm.generateMask(iw16->source());
-		ImageWindow16* iw = new ImageWindow16(std::move(rm), name.c_str(), m_workspace);
+		Image16 rm = m_rm.generateMask(currentImageWindow<uint16_t>()->source());
+		ImageWindow16* iw = new ImageWindow16(std::move(rm), name, workspace());
 		break;
 	}
 	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		Image32 rm = m_rm.generateMask(iw32->source());
-		ImageWindow32* iw = new ImageWindow32(std::move(rm), name.c_str(), m_workspace);
+		Image32 rm = m_rm.generateMask(currentImageWindow<float>()->source());
+		ImageWindow32* iw = new ImageWindow32(std::move(rm), name, workspace());
 		break;
 	}
 	}
-	enableSiblings_Subwindows(true);
+	//enableSiblings_Subwindows(true);
 }
 
 void RangeMaskDialog::applyPreview() {
@@ -361,24 +349,17 @@ void RangeMaskDialog::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	PreviewWindow8* pwptr = previewRecast(m_preview);
+	auto rm = m_rm;
+	rm.setSmoothness(rm.smoothness()* preview()->scaleFactor());
 
-	auto zw = [&]<typename T>(PreviewWindow<T>*pw) {
-		float s = m_rm.smoothness();
-		m_rm.setSmoothness(s * pw->scaleFactor());
-		pw->updatePreview(m_rm, &RangeMask::generateMask_overwrite);
-		m_rm.setSmoothness(s);
-	};
-
-	switch (pwptr->type()) {
-
+	switch (preview()->type()) {
 	case ImageType::UBYTE:
-		return zw(pwptr);
+		return preview()->updatePreview(rm, &RangeMask::generateMask_overwrite);
 
 	case ImageType::USHORT:
-		return zw(previewRecast<uint16_t>(pwptr));
+		return preview<uint16_t>()->updatePreview(rm, &RangeMask::generateMask_overwrite);
 
 	case ImageType::FLOAT:
-		return zw(previewRecast<float>(pwptr));
+		return preview<float>()->updatePreview(rm, &RangeMask::generateMask_overwrite);
 	}
 }

@@ -90,9 +90,16 @@ void Image<T>::truncate(T a, T b) {
 
 template<typename T>
 void Image<T>::normalize() {
-	T max, min;
 
-	computeMinMax(min, max);
+	T max = std::numeric_limits<T>::min();
+	T min = std::numeric_limits<T>::max();
+
+	for (int ch = 0; ch < channels(); ++ch) {
+		T M, m;
+		computeMinMax(m, M, ch);
+		max = math::max(max, M);
+		min = math::min(min, m);
+	}
 
 	if (min == max)
 		return;
@@ -218,12 +225,12 @@ float Image<T>::computeAvgDev_Clipped(int ch, T median)const {
 }
 
 template<typename T>
-void Image<T>::computeMinMax(T& min, T& max)const {
+void Image<T>::computeMinMax(T& min, T& max, int ch)const {
 
 	max = std::numeric_limits<T>::min();
 	min = std::numeric_limits<T>::max();
 
-	for (auto pixel : *this) {
+	for (T pixel : image_channel(*this, ch)) {
 		if (pixel > max)
 			max = pixel;
 		else if (pixel < min)

@@ -192,7 +192,7 @@ StarAlignmentDialog::StarAlignmentDialog(Workspace* parent) : ProcessDialog("Sta
 
 void StarAlignmentDialog::addImages() {
 
-	ImageSelectionDialog* isd = new ImageSelectionDialog(*m_workspace, this);
+	ImageSelectionDialog* isd = new ImageSelectionDialog(*workspace(), this);
 
 	auto additem = [this](ImageItem item) {
 

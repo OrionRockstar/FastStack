@@ -460,7 +460,7 @@ void ImageStackingDialog::apply() {
 			QMessageBox::about(this, "FastStack", status.m_message);
 		
 		else
-			ImageWindow32* iw32 = new ImageWindow32(std::move(m_output), "StackedImage", reinterpret_cast<Workspace*>(m_workspace));
+			ImageWindow32* iw32 = new ImageWindow32(std::move(m_output), "StackedImage", reinterpret_cast<Workspace*>(workspace()));
 
 		if (m_output.exists())
 			m_output.~Image();
@@ -768,7 +768,7 @@ void DrizzleIntegrationDialog::apply() {
 
 		else
 			//increment title
-			ImageWindow32* iw32 = new ImageWindow32(std::move(m_output), "DrizzledImage", reinterpret_cast<Workspace*>(m_workspace));
+			ImageWindow32* iw32 = new ImageWindow32(std::move(m_output), "DrizzledImage", workspace());
 
 		if (m_output.exists())
 			m_output.~Image();

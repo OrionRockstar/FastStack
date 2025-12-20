@@ -328,23 +328,18 @@ void CTD::resetDialog() {
 
 void CTD::apply() {
 
-	if (m_workspace->subWindowList().size() == 0)
+	if (!workspace()->hasSubWindows())
 		return;
 
-	auto iwptr = imageRecast<>(m_workspace->currentSubWindow()->widget());
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->applyToSource(m_ct, &CurveTransform::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = imageRecast<uint16_t>(iwptr);
-		return iw16->applyToSource(m_ct, &CurveTransform::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = imageRecast<float>(iwptr);
-		return iw32->applyToSource(m_ct, &CurveTransform::apply);
-	}
+	switch (currentImageType()) {
+	case ImageType::UBYTE:
+		return currentImageWindow()->applyToSource(m_ct, &CurveTransform::apply);
+	
+	case ImageType::USHORT: 
+		return currentImageWindow<uint16_t>()->applyToSource(m_ct, &CurveTransform::apply);
+	
+	case ImageType::FLOAT: 
+		return currentImageWindow<float>()->applyToSource(m_ct, &CurveTransform::apply);
 	}
 }
 
@@ -353,19 +348,14 @@ void CTD::applyPreview() {
 	if (!isPreviewValid())
 		return;
 
-	auto iwptr = previewRecast<>(m_preview);
-
-	switch (iwptr->type()) {
-	case ImageType::UBYTE: {
-		return iwptr->updatePreview(m_ct, &CurveTransform::apply);
-	}
-	case ImageType::USHORT: {
-		auto iw16 = previewRecast<uint16_t>(iwptr);
-		return iw16->updatePreview(m_ct, &CurveTransform::apply);
-	}
-	case ImageType::FLOAT: {
-		auto iw32 = previewRecast<float>(iwptr);
-		return iw32->updatePreview(m_ct, &CurveTransform::apply);
-	}
+	switch (preview()->type()) {
+	case ImageType::UBYTE: 
+		return preview()->updatePreview(m_ct, &CurveTransform::apply);
+	
+	case ImageType::USHORT: 
+		return preview<uint16_t>()->updatePreview(m_ct, &CurveTransform::apply);
+	
+	case ImageType::FLOAT: 
+		return preview<float>()->updatePreview(m_ct, &CurveTransform::apply);	
 	}
 }

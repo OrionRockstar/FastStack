@@ -10,9 +10,8 @@ class HistogramScene : QGraphicsScene {
 public:
 	HistogramScene() = default;
 
-private:
-	void paintEvent(QPaintEvent* e) {
-	}
+//private:
+	//void paintEvent(QPaintEvent* e) {}
 };
 
 

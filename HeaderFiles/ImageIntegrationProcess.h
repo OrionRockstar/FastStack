@@ -43,7 +43,7 @@ public:
 };
 
 
-static void alignmentDataWriter(const std::filesystem::path& file_path, const Matrix& homography = Matrix(3, 3, { 1,0,0,0,1,0,0,0,1 })) {
+inline static void alignmentDataWriter(const std::filesystem::path& file_path, const Matrix& homography = Matrix(3, 3, { 1,0,0,0,1,0,0,0,1 })) {
 
 	auto path = file_path;
 	path = path.parent_path().append("AlignmentData");
@@ -75,7 +75,7 @@ static void alignmentDataWriter(const std::filesystem::path& file_path, const Ma
 	stream.close();
 }
 
-static Matrix alignmentDataReader(const std::filesystem::path& file_path) {
+inline static Matrix alignmentDataReader(const std::filesystem::path& file_path) {
 
 	std::fstream stream(file_path, std::ios::in);
 

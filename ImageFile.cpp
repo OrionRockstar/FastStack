@@ -151,7 +151,7 @@ void WeightMapImage::write(const Image8& src, bool compression) {
 
 			for (int x = 1, xb = 0; x < src.cols(); ++x) {
 
-				uint8_t val = src(x, y);
+				//uint8_t val = src(x, y);
 
 				if (src(x, y) == compress[xb].value) {
 					if (compress[xb].count == 255)

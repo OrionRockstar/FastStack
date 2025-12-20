@@ -4,10 +4,12 @@
 #include "HistogramTransformation.h"
 #include "AutomaticBackgroundExtraction.h"
 #include "BilateralFilter.h"
-
+#include "Maths.h"
 #include "CustomWidgets.h"
+
 #include "Statistics.h"
-#include "ImageSubWindow.h"
+
+#include "SubWindow.h"
 #include "Workspace.h"
 
 
@@ -239,7 +241,7 @@ class ImageWindowBase : public QWidget {
 	Q_OBJECT
 protected:
 	Workspace* m_workspace = nullptr;
-	ImageSubWindow* m_sw_parent = nullptr;
+	SubWindow* m_sw_parent = nullptr;
 
 	ImageWindowToolbar* m_toolbar = nullptr;
 	IWScrollArea* m_sa = nullptr;
@@ -297,7 +299,7 @@ protected:
 public:
 	Workspace* workspace()const { return m_workspace; }
 
-	ImageSubWindow* subwindow()const { return m_sw_parent; }
+	SubWindow* subwindow()const { return m_sw_parent; }
 
 	const HistogramTransformation& histogramTransformation()const { return m_ht; }
 
@@ -656,6 +658,9 @@ private:
 
 template<typename P = uint8_t>
 static ImageWindow<P>* imageRecast(QWidget* window) { return static_cast<ImageWindow<P>*>(window); }
+
+template<typename P = uint8_t>
+static ImageWindow<P>* imageRecast(ImageWindowBase* window) { return static_cast<ImageWindow<P>*>(window); }
 
 template<typename P, typename T>
 static ImageWindow<P>* imageRecast(ImageWindow<T>* window) { return reinterpret_cast<ImageWindow<P>*>(window); }
